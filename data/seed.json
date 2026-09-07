@@ -1,0 +1,610 @@
+{
+  "rolls": [
+    {
+      "name": "Andino",
+      "insumos": {
+        "palta": 35,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Apaltado",
+      "insumos": {
+        "queso": 39,
+        "palta": 42,
+        "langos": 78,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Buenos Aires",
+      "insumos": {
+        "salmon": 26,
+        "queso": 39,
+        "langos": 78,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "California",
+      "insumos": {
+        "palta": 39,
+        "kanikama": 39,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Chimi Nikkei",
+      "insumos": {
+        "queso": 16,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Clerc",
+      "insumos": {
+        "queso": 39,
+        "grill": 78,
+        "batata": 39,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Dos Salmones",
+      "insumos": {
+        "salmon": 28,
+        "palta": 52,
+        "tartar": 52,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Fresh",
+      "insumos": {
+        "queso": 39,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Grilled NYP",
+      "insumos": {
+        "queso": 39,
+        "palta": 39,
+        "grill": 52,
+        "algas": 0.75,
+        "arroz": 180
+      }
+    },
+    {
+      "name": "Hofu",
+      "insumos": {
+        "queso": 39,
+        "grill": 52,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Hot Bologna",
+      "insumos": {
+        "queso": 40,
+        "algas": 0.5,
+        "arroz": 140
+      }
+    },
+    {
+      "name": "Hot Firenze",
+      "insumos": {
+        "queso": 39,
+        "grill": 68,
+        "algas": 0.75,
+        "arroz": 180
+      }
+    },
+    {
+      "name": "Hot NY Phila",
+      "insumos": {
+        "salmon": 39,
+        "queso": 30,
+        "palta": 30,
+        "algas": 0.5,
+        "arroz": 140
+      }
+    },
+    {
+      "name": "Lango Mex",
+      "insumos": {
+        "queso": 39,
+        "langos": 78,
+        "guac": 39,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Napoli",
+      "insumos": {
+        "queso": 39,
+        "langos": 78,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "New York",
+      "insumos": {
+        "salmon": 58.5,
+        "palta": 65,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "New York Phila",
+      "insumos": {
+        "salmon": 52,
+        "queso": 39,
+        "palta": 39,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Nigiri Fusion",
+      "insumos": {
+        "salmon": 8,
+        "arroz": 18
+      }
+    },
+    {
+      "name": "Nigiri salmon",
+      "insumos": {
+        "salmon": 8,
+        "arroz": 18
+      }
+    },
+    {
+      "name": "Paris",
+      "insumos": {
+        "salmon": 39,
+        "queso": 78,
+        "arroz": 180
+      }
+    },
+    {
+      "name": "Philacuya",
+      "insumos": {
+        "salmon": 26,
+        "queso": 58.5,
+        "palta": 58.5,
+        "batata": 30,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "PhilaTuna",
+      "insumos": {
+        "queso": 39,
+        "spicy": 78,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Rio Negro",
+      "insumos": {
+        "salmon": 39,
+        "queso": 52,
+        "arroz": 180
+      }
+    },
+    {
+      "name": "Spring",
+      "insumos": {
+        "palta": 52,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Tora",
+      "insumos": {
+        "queso": 39,
+        "langos": 78,
+        "batata": 30,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Valencia",
+      "insumos": {
+        "queso": 52,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Philadelphia",
+      "insumos": {
+        "salmon": 58.5,
+        "queso": 65,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Acevichado",
+      "insumos": {
+        "salmon": 58.5,
+        "queso": 65,
+        "batata": 30,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    },
+    {
+      "name": "Okinawa",
+      "insumos": {
+        "okinawa": 120,
+        "algas": 0.75,
+        "arroz": 215
+      }
+    }
+  ],
+  "combos": [
+    {
+      "name": "Alaska 12",
+      "family": "Alaska",
+      "rolls": {
+        "Clerc": 4,
+        "Hot NY Phila": 4,
+        "New York Phila": 4
+      }
+    },
+    {
+      "name": "Alaska 30",
+      "family": "Alaska",
+      "rolls": {
+        "Clerc": 5,
+        "Hot NY Phila": 5,
+        "New York": 5,
+        "New York Phila": 5,
+        "Paris": 5,
+        "Philacuya": 5
+      }
+    },
+    {
+      "name": "Alaska 40",
+      "family": "Alaska",
+      "rolls": {
+        "Clerc": 4,
+        "Hot NY Phila": 8,
+        "New York": 6,
+        "New York Phila": 8,
+        "Paris": 8,
+        "Philacuya": 6
+      }
+    },
+    {
+      "name": "Tokyo 12",
+      "family": "Tokyo",
+      "rolls": {
+        "California": 3,
+        "Paris": 3,
+        "Grilled NYP": 3,
+        "Lango Mex": 3
+      }
+    },
+    {
+      "name": "Tokyo 15",
+      "family": "Tokyo",
+      "rolls": {
+        "California": 3,
+        "Hot Firenze": 3,
+        "Paris": 3,
+        "Grilled NYP": 3,
+        "Lango Mex": 3
+      }
+    },
+    {
+      "name": "Tokyo 30",
+      "family": "Tokyo",
+      "rolls": {
+        "California": 4,
+        "Hot Firenze": 6,
+        "New York Phila": 3,
+        "Paris": 3,
+        "Tora": 4,
+        "Grilled NYP": 6,
+        "Lango Mex": 4
+      }
+    },
+    {
+      "name": "Tokyo 40",
+      "family": "Tokyo",
+      "rolls": {
+        "California": 6,
+        "Hot Firenze": 6,
+        "New York Phila": 4,
+        "Paris": 6,
+        "Tora": 6,
+        "Grilled NYP": 8,
+        "Lango Mex": 4
+      }
+    },
+    {
+      "name": "Black 15",
+      "family": "Black",
+      "rolls": {
+        "Apaltado": 3,
+        "Dos Salmones": 3,
+        "New York Phila": 3,
+        "Nigiri Fusion": 2,
+        "Nigiri salmon": 1,
+        "Rio Negro": 3
+      }
+    },
+    {
+      "name": "Black 30",
+      "family": "Black",
+      "rolls": {
+        "Apaltado": 5,
+        "Dos Salmones": 4,
+        "Hot Bologna": 5,
+        "New York Phila": 5,
+        "Nigiri Fusion": 3,
+        "Nigiri salmon": 3,
+        "Rio Negro": 5
+      }
+    },
+    {
+      "name": "Limited 15",
+      "family": "Limited",
+      "rolls": {
+        "New York": 3,
+        "New York Phila": 3,
+        "Paris": 3,
+        "Philacuya": 3,
+        "Acevichado": 3
+      }
+    },
+    {
+      "name": "Limited 40",
+      "family": "Limited",
+      "rolls": {
+        "Dos Salmones": 4,
+        "Hot NY Phila": 6,
+        "New York": 5,
+        "New York Phila": 6,
+        "Paris": 4,
+        "Philacuya": 6,
+        "Rio Negro": 4,
+        "Acevichado": 5
+      }
+    },
+    {
+      "name": "Veggie 15",
+      "family": "Veggie",
+      "rolls": {
+        "Andino": 3,
+        "Chimi Nikkei": 3,
+        "Fresh": 3,
+        "Spring": 3,
+        "Valencia": 3
+      }
+    }
+  ],
+  "semielaborados": [
+    {
+      "name": "Tartar de salmon",
+      "insumo_key": "tartar",
+      "unit": "g",
+      "rolls": [
+        "Dos Salmones"
+      ]
+    },
+    {
+      "name": "Grill",
+      "insumo_key": "grill",
+      "unit": "g",
+      "rolls": [
+        "Clerc",
+        "Hot Firenze",
+        "Hofu",
+        "Grilled NYP"
+      ]
+    },
+    {
+      "name": "Langostinos rebozados",
+      "insumo_key": "langos",
+      "unit": "u",
+      "rolls": [
+        "Apaltado",
+        "Tora",
+        "Napoli",
+        "Buenos Aires",
+        "Lango Mex"
+      ]
+    },
+    {
+      "name": "Hilos de batata",
+      "insumo_key": "batata",
+      "unit": "g",
+      "rolls": [
+        "Clerc",
+        "Philacuya",
+        "Tora",
+        "Acevichado"
+      ]
+    },
+    {
+      "name": "Guacamole",
+      "insumo_key": "guac",
+      "unit": "g",
+      "rolls": [
+        "Lango Mex"
+      ]
+    },
+    {
+      "name": "Kanikama preparado",
+      "insumo_key": "kanikama",
+      "unit": "g",
+      "rolls": [
+        "California"
+      ]
+    },
+    {
+      "name": "Salsa spicy",
+      "insumo_key": "spicy",
+      "unit": "g",
+      "rolls": [
+        "PhilaTuna"
+      ]
+    },
+    {
+      "name": "Manga okinawa",
+      "insumo_key": "okinawa",
+      "unit": "g",
+      "rolls": [
+        "Okinawa"
+      ]
+    }
+  ],
+  "sushimanes": [
+    {
+      "name": "Anto",
+      "productivity": 12
+    },
+    {
+      "name": "Valentin",
+      "productivity": 11
+    },
+    {
+      "name": "Diego",
+      "productivity": 10
+    },
+    {
+      "name": "Adrian",
+      "productivity": 8
+    },
+    {
+      "name": "Maximo",
+      "productivity": 9
+    }
+  ],
+  "insumos": [
+    {
+      "key": "salmon",
+      "label": "Salmón",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "queso",
+      "label": "Queso crema",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "palta",
+      "label": "Palta",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "langos",
+      "label": "Langostinos rebozados",
+      "unidad_receta": "u",
+      "unidad_resumen": "u",
+      "factor_conversion": 1,
+      "precio_unidad": null
+    },
+    {
+      "key": "algas",
+      "label": "Algas",
+      "unidad_receta": "hojas",
+      "unidad_resumen": "hojas",
+      "factor_conversion": 1,
+      "precio_unidad": null
+    },
+    {
+      "key": "arroz",
+      "label": "Arroz",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "grill",
+      "label": "Grill",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "tartar",
+      "label": "Tartar de salmón",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "kanikama",
+      "label": "Kanikama",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "batata",
+      "label": "Hilos de batata",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "guac",
+      "label": "Guacamole",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "spicy",
+      "label": "Salsa spicy",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    },
+    {
+      "key": "okinawa",
+      "label": "Manga okinawa",
+      "unidad_receta": "g",
+      "unidad_resumen": "kg",
+      "factor_conversion": 0.001,
+      "precio_unidad": null
+    }
+  ]
+}

@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planificador de Producción 🍣</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8f8f6;--surface:#fff;--border:#e2e2de;--border-light:#eeeee9;
+  --text:#1a1a18;--text2:#666662;--text3:#99998f;
+  --beige:#f0ebe0;--beige2:#e8e0d0;
+  --green-bg:#f0faf0;--green:#2a7a2a;
+  --blue-bg:#f0f4ff;--blue:#2d4da0;
+  --warn-bg:#fffbf0;--warn:#a07020;
+  --red-bg:#fff0f0;--red:#a02020;
+  --r:8px;--rsm:5px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.app{max-width:980px;margin:0 auto;padding:1.5rem 1rem}
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:1.75rem;padding:12px 16px;background:#5F5E5A;border-radius:var(--r);color:#fff}
+.hdr .hdr-title{color:#fff;font-size:18px;font-weight:700}
+.hdr .hdr-sub{color:rgba(255,255,255,.65);font-size:12px}
+.steps{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.75rem}
+.step{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:default;border-right:1px solid var(--border);background:var(--bg);transition:background .12s;user-select:none}
+.step:last-child{border-right:none}
+.step-n{display:block;font-size:15px;font-weight:700;margin-bottom:1px}
+.step.active{background:var(--surface);color:var(--text)}
+.step.active .step-n{color:var(--text)}
+.step.done{background:var(--surface);color:var(--green);cursor:pointer}
+.step.done .step-n{color:var(--green)}
+.step.nav{cursor:pointer}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:15px;font-weight:600;margin-bottom:1rem}
+.sec{background:var(--text);color:#fff;padding:6px 12px;border-radius:var(--rsm);font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;text-transform:uppercase}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
+.metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:.75rem 1rem}
+.metric-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.metric-val{font-size:24px;font-weight:700}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:7px 10px;font-size:11px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);background:var(--bg);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg)}
+.fam-row td{background:var(--beige);font-weight:600;font-size:11px;color:var(--text2);padding:5px 10px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.b-blue{background:var(--blue-bg);color:var(--blue)}
+.b-green{background:var(--green-bg);color:var(--green)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-red{background:var(--red-bg);color:var(--red)}
+input[type=number],input[type=text],input[type=time],select,textarea{
+  padding:6px 10px;border:1px solid var(--border);border-radius:var(--rsm);
+  font-size:13px;background:var(--surface);color:var(--text);outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#666}
+input[type=range]{width:100%;accent-color:var(--text)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:1px solid var(--border);
+  border-radius:var(--rsm);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;
+  white-space:nowrap;font-family:inherit;transition:background .1s}
+.btn:hover{background:var(--bg)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--text);color:#fff;border-color:var(--text)}
+.btn-primary:hover{opacity:.85;background:var(--text)}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn-danger{color:var(--red)}
+.btn-danger:hover{background:var(--red-bg)}
+.row{display:flex;gap:8px;align-items:center}
+.row-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.flex-end{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-lbl{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.w-full{width:100%}
+.drop{border:2px dashed var(--border);border-radius:var(--r);padding:2.5rem;text-align:center;
+  cursor:pointer;color:var(--text3);transition:all .12s}
+.drop:hover,.drop.over{border-color:var(--text);color:var(--text);background:var(--bg)}
+.drop i{font-size:40px;margin-bottom:.75rem;display:block}
+.range-row{display:flex;align-items:center;gap:12px}
+.range-row label{min-width:200px;font-size:13px;color:var(--text2)}
+.range-val{font-weight:700;min-width:50px;text-align:right}
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1rem;gap:0;flex-wrap:wrap}
+.tab{padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text2);
+  border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab.active{color:var(--text);border-bottom-color:var(--text);font-weight:500}
+.chk-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)}
+.chk-row:last-child{border-bottom:none}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--blue-bg);color:var(--blue);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.alert{padding:10px 14px;border-radius:var(--rsm);font-size:13px;display:flex;align-items:flex-start;gap:8px}
+.alert-success{background:var(--green-bg);color:var(--green);border:1px solid #c3e6c3}
+.alert-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #e6d5a0}
+.alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #c3d0f0}
+.sch-info{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.sch-cell-info{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 12px;text-align:center;font-size:12px;color:var(--text2)}
+.sch-cell-info strong{display:block;font-size:16px;color:var(--text);margin-top:2px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
+  align-items:center;justify-content:center;z-index:1000;padding:1rem}
+.modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:560px;
+  max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;
+  padding:1rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
+.modal-title{font-size:15px;font-weight:700}
+.modal-body{padding:1.25rem}
+.modal-foot{padding:.75rem 1.25rem;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface)}
+.loader{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.empty{text-align:center;padding:2rem;color:var(--text3);font-size:13px}
+@media(max-width:600px){
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}
+  .step{font-size:10px}
+  .step-n{font-size:13px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <img src="data:image/png;base64,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" alt="Logo" style="height:44px;width:auto;object-fit:contain;flex-shrink:0">
+    <div>
+      <div class="hdr-title">Planificador de Producción</div>
+      <div class="hdr-sub" id="todayDate"></div>
+    </div>
+    <div style="margin-left:auto">
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="goStep(6)"><i class="ti ti-settings"></i> Configuración</button>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
+    <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
+    <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
+    <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
+    <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
+    <div class="step nav" id="si6" onclick="goStep(6)"><span class="step-n">⚙</span>Config</div>
+  </div>
+
+  <!-- ── STEP 1 ── -->
+  <div id="s1">
+    <div class="card">
+      <div class="card-title">Carga de venta del día</div>
+      <div class="drop" id="dropZone" onclick="document.getElementById('fi').click()"
+        ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('over')"
+        ondragleave="this.classList.remove('over')">
+        <i class="ti ti-file-spreadsheet"></i>
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí el Excel de ventas</div>
+        <div>Arrastrá el archivo acá o hacé click para seleccionar</div>
+        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad</div>
+      </div>
+      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(event)">
+      <div id="fStatus" class="hidden" style="margin-top:1rem"></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:.5rem">Probar con datos de ejemplo</div>
+      <div style="color:var(--text2);font-size:13px;margin-bottom:1rem">Cargá datos de prueba para explorar el flujo completo.</div>
+      <button class="btn" onclick="loadDemo()"><i class="ti ti-table-import"></i> Cargar datos de ejemplo</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div id="s2" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Ventas por producto</div>
+        <select id="adjMode" onchange="renderSales()">
+          <option value="pct">Ajuste en %</option>
+          <option value="qty">Ajuste en cantidad</option>
+        </select>
+      </div>
+      <div id="salesTbl"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Porcentaje de producción global</div>
+      <div class="range-row">
+        <label>¿Qué % de la venta producís?</label>
+        <input type="range" min="30" max="200" step="5" value="100" id="gPct"
+          oninput="document.getElementById('gPctV').textContent=this.value+'%'">
+        <span class="range-val" id="gPctV">100%</span>
+      </div>
+      <div class="alert alert-info" style="margin-top:.75rem">
+        <i class="ti ti-info-circle"></i>
+        <span>100% = producís exactamente lo vendido. Más del 100% para incluir stock de seguridad.</span>
+      </div>
+    </div>
+    <div class="flex-end">
+      <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Ver resumen <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div id="s3" class="hidden">
+    <div class="card">
+      <div class="card-title">Resumen de producción</div>
+      <div class="metrics" id="sumMetrics"></div>
+      <div class="sec"><i class="ti ti-list"></i> Rollos a producir</div>
+      <div id="sumRolls"></div>
+    </div>
+    <div class="flex-end">
+      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Ajustar</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Avanzar a producción <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div id="s4" class="hidden">
+    <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
+    <div class="flex-end">
+      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div id="s5" class="hidden">
+    <div class="card">
+      <div class="card-title">Configuración del turno</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
+        <div>
+          <label class="form-lbl">Hora de inicio <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+          <input type="time" id="startTimeManual" class="w-full">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Vacío = automático</div>
+        </div>
+        <div>
+          <label class="form-lbl">Hora de fin de producción</label>
+          <input type="time" id="endTime" value="20:00" class="w-full">
+        </div>
+        <div>
+          <label class="form-lbl">Corte y armado</label>
+          <div class="row">
+            <input type="number" id="cutMins" value="60" min="0" max="240" style="width:80px">
+            <span style="font-size:13px;color:var(--text2)">min</span>
+          </div>
+        </div>
+      </div>
+      <div class="sec"><i class="ti ti-users"></i> Sushimanes disponibles hoy</div>
+      <div id="smList"></div>
+      <div style="margin-top:.75rem">
+        <button class="btn btn-sm" onclick="addTempSm()"><i class="ti ti-plus"></i> Agregar temporal</button>
+      </div>
+    </div>
+    <div class="row-between" style="margin-bottom:1rem">
+      <div></div>
+      <button class="btn btn-primary" onclick="calcSchedule()"><i class="ti ti-calendar"></i> Calcular grilla</button>
+    </div>
+    <div id="schedRes" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:.75rem">
+          <div class="sec" style="margin:0"><i class="ti ti-clock"></i> Grilla de producción por hora</div>
+          <div class="row" style="gap:6px">
+            <span id="schedValidation" style="font-size:12px"></span>
+            <button class="btn btn-sm" id="editGridBtn" onclick="toggleEditGrid()"><i class="ti ti-edit"></i> Editar grilla</button>
+            <button class="btn btn-sm btn-primary hidden" id="saveGridBtn" onclick="saveGridEdits()"><i class="ti ti-check"></i> Confirmar cambios</button>
+            <button class="btn btn-sm hidden" id="cancelGridBtn" onclick="cancelGridEdits()"><i class="ti ti-x"></i> Cancelar</button>
+          </div>
+        </div>
+        <div class="sch-info" id="schedInfo"></div>
+        <div class="tbl-wrap" id="schedGrid"></div>
+      </div>
+      <div class="flex-end" style="margin-bottom:1rem">
+        <button class="btn btn-primary" id="pdfBtn" onclick="downloadPDF()">
+          <i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)
+        </button>
+      </div>
+    </div>
+    <div class="flex-end">
+      <button class="btn" onclick="goStep(4)"><i class="ti ti-arrow-left"></i> Atrás</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div id="s6" class="hidden">
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('tc',this)">Combos</div>
+      <div class="tab" onclick="showTab('tr',this)">Rolls y recetas</div>
+      <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
+      <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
+      <div class="tab" onclick="showTab('tin',this)">Insumos</div>
+      <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar</div>
+    </div>
+    <div id="tc">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Combos configurados</div>
+          <button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>
+        </div>
+        <div id="comboCfg"></div>
+      </div>
+    </div>
+    <div id="tr" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Rolls y recetas</div>
+          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
+        </div>
+        <div id="rollCfg"></div>
+      </div>
+    </div>
+    <div id="ts" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Semielaborados</div>
+          <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
+        </div>
+        <div id="semiCfg"></div>
+      </div>
+    </div>
+    <div id="tsu" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Equipo de sushimanes</div>
+          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+        </div>
+        <div id="smCfg"></div>
+      </div>
+    </div>
+    <div id="tin" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Tabla maestra de insumos</div>
+          <button class="btn btn-sm" onclick="openInsumoModal()"><i class="ti ti-plus"></i> Nuevo insumo</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Configurá cómo se mide cada insumo en la receta (ej: gramos) y cómo querés verlo sumado en el resumen (ej: kilogramos).</span>
+        </div>
+        <div id="insumoCfg"></div>
+      </div>
+    </div>
+    <div id="timp" class="hidden">
+      <div class="card">
+        <div class="card-title">Importar recetas desde Excel</div>
+        <div class="alert alert-info" style="margin-bottom:1.25rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Usá los templates oficiales. Si el nombre ya existe se <strong>actualiza</strong>, si es nuevo se <strong>agrega</strong>.</span>
+        </div>
+        <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y recetas</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;align-items:start">
+          <div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Subí <strong>recetas_rolls.xlsx</strong></div>
+            <div class="drop" id="dropRolls" style="padding:1.5rem"
+              onclick="document.getElementById('fileRolls').click()"
+              ondrop="handleImportDrop(event,'rolls')"
+              ondragover="event.preventDefault();this.classList.add('over')"
+              ondragleave="this.classList.remove('over')">
+              <i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
+              <div style="font-size:13px;font-weight:500">recetas_rolls.xlsx</div>
+              <div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>
+            </div>
+            <input type="file" id="fileRolls" class="hidden" accept=".xlsx,.xls" onchange="importFile(event,'rolls')">
+          </div>
+          <div id="resultRolls" class="hidden">
+            <div style="font-size:13px;font-weight:600;margin-bottom:.5rem">Resultado</div>
+            <div id="resultRollsBody"></div>
+          </div>
+        </div>
+        <div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+          <div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Subí <strong>recetas_semielaborados.xlsx</strong></div>
+            <div class="drop" id="dropSemi" style="padding:1.5rem"
+              onclick="document.getElementById('fileSemi').click()"
+              ondrop="handleImportDrop(event,'semielaborados')"
+              ondragover="event.preventDefault();this.classList.add('over')"
+              ondragleave="this.classList.remove('over')">
+              <i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
+              <div style="font-size:13px;font-weight:500">recetas_semielaborados.xlsx</div>
+              <div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>
+            </div>
+            <input type="file" id="fileSemi" class="hidden" accept=".xlsx,.xls" onchange="importFile(event,'semielaborados')">
+          </div>
+          <div id="resultSemi" class="hidden">
+            <div style="font-size:13px;font-weight:600;margin-bottom:.5rem">Resultado</div>
+            <div id="resultSemiBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex-end">
+      <button class="btn" onclick="goStep(ST.prevStep||1)"><i class="ti ti-arrow-left"></i> Volver al flujo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg hidden" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="btn btn-sm" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const ST = {
+  step:1, prevStep:1,
+  sales:[], adj:{}, globalPct:100,
+  production:[], insumos:{}, semis:[],
+  schedule:null, editingGrid:false, scheduleBackup:null,
+  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[],
+  dailySm:{}
+};
+
+const INSUMO_LABELS = {
+  salmon:'Salmón',queso:'Queso crema',palta:'Palta',langos:'Langostinos rebozados',
+  algas:'Algas',arroz:'Arroz',grill:'Grill',tartar:'Tartar de salmón',
+  kanikama:'Kanikama',batata:'Hilos de batata',guac:'Guacamole',
+  spicy:'Salsa spicy',okinawa:'Manga okinawa',salmonCrispy:'Salmón crispy'
+};
+const INSUMO_KEYS = Object.keys(INSUMO_LABELS);
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('todayDate').textContent =
+    new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  await loadConfig();
+});
+
+async function loadConfig() {
+  try {
+    const [combos,rolls,semis,sms,insM] = await Promise.all([
+      fetch('/api/combos').then(r=>r.json()),
+      fetch('/api/rolls').then(r=>r.json()),
+      fetch('/api/semielaborados').then(r=>r.json()),
+      fetch('/api/sushimanes').then(r=>r.json()),
+      fetch('/api/insumos').then(r=>r.json()),
+    ]);
+    ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM;
+    sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
+  } catch(e){ console.error('loadConfig',e); }
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function goStep(n) {
+  if(n>1&&n<6&&!ST.sales.length) return;
+  ST.prevStep=ST.step; ST.step=n;
+  for(let i=1;i<=6;i++){
+    document.getElementById('s'+i).classList.toggle('hidden',i!==n);
+    const si=document.getElementById('si'+i);
+    si.className='step'+(i===n?' active':i<n&&i<6?' done nav':i===6?' nav':'');
+    if(i<n&&i<6) si.onclick=()=>goStep(i);
+    else if(i===6) si.onclick=()=>goStep(6);
+    else si.onclick=null;
+  }
+  if(n===2) renderSales();
+  if(n===4) renderProduction();
+  if(n===5) renderSmList();
+  if(n===6){ renderComboCfg(); }
+}
+
+function showTab(id, el) {
+  ['tc','tr','ts','tsu','tin','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if(id==='tc') renderComboCfg();
+  if(id==='tr') renderRollCfg();
+  if(id==='ts') renderSemiCfg();
+  if(id==='tsu') renderSmCfg();
+  if(id==='tin') renderInsumoCfg();
+}
+
+// ═══════════════════════════════════════════════════════
+// FILE LOADING (sales)
+// ═══════════════════════════════════════════════════════
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('over');
+  if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+}
+function loadFile(e){ if(e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try {
+      const wb=XLSX.read(ev.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{header:1});
+      const rows=data.filter(r=>r.length>=2);
+      const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+      const ci=hdr.findIndex(h=>h.includes('cod'));
+      const ni=hdr.findIndex(h=>h.includes('prod')||h.includes('nombre')||h.includes('descrip'));
+      const qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta')||h.includes('total'));
+      if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
+      const grp={};
+      rows.slice(1).forEach(r=>{
+        const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
+        const rawName=ni>=0?(r[ni]||'').toString().trim():code;
+        const qty=parseInt(r[qi])||0;
+        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
+        if(!key||!qty) return;
+        const mc=findCombo(code,rawName);
+        const name=mc?mc.name:rawName;
+        const family=mc?mc.family:'Otros';
+        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched:!!mc};
+        grp[key].qty+=qty;
+      });
+      ST.sales=Object.values(grp).filter(s=>s.qty>0);
+      const unm=ST.sales.filter(s=>!s.matched).length;
+      let msg=`${file.name} — ${ST.sales.length} productos cargados`;
+      if(unm>0) msg+=` (${unm} sin receta, se ignorarán)`;
+      showStatus('success',msg);
+      setTimeout(()=>goStep(2),500);
+    } catch(err){ showStatus('warn','Error al leer el archivo. Probá exportar como .csv'); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function findCombo(code, name) {
+  const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
+  return ST.combos.find(c=>n(c.name)===n(code)||n(c.name)===n(name));
+}
+
+function showStatus(type,msg) {
+  const el=document.getElementById('fStatus');
+  el.className=`alert alert-${type==='success'?'success':'warn'}`;
+  el.innerHTML=`<i class="ti ti-${type==='success'?'circle-check':'alert-triangle'}"></i><span>${msg}</span>`;
+  el.classList.remove('hidden');
+}
+
+function loadDemo() {
+  ST.sales=[
+    {code:'alaska12',name:'Alaska 12',qty:22,family:'Alaska',matched:true},
+    {code:'alaska30',name:'Alaska 30',qty:20,family:'Alaska',matched:true},
+    {code:'alaska40',name:'Alaska 40',qty:15,family:'Alaska',matched:true},
+    {code:'black15',name:'Black 15',qty:3,family:'Black',matched:true},
+    {code:'black30',name:'Black 30',qty:5,family:'Black',matched:true},
+    {code:'limited15',name:'Limited 15',qty:25,family:'Limited',matched:true},
+    {code:'limited40',name:'Limited 40',qty:12,family:'Limited',matched:true},
+    {code:'tokyo12',name:'Tokyo 12',qty:5,family:'Tokyo',matched:true},
+    {code:'tokyo15',name:'Tokyo 15',qty:25,family:'Tokyo',matched:true},
+    {code:'tokyo30',name:'Tokyo 30',qty:13,family:'Tokyo',matched:true},
+    {code:'tokyo40',name:'Tokyo 40',qty:3,family:'Tokyo',matched:true},
+    {code:'veggie15',name:'Veggie 15',qty:11,family:'Veggie',matched:true},
+  ];
+  showStatus('success','Datos de ejemplo cargados — 12 productos');
+  setTimeout(()=>goStep(2),500);
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 2
+// ═══════════════════════════════════════════════════════
+function renderSales() {
+  const mode=document.getElementById('adjMode').value;
+  const byFam={};
+  ST.sales.forEach(s=>(byFam[s.family]||(byFam[s.family]=[])).push(s));
+  let h=`<table><thead><tr><th>Producto</th><th style="text-align:right">Venta</th><th style="width:140px">Ajuste</th><th style="text-align:right">Resultado</th></tr></thead><tbody>`;
+  for(const [fam,items] of Object.entries(byFam)){
+    h+=`<tr class="fam-row"><td colspan="4"><span class="badge b-blue">${fam}</span></td></tr>`;
+    items.forEach(s=>{
+      const adj=ST.adj[s.code]||0;
+      const res=Math.max(0,Math.round(s.qty+(mode==='pct'?s.qty*adj/100:adj)));
+      h+=`<tr>
+        <td>${s.name}${!s.matched?'<span class="badge b-warn" style="margin-left:6px">sin receta</span>':''}</td>
+        <td style="text-align:right">${s.qty}</td>
+        <td><div class="row">
+          <input type="number" value="${adj}" style="width:65px" onchange="ST.adj['${s.code}']=parseFloat(this.value)||0;renderSales()">
+          <span style="font-size:12px;color:var(--text3)">${mode==='pct'?'%':'und'}</span>
+        </div></td>
+        <td style="text-align:right;font-weight:700">${res}</td>
+      </tr>`;
+    });
+  }
+  h+='</tbody></table>';
+  document.getElementById('salesTbl').innerHTML=h;
+}
+
+function getAdjQty(s) {
+  const mode=document.getElementById('adjMode')?.value||'pct';
+  const adj=ST.adj[s.code]||0;
+  return Math.max(0, Math.round(s.qty+(mode==='pct'?s.qty*adj/100:adj)));
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 3
+// ═══════════════════════════════════════════════════════
+async function doConfirm() {
+  const btn=document.getElementById('btnConfirm');
+  btn.innerHTML='<span class="loader" style="border-top-color:#fff"></span> Calculando...'; btn.disabled=true;
+  const gPct=parseInt(document.getElementById('gPct').value);
+  ST.globalPct=gPct;
+  try {
+    const res=await fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
+    const data=await res.json();
+    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis;
+    const totR=ST.production.reduce((s,r)=>s+r.qty,0);
+    const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
+    document.getElementById('sumMetrics').innerHTML=`
+      <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
+      <div class="metric"><div class="metric-lbl">Tipos de roll</div><div class="metric-val">${ST.production.length}</div></div>
+      <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
+      <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
+    let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
+    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.qty*14}</td></tr>`);
+    h+='</tbody></table>';
+    document.getElementById('sumRolls').innerHTML=h;
+    goStep(3);
+  } catch(e){ alert('Error al calcular.'); }
+  finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 4
+// ═══════════════════════════════════════════════════════
+function renderProduction() {
+  const totR=ST.production.reduce((s,r)=>s+r.qty,0);
+  let rh='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
+  ST.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.qty*14}</td></tr>`);
+  rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totR*14}</td></tr></tbody></table>`;
+  document.getElementById('rollsTbl').innerHTML=rh;
+
+  let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">Total</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
+  Object.entries(ST.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.total}</td><td style="text-align:right;color:var(--text2)">${v.display}</td></tr>`);
+  ih+='</tbody></table>';
+  document.getElementById('insumosTbl').innerHTML=ih;
+
+  let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  if(ST.semis.length) ST.semis.forEach(s=>sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`);
+  else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
+  sh+='</tbody></table>';
+  document.getElementById('semiTbl').innerHTML=sh;
+
+  let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  ST.sales.forEach(s=>{ const qty=Math.round(getAdjQty(s)*ST.globalPct/100); if(qty>0) ch+=`<tr><td>${s.name}</td><td style="text-align:right">${qty}</td></tr>`; });
+  ch+='</tbody></table>';
+  document.getElementById('combosTbl').innerHTML=ch;
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 5 — Planning
+// ═══════════════════════════════════════════════════════
+function renderSmList() {
+  let h='';
+  ST.sushimanes.forEach(s=>{
+    const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity};
+    h+=`<div class="chk-row">
+      <input type="checkbox" id="sm${s.id}" ${d.avail?'checked':''}
+        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},avail:this.checked}">
+      <div class="avatar">${s.name.slice(0,2).toUpperCase()}</div>
+      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}</label>
+      <input type="number" value="${d.prod}" style="width:60px" min="1" max="50"
+        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},prod:parseInt(this.value)||8}">
+      <span style="font-size:12px;color:var(--text3)">rolls/h</span>
+    </div>`;
+  });
+  document.getElementById('smList').innerHTML=h||'<div class="empty">No hay sushimanes configurados.</div>';
+}
+
+function addTempSm() {
+  const name=prompt('Nombre del sushiman:');
+  if(!name) return;
+  const id='tmp_'+Date.now();
+  ST.sushimanes.push({id,name,productivity:8,active:true});
+  ST.dailySm[id]={avail:true,prod:8};
+  renderSmList();
+}
+
+const fmt=m=>`${String(Math.floor(((m%1440)+1440)%1440/60)).padStart(2,'0')}:${String(((m%60)+60)%60).padStart(2,'0')}`;
+const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+
+function buildHourAssign(avail, startMins, prodH) {
+  const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`}));
+  let remaining={};
+  ST.production.forEach(r=>remaining[r.name]=r.qty);
+  let queue=[...ST.production].map(r=>r.name);
+  const hourAssign=hours.map(()=>{
+    const row={};
+    avail.forEach(sm=>{
+      const cap=ST.dailySm[sm.id]?.prod||sm.productivity;
+      let left=cap; const tasks=[];
+      for(let i=0;i<queue.length&&left>0;i++){
+        const rn=queue[i]; if((remaining[rn]||0)<=0) continue;
+        const take=Math.min(left,remaining[rn]);
+        if(take>0){tasks.push({name:rn,qty:take});remaining[rn]-=take;left-=take;}
+      }
+      queue=queue.filter(rn=>(remaining[rn]||0)>0);
+      row[sm.id]=tasks;
+    });
+    return row;
+  });
+  return {hours, hourAssign};
+}
+
+function calcSchedule() {
+  const endT=document.getElementById('endTime').value||'20:00';
+  const cut=parseInt(document.getElementById('cutMins').value)||60;
+  const startManual=document.getElementById('startTimeManual').value;
+  const avail=ST.sushimanes.filter(s=>ST.dailySm[s.id]?.avail??s.active);
+  if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
+
+  const totR=ST.production.reduce((s,r)=>s+r.qty,0);
+  const capPH=avail.reduce((s,sm)=>s+(ST.dailySm[sm.id]?.prod||sm.productivity),0);
+  const endMins=toMins(endT)-cut;
+
+  let startMins, prodH;
+  if(startManual) {
+    startMins=toMins(startManual);
+    prodH=Math.ceil((endMins-startMins)/60);
+  } else {
+    prodH=Math.ceil(totR/capPH);
+    startMins=endMins-prodH*60;
+  }
+
+  const {hours, hourAssign}=buildHourAssign(avail, startMins, prodH);
+
+  ST.schedule={
+    startTime:fmt(startMins), rollsEndTime:fmt(endMins),
+    cutMins:cut, endTime:endT,
+    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity})),
+    hours:hours.map((h,hi)=>({label:h.label,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
+  };
+  ST.editingGrid=false;
+  renderScheduleDisplay();
+  document.getElementById('schedRes').classList.remove('hidden');
+  document.getElementById('schedRes').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderScheduleDisplay() {
+  const {startTime,rollsEndTime,cutMins,endTime,sushimanes,hours}=ST.schedule;
+  document.getElementById('schedInfo').innerHTML=`
+    <div class="sch-cell-info">Inicio de producción<strong>${startTime}</strong></div>
+    <div class="sch-cell-info">Fin de rolls<strong>${rollsEndTime}</strong></div>
+    <div class="sch-cell-info">Corte y armado<strong>${cutMins} min</strong></div>
+    <div class="sch-cell-info">Fin total<strong>${endTime}</strong></div>`;
+
+  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
+  hours.forEach(h=>g+=`<th style="text-align:center;min-width:130px">${h.label}</th>`);
+  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
+  sushimanes.forEach((sm,si)=>{
+    g+=`<tr><td style="font-weight:700;background:var(--beige)">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${sm.prod} rolls/h</span></td>`;
+    hours.forEach((h)=>{
+      const tasks=h.tasks[sm.id]||[];
+      if(!tasks.length){g+='<td style="text-align:center;color:var(--text3)">—</td>';return;}
+      g+=`<td style="background:var(--blue-bg);color:var(--blue);font-size:12px">${tasks.map(t=>`<strong>${t.name}</strong> ×${t.qty}`).join('<br>')}</td>`;
+    });
+    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${cutMins} min</td>`;
+    g+='</tr>';
+  });
+  g+='</tbody></table>';
+  document.getElementById('schedGrid').innerHTML=g;
+  document.getElementById('schedValidation').textContent='';
+  document.getElementById('editGridBtn').classList.remove('hidden');
+  document.getElementById('saveGridBtn').classList.add('hidden');
+  document.getElementById('cancelGridBtn').classList.add('hidden');
+}
+
+// ── Grid editing with validation ──
+function readGridTotalsFromDOM() {
+  const totals={};
+  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
+    cell.querySelectorAll('.grid-task-row').forEach(row=>{
+      const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
+      if(sel&&inp&&sel.value){ const qty=parseInt(inp.value)||0; totals[sel.value]=(totals[sel.value]||0)+qty; }
+    });
+  });
+  return totals;
+}
+
+function highlightErrors(errorRolls) {
+  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
+    cell.querySelectorAll('.grid-task-row').forEach(row=>{
+      const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
+      if(!sel||!inp) return;
+      const hasError=errorRolls.has(sel.value);
+      const bg=hasError?'#fff0f0':'#ffffff';
+      sel.style.background=bg; sel.style.borderColor=hasError?'var(--red)':'';
+      inp.style.background=bg; inp.style.border=hasError?'1.5px solid var(--red)':'1px solid var(--border)';
+      row.style.background=hasError?'#fff5f5':'';
+    });
+  });
+}
+
+function renderValidationPanel(totals, required) {
+  const errorRolls=new Set();
+  let panelHtml='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
+  Object.entries(required).forEach(([name,qty])=>{
+    const got=totals[name]||0;
+    const ok=got===qty;
+    if(!ok) errorRolls.add(name);
+    const diff=got-qty; const diffStr=diff>0?`+${diff}`:String(diff);
+    panelHtml+=`<div style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;
+      background:${ok?'var(--green-bg)':'var(--red-bg)'};color:${ok?'var(--green)':'var(--red)'};border:1px solid ${ok?'#c3e6c3':'#f5c6c6'}">
+      <i class="ti ti-${ok?'circle-check':'alert-triangle'}" style="font-size:11px"></i>
+      ${name}: ${got}/${qty}${!ok?` <strong>(${diffStr})</strong>`:''}</div>`;
+  });
+  panelHtml+='</div>';
+  return {panelHtml, errorRolls};
+}
+
+function validateAndHighlight() {
+  const totals=readGridTotalsFromDOM();
+  const required={};
+  ST.production.forEach(r=>required[r.name]=r.qty);
+  const {panelHtml, errorRolls}=renderValidationPanel(totals, required);
+  let panel=document.getElementById('gridValidPanel');
+  if(panel) panel.innerHTML=panelHtml;
+  highlightErrors(errorRolls);
+  const el=document.getElementById('schedValidation');
+  if(errorRolls.size>0) el.innerHTML=`<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> ${errorRolls.size} roll(s) con diferencia</span>`;
+  else el.innerHTML='<span style="color:var(--green)"><i class="ti ti-circle-check"></i> Todos los totales OK</span>';
+  return errorRolls.size===0;
+}
+
+function toggleEditGrid() {
+  ST.scheduleBackup=JSON.parse(JSON.stringify(ST.schedule));
+  const {sushimanes,hours}=ST.schedule;
+  const rollOpts=ST.production.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+
+  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
+  hours.forEach(h=>g+=`<th style="text-align:center;min-width:170px">${h.label}</th>`);
+  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
+
+  sushimanes.forEach((sm,si)=>{
+    g+=`<tr><td style="font-weight:700;background:var(--beige);vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${sm.prod} rolls/h</span></td>`;
+    hours.forEach((h,hi)=>{
+      const tasks=h.tasks[sm.id]||[];
+      const cellId=`cell_${si}_${hi}`;
+      let cellHtml=tasks.map((t,ti)=>`
+        <div class="row grid-task-row" style="margin-bottom:5px;gap:3px;border-radius:4px;padding:2px" id="${cellId}_task${ti}">
+          <select style="flex:1;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border)" onchange="onGridChange()">${rollOpts.replace(`value="${t.name}"`,`value="${t.name}" selected`)}</select>
+          <input type="number" value="${t.qty}" min="0" max="999" style="width:46px;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border);text-align:center" oninput="onGridChange()">
+          <button class="btn btn-sm btn-danger" style="padding:2px 6px;flex-shrink:0" onclick="removeGridTask(${si},${hi},${ti})"><i class="ti ti-x" style="font-size:10px"></i></button>
+        </div>`).join('');
+      cellHtml+=`<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-top:2px;width:100%" onclick="addGridTask(${si},${hi})"><i class="ti ti-plus" style="font-size:10px"></i> agregar</button>`;
+      g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}">${cellHtml}</td>`;
+    });
+    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${ST.schedule.cutMins} min</td>`;
+    g+='</tr>';
+  });
+  g+='</tbody></table><div id="gridValidPanel" style="margin-top:10px"></div>';
+
+  document.getElementById('schedGrid').innerHTML=g;
+  document.getElementById('editGridBtn').classList.add('hidden');
+  document.getElementById('saveGridBtn').classList.remove('hidden');
+  document.getElementById('cancelGridBtn').classList.remove('hidden');
+  ST.editingGrid=true;
+  validateAndHighlight();
+}
+
+function onGridChange() { validateAndHighlight(); }
+
+function addGridTask(smIdx, hIdx) {
+  syncGridStateFromDOM();
+  const smId=ST.schedule.sushimanes[smIdx].id;
+  const firstRoll=ST.production[0]?.name||'';
+  if(!ST.schedule.hours[hIdx].tasks[smId]) ST.schedule.hours[hIdx].tasks[smId]=[];
+  ST.schedule.hours[hIdx].tasks[smId].push({name:firstRoll,qty:1});
+  toggleEditGrid();
+}
+
+function removeGridTask(smIdx, hIdx, tIdx) {
+  syncGridStateFromDOM();
+  const smId=ST.schedule.sushimanes[smIdx].id;
+  ST.schedule.hours[hIdx].tasks[smId].splice(tIdx,1);
+  toggleEditGrid();
+}
+
+function syncGridStateFromDOM() {
+  const {sushimanes,hours}=ST.schedule;
+  sushimanes.forEach((sm,si)=>{
+    hours.forEach((h,hi)=>{
+      const tasks=[];
+      document.querySelectorAll(`#cell_${si}_${hi} .grid-task-row`).forEach(row=>{
+        const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
+        if(sel&&inp&&sel.value) tasks.push({name:sel.value,qty:parseInt(inp.value)||0});
+      });
+      h.tasks[sm.id]=tasks;
+    });
+  });
+}
+
+function saveGridEdits() {
+  syncGridStateFromDOM();
+  if(!validateAndHighlight()){ if(!confirm('Hay rolls con cantidades incorrectas. ¿Guardar igual?')) return; }
+  ST.editingGrid=false; ST.scheduleBackup=null;
+  renderScheduleDisplay();
+}
+
+function cancelGridEdits() {
+  if(ST.scheduleBackup) ST.schedule=ST.scheduleBackup;
+  ST.editingGrid=false;
+  renderScheduleDisplay();
+}
+
+// ═══════════════════════════════════════════════════════
+// PDF
+// ═══════════════════════════════════════════════════════
+async function downloadPDF() {
+  const btn=document.getElementById('pdfBtn');
+  btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
+  const payload={
+    date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
+    production:ST.production, insumos:ST.insumos, semis:ST.semis,
+    combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
+    schedule:ST.schedule
+  };
+  try {
+    const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!res.ok) throw new Error(await res.text());
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`produccion_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.pdf`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e){ alert('Error al generar el PDF: '+e.message); }
+  finally{ btn.innerHTML='<i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)'; btn.disabled=false; }
+}
+
+// ═══════════════════════════════════════════════════════
+// CONFIG RENDERING
+// ═══════════════════════════════════════════════════════
+function renderComboCfg() {
+  const byFam={};
+  ST.combos.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
+  let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th style="width:90px"></th></tr></thead><tbody>';
+  for(const [fam,items] of Object.entries(byFam)){
+    h+=`<tr class="fam-row"><td colspan="4"><span class="badge b-blue">${fam}</span></td></tr>`;
+    items.forEach(c=>{
+      const r=Object.entries(c.rolls).filter(([,q])=>q>0).map(([r,q])=>`${r} ×${q}`).join(' · ');
+      h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn btn-sm" onclick="openComboModal(${c.id})"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)"><i class="ti ti-trash"></i></button>
+        </div></td></tr>`;
+    });
+  }
+  h+='</tbody></table>';
+  document.getElementById('comboCfg').innerHTML=h;
+}
+
+function renderRollCfg() {
+  let h='<table><thead><tr><th>Roll</th><th>Insumos (g por rollo)</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.rolls.forEach(r=>{
+    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${INSUMO_LABELS[k]||k}: ${v}`).join(' · ');
+    h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openRollModal(${r.id})"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('rollCfg').innerHTML=h;
+}
+
+function renderSemiCfg() {
+  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Unidad</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.semielaborados.forEach(s=>{
+    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td><td><span class="badge b-blue">${s.unit}</span></td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openSemiModal(${s.id})"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('semiCfg').innerHTML=h;
+}
+
+function renderSmCfg() {
+  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.sushimanes.forEach(s=>{
+    h+=`<tr><td><div class="row" style="gap:8px"><div class="avatar">${s.name.slice(0,2).toUpperCase()}</div><strong>${s.name}</strong></div></td>
+      <td style="text-align:right">${s.productivity} rolls/h</td>
+      <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openSmModal(${s.id})"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('sushimanes',${s.id},renderSmCfg)"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('smCfg').innerHTML=h;
+}
+
+function renderInsumoCfg() {
+  let h='<table><thead><tr><th>Insumo</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.insumosMaster.forEach(i=>{
+    h+=`<tr><td style="font-weight:600">${i.label}</td><td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
+      <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openInsumoModal(${i.id})"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.insumosMaster.length) h='<div class="empty">No hay insumos configurados. Agregá el primero.</div>';
+  document.getElementById('insumoCfg').innerHTML=h;
+}
+
+async function deleteItem(endpoint, id, rerender) {
+  if(!confirm('¿Confirmar eliminación?')) return;
+  await fetch(`/api/${endpoint}/${id}`,{method:'DELETE'});
+  await loadConfig(); rerender();
+}
+
+// ═══════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════
+function openModal(title,body,footer){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalBody').innerHTML=body;
+  document.getElementById('modalFoot').innerHTML=footer;
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal(){ document.getElementById('modal').classList.add('hidden'); }
+
+// ── Sushiman modal ──
+function openSmModal(id) {
+  const sm=id?ST.sushimanes.find(s=>s.id===id):null;
+  openModal(id?'Editar sushiman':'Nuevo sushiman',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${sm?.name||''}"></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
+    <div><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
+      <option value="1" ${sm?.active!==false?'selected':''}>Activo</option>
+      <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSm(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveSm(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const data={name,productivity:parseInt(document.getElementById('m_prod').value)||10,active:document.getElementById('m_active').value==='1'};
+  await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
+}
+
+// ── Roll modal ──
+function openRollModal(id) {
+  const roll=id?ST.rolls.find(r=>r.id===id):null;
+  const ins=roll?.insumos||{};
+  const fields=INSUMO_KEYS.map(k=>`
+    <div class="row" style="margin-bottom:7px">
+      <label style="min-width:160px;font-size:13px">${INSUMO_LABELS[k]}</label>
+      <input type="number" id="ins_${k}" value="${ins[k]||0}" min="0" step="0.5" style="width:80px">
+      <span style="font-size:12px;color:var(--text3)">${k==='algas'?'hojas':k==='langos'?'u':'g'}</span>
+    </div>`).join('');
+  openModal(id?'Editar roll':'Nuevo roll',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
+    <div class="form-lbl" style="margin-bottom:8px">Insumos por rollo</div>${fields}`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveRoll(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const insumos={};
+  INSUMO_KEYS.forEach(k=>{const v=parseFloat(document.getElementById('ins_'+k).value)||0; if(v) insumos[k]=v;});
+  await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos})});
+  closeModal(); await loadConfig(); renderRollCfg();
+}
+
+// ── Combo modal ──
+function openComboModal(id) {
+  const combo=id?ST.combos.find(c=>c.id===id):null;
+  const FAMS=['Alaska','Tokyo','Limited','Black','Veggie','Belgrano','Recoleta','Libertador','Kill Bill','Hattori','Pai Mei','Cooked','Otros'];
+  const famOpts=FAMS.map(f=>`<option ${combo?.family===f?'selected':''}>${f}</option>`).join('');
+  const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts)).join(''):'';
+  openModal(id?'Editar combo':'Nuevo combo',`
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}"></div>
+      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full">${famOpts}</select></div>
+    </div>
+    <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
+    <div id="rollRows">${existingRows}</div>
+    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow(\`${rollOpts.replace(/`/g,'\\`')}\`)"><i class="ti ti-plus"></i> Agregar roll</button>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
+  );
+}
+function rollRow(name,qty,opts){
+  return `<div class="row" style="margin-bottom:6px">
+    <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
+    <input type="number" value="${qty}" min="1" max="100" style="width:65px">
+    <span style="font-size:12px;color:var(--text3)">piezas</span>
+    <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>
+  </div>`;
+}
+function addRollRow(opts){
+  const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
+  div.innerHTML=`<select style="flex:1">${opts}</select>
+    <input type="number" value="1" min="1" max="100" style="width:65px">
+    <span style="font-size:12px;color:var(--text3)">piezas</span>
+    <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>`;
+  document.getElementById('rollRows').appendChild(div);
+}
+async function saveCombo(id) {
+  const name=document.getElementById('m_name').value.trim();
+  const family=document.getElementById('m_fam').value;
+  if(!name){alert('Ingresá un nombre');return;}
+  const rolls={};
+  document.querySelectorAll('#rollRows .row').forEach(row=>{
+    const sel=row.querySelector('select'); const inp=row.querySelector('input');
+    if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
+  });
+  await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls})});
+  closeModal(); await loadConfig(); renderComboCfg();
+}
+
+// ── Semi modal ──
+function openSemiModal(id) {
+  const semi=id?ST.semielaborados.find(s=>s.id===id):null;
+  const keyOpts=INSUMO_KEYS.map(k=>`<option value="${k}" ${semi?.insumo_key===k?'selected':''}>${INSUMO_LABELS[k]}</option>`).join('');
+  const rollChecks=ST.rolls.map(r=>`<label style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer">
+      <input type="checkbox" value="${r.name}" ${semi?.rolls.includes(r.name)?'checked':''}> ${r.name}</label>`).join('');
+  openModal(id?'Editar semielaborado':'Nuevo semielaborado',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Insumo clave</label><select id="m_insumo" class="w-full">${keyOpts}</select></div>
+      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full">
+        <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
+        <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
+    </div>
+    <div class="form-lbl" style="margin-bottom:8px">Rolls que usan este semielaborado</div>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px" id="rollChecks">${rollChecks}</div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveSemi(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const rolls=[...document.querySelectorAll('#rollChecks input:checked')].map(c=>c.value);
+  const data={name,insumo_key:document.getElementById('m_insumo').value,unit:document.getElementById('m_unit').value,rolls};
+  await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  closeModal(); await loadConfig(); renderSemiCfg();
+}
+
+// ── Insumo modal ──
+function openInsumoModal(id) {
+  const ins=id?ST.insumosMaster.find(i=>i.id===id):null;
+  openModal(id?'Editar insumo':'Nuevo insumo',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre visible</label><input type="text" id="m_label" class="w-full" value="${ins?.label||''}"></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Clave interna (sin espacios, ej: salmon)</label><input type="text" id="m_key" class="w-full" value="${ins?.key||''}" ${id?'readonly':''} style="${id?'background:var(--bg);color:var(--text3)':''}"></div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Unidad en receta</label><select id="m_ur" class="w-full" onchange="updateFactorSuggestion()">
+        <option value="g" ${ins?.unidad_receta==='g'?'selected':''}>Gramos (g)</option>
+        <option value="ml" ${ins?.unidad_receta==='ml'?'selected':''}>Mililitros (ml)</option>
+        <option value="u" ${ins?.unidad_receta==='u'?'selected':''}>Unidades (u)</option>
+        <option value="hojas" ${ins?.unidad_receta==='hojas'?'selected':''}>Hojas</option></select></div>
+      <div><label class="form-lbl">Unidad en resumen</label><select id="m_us" class="w-full" onchange="updateFactorSuggestion()">
+        <option value="kg" ${ins?.unidad_resumen==='kg'?'selected':''}>Kilogramos (kg)</option>
+        <option value="L" ${ins?.unidad_resumen==='L'?'selected':''}>Litros (L)</option>
+        <option value="u" ${ins?.unidad_resumen==='u'?'selected':''}>Unidades (u)</option>
+        <option value="hojas" ${ins?.unidad_resumen==='hojas'?'selected':''}>Hojas</option></select></div>
+    </div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
+      <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
+    <div><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
+      <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveInsumo(${id||'null'})">Guardar</button>`
+  );
+}
+function updateFactorSuggestion() {
+  const ur=document.getElementById('m_ur').value;
+  const us=document.getElementById('m_us').value;
+  const map={'g_kg':0.001,'ml_L':0.001,'u_u':1,'hojas_hojas':1};
+  const key=`${ur}_${us}`;
+  if(map[key]!==undefined) document.getElementById('m_factor').value=map[key];
+}
+async function saveInsumo(id) {
+  const label=document.getElementById('m_label').value.trim();
+  const key=document.getElementById('m_key').value.trim().toLowerCase().replace(/\s+/g,'_');
+  if(!label||!key){alert('Completá nombre y clave');return;}
+  const precioVal=document.getElementById('m_precio').value;
+  const data={
+    label, key,
+    unidad_receta:document.getElementById('m_ur').value,
+    unidad_resumen:document.getElementById('m_us').value,
+    factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
+    precio_unidad:precioVal?parseFloat(precioVal):null
+  };
+  await fetch(id?`/api/insumos/${id}`:'/api/insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  closeModal(); await loadConfig(); renderInsumoCfg();
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORT
+// ═══════════════════════════════════════════════════════
+function handleImportDrop(e, type) {
+  e.preventDefault();
+  const dropId = type === 'rolls' ? 'dropRolls' : 'dropSemi';
+  document.getElementById(dropId).classList.remove('over');
+  if(e.dataTransfer.files[0]) processImport(e.dataTransfer.files[0], type);
+}
+function importFile(e, type) { if(e.target.files[0]) processImport(e.target.files[0], type); }
+
+async function processImport(file, type) {
+  const dropId   = type === 'rolls' ? 'dropRolls' : 'dropSemi';
+  const resultId = type === 'rolls' ? 'resultRolls' : 'resultSemi';
+  const bodyId   = type === 'rolls' ? 'resultRollsBody' : 'resultSemiBody';
+  const endpoint = `/api/importar/${type}`;
+
+  document.getElementById(dropId).innerHTML = `<span class="loader" style="border-top-color:var(--text);border-color:var(--border)"></span><div style="font-size:13px;margin-top:.5rem">Procesando...</div>`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(endpoint, {method:'POST', body: formData});
+    const data = await res.json();
+
+    const icon = type === 'rolls' ? 'recetas_rolls.xlsx' : 'recetas_semielaborados.xlsx';
+    document.getElementById(dropId).innerHTML = `<i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
+       <div style="font-size:13px;font-weight:500">${icon}</div><div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>`;
+    document.getElementById(dropId).onclick = ()=>document.getElementById(type==='rolls'?'fileRolls':'fileSemi').click();
+
+    if(data.error) {
+      document.getElementById(bodyId).innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>${data.error}</span></div>`;
+    } else {
+      let html = `<div class="metric" style="margin-bottom:.75rem"><div class="metric-lbl">Total procesados</div><div class="metric-val">${data.total}</div></div>`;
+      if(data.creados?.length) html += `<div style="margin-bottom:.5rem"><div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px"><i class="ti ti-plus"></i> Nuevos (${data.creados.length})</div>${data.creados.map(n=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border-light)">${n}</div>`).join('')}</div>`;
+      if(data.actualizados?.length) html += `<div><div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px"><i class="ti ti-refresh"></i> Actualizados (${data.actualizados.length})</div>${data.actualizados.map(n=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border-light)">${n}</div>`).join('')}</div>`;
+      if(data.total === 0) html += `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No se encontraron recetas válidas.</span></div>`;
+      document.getElementById(bodyId).innerHTML = html;
+    }
+    document.getElementById(resultId).classList.remove('hidden');
+    await loadConfig();
+    if(type==='rolls') renderRollCfg(); else renderSemiCfg();
+  } catch(err) {
+    document.getElementById(bodyId).innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Error: ${err.message}</span></div>`;
+    document.getElementById(resultId).classList.remove('hidden');
+  }
+}
+</script>
+</body>
+</html>
