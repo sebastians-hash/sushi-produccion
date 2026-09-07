@@ -1079,7 +1079,7 @@ function openComboModal(id) {
     </div>
     <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
     <div id="rollRows">${existingRows}</div>
-    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow(\`${rollOpts.replace(/`/g,'\\`')}\`)"><i class="ti ti-plus"></i> Agregar roll</button>`,
+    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
   );
 }
@@ -1091,12 +1091,15 @@ function rollRow(name,qty,opts){
     <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>
   </div>`;
 }
-function addRollRow(opts){
+function addRollRow(){
+  const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
   const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
-  div.innerHTML=`<select style="flex:1">${opts}</select>
-    <input type="number" value="1" min="1" max="100" style="width:65px">
-    <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>`;
+  const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
+  const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
+  const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
+  const btn=document.createElement('button'); btn.className='btn btn-sm btn-danger';
+  btn.innerHTML='<i class="ti ti-x"></i>'; btn.onclick=()=>div.remove();
+  div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
   document.getElementById('rollRows').appendChild(div);
 }
 async function saveCombo(id) {
