@@ -937,8 +937,8 @@ function renderComboCfg() {
       const r=Object.entries(c.rolls).filter(([,q])=>q>0).map(([r,q])=>`${r} ×${q}`).join(' · ');
       h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
         <td><div class="row" style="gap:4px">
-          <button class="btn btn-sm" onclick="openComboModal(${c.id})"><i class="ti ti-edit"></i></button>
-          <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)"><i class="ti ti-trash"></i></button>
+          <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
         </div></td></tr>`;
     });
   }
@@ -952,8 +952,8 @@ function renderRollCfg() {
     const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${INSUMO_LABELS[k]||k}: ${v}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openRollModal(${r.id})"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -965,8 +965,8 @@ function renderSemiCfg() {
   ST.semielaborados.forEach(s=>{
     h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td><td><span class="badge b-blue">${s.unit}</span></td>
       <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSemiModal(${s.id})"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -980,8 +980,8 @@ function renderSmCfg() {
       <td style="text-align:right">${s.productivity} rolls/h</td>
       <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSmModal(${s.id})"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('sushimanes',${s.id},renderSmCfg)"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-sm" onclick="openSmModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('sushimanes',${s.id},renderSmCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -994,8 +994,8 @@ function renderInsumoCfg() {
     h+=`<tr><td style="font-weight:600">${i.label}</td><td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
       <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
       <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openInsumoModal(${i.id})"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-sm" onclick="openInsumoModal(${i.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
