@@ -632,8 +632,27 @@ function renderProduction() {
   ih+='</tbody></table>';
   document.getElementById('insumosTbl').innerHTML=ih;
 
-  let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  if(ST.semis.length) ST.semis.forEach(s=>sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`);
+  let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad necesaria</th></tr></thead><tbody>';
+  if(ST.semis.length) {
+    ST.semis.forEach(s=>{
+      sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
+      if(s.receta) {
+        sh+=`<tr><td colspan="3" style="padding:0;border-bottom:none">
+          <div style="background:var(--warn-bg);margin:4px 0 8px;padding:10px 14px;border-radius:var(--rsm);border:1px solid #e6d5a0">
+            <div style="font-size:12px;font-weight:700;color:#7a5500;margin-bottom:6px">
+              <i class="ti ti-clipboard-list"></i> Preparar ${s.receta.lotes_necesarios} lote(s) de receta
+              <span style="font-weight:400;font-size:11px">(escala exacta: ${s.receta.escala_exacta}× — rendimiento base: ${s.receta.rendimiento_cantidad} ${s.receta.rendimiento_unidad})</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${s.receta.ingredientes.map(i=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px">
+                <strong>${i.nombre}</strong>: ${i.cantidad_total} ${i.unidad}
+              </div>`).join('')}
+            </div>
+          </div>
+        </td></tr>`;
+      }
+    });
+  }
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
   document.getElementById('semiTbl').innerHTML=sh;
@@ -961,9 +980,18 @@ function renderRollCfg() {
 }
 
 function renderSemiCfg() {
-  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Unidad</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.semielaborados.forEach(s=>{
-    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td><td><span class="badge b-blue">${s.unit}</span></td>
+    const hasReceta = s.receta && s.receta.length > 0;
+    const recetaSummary = hasReceta
+      ? s.receta.map(i=>`${i.nombre} (${i.cantidad}${i.unidad})`).join(', ')
+      : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
+    const rendDisplay = (s.rendimiento_cantidad > 0)
+      ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
+      : '<span style="color:var(--text3)">—</span>';
+    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td>
+      <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
+      <td>${rendDisplay}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
@@ -1116,6 +1144,22 @@ async function saveCombo(id) {
 }
 
 // ── Semi modal ──
+function ingRow(nombre, cantidad, unidad) {
+  const div = document.createElement('div');
+  div.className = 'row ing-row';
+  div.style.marginBottom = '6px';
+  const inpN = document.createElement('input'); inpN.type='text'; inpN.placeholder='Ingrediente'; inpN.value=nombre||''; inpN.style.flex='1';
+  const inpC = document.createElement('input'); inpC.type='number'; inpC.placeholder='Cant.'; inpC.value=cantidad||''; inpC.step='0.1'; inpC.style.width='75px';
+  const selU = document.createElement('select'); selU.style.width='75px';
+  ['g','ml','u','kg','L'].forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; if(u===(unidad||'g')) o.selected=true; selU.appendChild(o); });
+  const btn = document.createElement('button'); btn.className='btn btn-sm btn-danger'; btn.innerHTML='<i class="ti ti-x"></i>';
+  btn.onclick = () => div.remove();
+  div.appendChild(inpN); div.appendChild(inpC); div.appendChild(selU); div.appendChild(btn);
+  return div;
+}
+function addIngRow() {
+  document.getElementById('ingRows').appendChild(ingRow('', '', 'g'));
+}
 function openSemiModal(id) {
   const semi=id?ST.semielaborados.find(s=>s.id===id):null;
   const keyOpts=INSUMO_KEYS.map(k=>`<option value="${k}" ${semi?.insumo_key===k?'selected':''}>${INSUMO_LABELS[k]}</option>`).join('');
@@ -1130,15 +1174,49 @@ function openSemiModal(id) {
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
     </div>
     <div class="form-lbl" style="margin-bottom:8px">Rolls que usan este semielaborado</div>
-    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px" id="rollChecks">${rollChecks}</div>`,
+    <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem" id="rollChecks">${rollChecks}</div>
+
+    <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Cargá todos los ingredientes de la receta con sus cantidades. La app va a calcular cuánto necesitás preparar según la producción del día.</div>
+    <div id="ingRows" style="margin-bottom:8px"></div>
+    <button class="btn btn-sm" onclick="addIngRow()" style="margin-bottom:1.25rem"><i class="ti ti-plus"></i> Agregar ingrediente</button>
+
+    <div class="form-grid" style="background:var(--warn-bg);padding:12px;border-radius:var(--rsm);margin-top:.5rem">
+      <div><label class="form-lbl" style="color:#7a5500">⚠ Rendimiento de la receta</label>
+        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850"></div>
+      <div><label class="form-lbl" style="color:#7a5500">Unidad del rendimiento</label>
+        <select id="m_rendUnid" class="w-full">
+          <option value="g" ${semi?.rendimiento_unidad==='g'?'selected':''}>Gramos (g)</option>
+          <option value="u" ${semi?.rendimiento_unidad==='u'?'selected':''}>Unidades (u)</option>
+          <option value="ml" ${semi?.rendimiento_unidad==='ml'?'selected':''}>Mililitros (ml)</option>
+        </select></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Cantidad final obtenida luego de la preparación/cocción (puede ser menor que la suma de ingredientes por merma).</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
   );
+  // Populate existing recipe rows
+  const ingRowsDiv = document.getElementById('ingRows');
+  if (semi?.receta?.length) {
+    semi.receta.forEach(ing => ingRowsDiv.appendChild(ingRow(ing.nombre, ing.cantidad, ing.unidad)));
+  } else {
+    ingRowsDiv.appendChild(ingRow('', '', 'g'));
+  }
 }
 async function saveSemi(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
   const rolls=[...document.querySelectorAll('#rollChecks input:checked')].map(c=>c.value);
-  const data={name,insumo_key:document.getElementById('m_insumo').value,unit:document.getElementById('m_unit').value,rolls};
+  const receta=[...document.querySelectorAll('#ingRows .ing-row')].map(row=>{
+    const inputs = row.querySelectorAll('input');
+    const nombre = inputs[0].value.trim();
+    const cantidad = parseFloat(inputs[1].value)||0;
+    const unidad = row.querySelector('select').value;
+    return {nombre, cantidad, unidad};
+  }).filter(i=>i.nombre && i.cantidad>0);
+  const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
+  const rendimiento_unidad = document.getElementById('m_rendUnid').value;
+  const data={name,insumo_key:document.getElementById('m_insumo').value,unit:document.getElementById('m_unit').value,
+              rolls, receta, rendimiento_cantidad, rendimiento_unidad};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
