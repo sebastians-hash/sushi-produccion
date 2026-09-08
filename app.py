@@ -50,6 +50,10 @@ def init_db():
             factor_conversion REAL NOT NULL DEFAULT 0.001,
             precio_unidad REAL
         );
+        CREATE TABLE IF NOT EXISTS marcas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        );
     ''')
     conn.commit()
 
@@ -61,6 +65,18 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_cantidad REAL NOT NULL DEFAULT 0")
     if 'rendimiento_unidad' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_unidad TEXT NOT NULL DEFAULT 'g'")
+    if 'marcas' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+
+    # Migration: add 'marcas' column to combos and rolls
+    combo_cols = [r['name'] for r in c.execute('PRAGMA table_info(combos)').fetchall()]
+    if 'marcas' not in combo_cols:
+        c.execute("ALTER TABLE combos ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+
+    roll_cols = [r['name'] for r in c.execute('PRAGMA table_info(rolls)').fetchall()]
+    if 'marcas' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+
     conn.commit()
 
     # Seed if empty
@@ -102,14 +118,15 @@ def get_rolls():
     rows = conn.execute('SELECT * FROM rolls ORDER BY name').fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'],
-                     'insumos': json.loads(r['insumos'])} for r in rows])
+                     'insumos': json.loads(r['insumos']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
 def create_roll():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO rolls (name, insumos) VALUES (?,?)',
-                 (data['name'], json.dumps(data['insumos'])))
+    conn.execute('INSERT INTO rolls (name, insumos, marcas) VALUES (?,?,?)',
+                 (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', []))))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -118,8 +135,8 @@ def create_roll():
 def update_roll(roll_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE rolls SET name=?, insumos=? WHERE id=?',
-                 (data['name'], json.dumps(data['insumos']), roll_id))
+    conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=? WHERE id=?',
+                 (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])), roll_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -139,14 +156,15 @@ def get_combos():
     rows = conn.execute('SELECT * FROM combos ORDER BY family, name').fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'], 'family': r['family'],
-                     'rolls': json.loads(r['rolls'])} for r in rows])
+                     'rolls': json.loads(r['rolls']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/combos', methods=['POST'])
 def create_combo():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO combos (name, family, rolls) VALUES (?,?,?)',
-                 (data['name'], data['family'], json.dumps(data['rolls'])))
+    conn.execute('INSERT INTO combos (name, family, rolls, marcas) VALUES (?,?,?,?)',
+                 (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', []))))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -155,8 +173,8 @@ def create_combo():
 def update_combo(combo_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE combos SET name=?, family=?, rolls=? WHERE id=?',
-                 (data['name'], data['family'], json.dumps(data['rolls']), combo_id))
+    conn.execute('UPDATE combos SET name=?, family=?, rolls=?, marcas=? WHERE id=?',
+                 (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', [])), combo_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -179,19 +197,21 @@ def get_semielaborados():
                      'unit': r['unit'], 'rolls': json.loads(r['rolls']),
                      'receta': json.loads(r['receta'] or '[]'),
                      'rendimiento_cantidad': r['rendimiento_cantidad'],
-                     'rendimiento_unidad': r['rendimiento_unidad']} for r in rows])
+                     'rendimiento_unidad': r['rendimiento_unidad'],
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 def create_semi():
     data = request.json
     conn = get_db()
     conn.execute('''INSERT INTO semielaborados
-                    (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad)
-                    VALUES (?,?,?,?,?,?,?)''',
+                    (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
+                    VALUES (?,?,?,?,?,?,?,?)''',
                  (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                   json.dumps(data.get('receta', [])),
                   data.get('rendimiento_cantidad', 0),
-                  data.get('rendimiento_unidad', 'g')))
+                  data.get('rendimiento_unidad', 'g'),
+                  json.dumps(data.get('marcas', []))))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -201,11 +221,12 @@ def update_semi(semi_id):
     data = request.json
     conn = get_db()
     conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
-                    receta=?, rendimiento_cantidad=?, rendimiento_unidad=? WHERE id=?''',
+                    receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=? WHERE id=?''',
                  (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                   json.dumps(data.get('receta', [])),
                   data.get('rendimiento_cantidad', 0),
-                  data.get('rendimiento_unidad', 'g'), semi_id))
+                  data.get('rendimiento_unidad', 'g'),
+                  json.dumps(data.get('marcas', [])), semi_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -252,6 +273,40 @@ def update_sushiman(sm_id):
 def delete_sushiman(sm_id):
     conn = get_db()
     conn.execute('DELETE FROM sushimanes WHERE id=?', (sm_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Marcas ──
+@app.route('/api/marcas', methods=['GET'])
+def get_marcas():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM marcas ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/marcas', methods=['POST'])
+def create_marca():
+    data = request.json
+    conn = get_db()
+    conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/<int:marca_id>', methods=['PUT'])
+def update_marca(marca_id):
+    data = request.json
+    conn = get_db()
+    conn.execute('UPDATE marcas SET name=? WHERE id=?', (data['name'], marca_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/<int:marca_id>', methods=['DELETE'])
+def delete_marca(marca_id):
+    conn = get_db()
+    conn.execute('DELETE FROM marcas WHERE id=?', (marca_id,))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
