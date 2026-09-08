@@ -280,6 +280,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
       <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
       <div class="tab" onclick="showTab('tin',this)">Insumos</div>
+      <div class="tab" onclick="showTab('tma',this)">Marcas</div>
       <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar</div>
     </div>
     <div id="tc">
@@ -329,6 +330,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <span>Configurá cómo se mide cada insumo en la receta (ej: gramos) y cómo querés verlo sumado en el resumen (ej: kilogramos).</span>
         </div>
         <div id="insumoCfg"></div>
+      </div>
+    </div>
+    <div id="tma" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Marcas</div>
+          <button class="btn btn-sm" onclick="openMarcaModal()"><i class="ti ti-plus"></i> Nueva marca</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
+        </div>
+        <div id="marcaCfg"></div>
       </div>
     </div>
     <div id="timp" class="hidden">
@@ -407,7 +421,7 @@ const ST = {
   sales:[], adj:{}, globalPct:100,
   production:[], insumos:{}, semis:[],
   schedule:null, editingGrid:false, scheduleBackup:null,
-  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[],
+  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[],
   dailySm:{}
 };
 
@@ -430,14 +444,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
       fetch('/api/sushimanes').then(r=>r.json()),
       fetch('/api/insumos').then(r=>r.json()),
+      fetch('/api/marcas').then(r=>r.json()),
     ]);
-    ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM;
+    ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
   } catch(e){ console.error('loadConfig',e); }
 }
@@ -463,7 +478,7 @@ function goStep(n) {
 }
 
 function showTab(id, el) {
-  ['tc','tr','ts','tsu','tin','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  ['tc','tr','ts','tsu','tin','tma','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='tc') renderComboCfg();
@@ -471,6 +486,7 @@ function showTab(id, el) {
   if(id==='ts') renderSemiCfg();
   if(id==='tsu') renderSmCfg();
   if(id==='tin') renderInsumoCfg();
+  if(id==='tma') renderMarcaCfg();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -943,15 +959,21 @@ async function downloadPDF() {
 // ═══════════════════════════════════════════════════════
 // CONFIG RENDERING
 // ═══════════════════════════════════════════════════════
+function marcaBadges(marcas) {
+  if (!marcas || !marcas.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return marcas.map(m=>`<span class="badge b-green" style="margin:1px">${m}</span>`).join(' ');
+}
+
 function renderComboCfg() {
   const byFam={};
   ST.combos.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
-  let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   for(const [fam,items] of Object.entries(byFam)){
-    h+=`<tr class="fam-row"><td colspan="4"><span class="badge b-blue">${fam}</span></td></tr>`;
+    h+=`<tr class="fam-row"><td colspan="5"><span class="badge b-blue">${fam}</span></td></tr>`;
     items.forEach(c=>{
       const r=Object.entries(c.rolls).filter(([,q])=>q>0).map(([r,q])=>`${r} ×${q}`).join(' · ');
       h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
+        <td style="font-size:11px">${marcaBadges(c.marcas)}</td>
         <td><div class="row" style="gap:4px">
           <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
           <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
@@ -963,10 +985,11 @@ function renderComboCfg() {
 }
 
 function renderRollCfg() {
-  let h='<table><thead><tr><th>Roll</th><th>Insumos (g por rollo)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Roll</th><th>Insumos (g por rollo)</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
     const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${INSUMO_LABELS[k]||k}: ${v}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
@@ -978,7 +1001,7 @@ function renderRollCfg() {
 }
 
 function renderSemiCfg() {
-  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.semielaborados.forEach(s=>{
     const hasReceta = s.receta && s.receta.length > 0;
     const recetaSummary = hasReceta
@@ -990,6 +1013,7 @@ function renderSemiCfg() {
     h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td>
       <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
       <td>${rendDisplay}</td>
+      <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
@@ -1028,6 +1052,47 @@ function renderInsumoCfg() {
   h+='</tbody></table>';
   if(!ST.insumosMaster.length) h='<div class="empty">No hay insumos configurados. Agregá el primero.</div>';
   document.getElementById('insumoCfg').innerHTML=h;
+}
+
+function renderMarcaCfg() {
+  let h='<table><thead><tr><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.marcas.forEach(m=>{
+    h+=`<tr><td style="font-weight:600">${m.name}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('marcas',${m.id},renderMarcaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.marcas.length) h='<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
+  document.getElementById('marcaCfg').innerHTML=h;
+}
+
+function openMarcaModal(id) {
+  const marca = id ? ST.marcas.find(m=>m.id===id) : null;
+  openModal(id?'Editar marca':'Nueva marca',`
+    <div><label class="form-lbl">Nombre de la marca</label><input type="text" id="m_name" class="w-full" value="${marca?.name||''}" placeholder="Ej: Sushi Pop"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveMarca(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveMarca(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  await fetch(id?`/api/marcas/${id}`:'/api/marcas',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  closeModal(); await loadConfig(); renderMarcaCfg();
+}
+
+// Helper: renders a checkbox list for selecting marcas, used in combo/roll/semi modals
+function marcaChecks(selectedNames) {
+  selectedNames = selectedNames || [];
+  if (!ST.marcas.length) {
+    return '<div style="font-size:12px;color:var(--text3);font-style:italic">No hay marcas configuradas todavía. Agregalas en la pestaña "Marcas".</div>';
+  }
+  return ST.marcas.map(m=>`<label style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer">
+    <input type="checkbox" class="marca-check" value="${m.name}" ${selectedNames.includes(m.name)?'checked':''}> ${m.name}</label>`).join('');
+}
+function readMarcaChecks(containerId) {
+  return [...document.querySelectorAll(`#${containerId} .marca-check:checked`)].map(c=>c.value);
 }
 
 async function deleteItem(endpoint, id, rerender) {
@@ -1079,7 +1144,9 @@ function openRollModal(id, dup) {
     </div>`).join('');
   openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos por rollo</div>${fields}`,
+    <div class="form-lbl" style="margin-bottom:8px">Insumos por rollo</div>${fields}
+    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
+    <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
   );
 }
@@ -1093,7 +1160,8 @@ async function saveRoll(id) {
   if(!name){alert('Ingresá un nombre');return;}
   const insumos={};
   INSUMO_KEYS.forEach(k=>{const v=parseFloat(document.getElementById('ins_'+k).value)||0; if(v) insumos[k]=v;});
-  await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos})});
+  const marcas = readMarcaChecks('rollMarcaChecks');
+  await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas})});
   closeModal(); await loadConfig(); renderRollCfg();
 }
 
@@ -1111,7 +1179,9 @@ function openComboModal(id) {
     </div>
     <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
     <div id="rollRows">${existingRows}</div>
-    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`,
+    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
+    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(combo?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
   );
 }
@@ -1143,7 +1213,8 @@ async function saveCombo(id) {
     const sel=row.querySelector('select'); const inp=row.querySelector('input');
     if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
   });
-  await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls})});
+  const marcas = readMarcaChecks('comboMarcaChecks');
+  await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls,marcas})});
   closeModal(); await loadConfig(); renderComboCfg();
 }
 
@@ -1195,7 +1266,10 @@ function openSemiModal(id, dup) {
           <option value="ml" ${semi?.rendimiento_unidad==='ml'?'selected':''}>Mililitros (ml)</option>
         </select></div>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Cantidad final obtenida luego de la preparación/cocción (puede ser menor que la suma de ingredientes por merma).</div>`,
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Cantidad final obtenida luego de la preparación/cocción (puede ser menor que la suma de ingredientes por merma).</div>
+
+    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
+    <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
   );
   // Populate existing recipe rows
@@ -1224,8 +1298,9 @@ async function saveSemi(id) {
   }).filter(i=>i.nombre && i.cantidad>0);
   const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
   const rendimiento_unidad = document.getElementById('m_rendUnid').value;
+  const marcas = readMarcaChecks('semiMarcaChecks');
   const data={name,insumo_key:document.getElementById('m_insumo').value,unit:document.getElementById('m_unit').value,
-              rolls, receta, rendimiento_cantidad, rendimiento_unidad};
+              rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
