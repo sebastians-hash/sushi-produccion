@@ -152,11 +152,12 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div id="fStatus" class="hidden" style="margin-top:1rem"></div>
     </div>
     <div class="card">
-      <div class="card-title" style="margin-bottom:.5rem">Probar con datos de ejemplo</div>
-      <div style="color:var(--text2);font-size:13px;margin-bottom:1rem">Cargá datos de prueba para explorar el flujo completo.</div>
-      <button class="btn" onclick="loadDemo()"><i class="ti ti-table-import"></i> Cargar datos de ejemplo</button>
+      <div class="card-title" style="margin-bottom:.5rem">Cargar información manualmente</div>
+      <div style="color:var(--text2);font-size:13px;margin-bottom:1rem">Se muestran todos los combos agrupados por familia para que ingreses la cantidad vendida de cada uno.</div>
+      <button class="btn" onclick="loadManual()"><i class="ti ti-table-import"></i> Cargar información manualmente</button>
     </div>
   </div>
+
 
   <!-- ── STEP 2 ── -->
   <div id="s2" class="hidden">
@@ -548,23 +549,24 @@ function showStatus(type,msg) {
   el.classList.remove('hidden');
 }
 
-function loadDemo() {
-  ST.sales=[
-    {code:'alaska12',name:'Alaska 12',qty:22,family:'Alaska',matched:true},
-    {code:'alaska30',name:'Alaska 30',qty:20,family:'Alaska',matched:true},
-    {code:'alaska40',name:'Alaska 40',qty:15,family:'Alaska',matched:true},
-    {code:'black15',name:'Black 15',qty:3,family:'Black',matched:true},
-    {code:'black30',name:'Black 30',qty:5,family:'Black',matched:true},
-    {code:'limited15',name:'Limited 15',qty:25,family:'Limited',matched:true},
-    {code:'limited40',name:'Limited 40',qty:12,family:'Limited',matched:true},
-    {code:'tokyo12',name:'Tokyo 12',qty:5,family:'Tokyo',matched:true},
-    {code:'tokyo15',name:'Tokyo 15',qty:25,family:'Tokyo',matched:true},
-    {code:'tokyo30',name:'Tokyo 30',qty:13,family:'Tokyo',matched:true},
-    {code:'tokyo40',name:'Tokyo 40',qty:3,family:'Tokyo',matched:true},
-    {code:'veggie15',name:'Veggie 15',qty:11,family:'Veggie',matched:true},
-  ];
-  showStatus('success','Datos de ejemplo cargados — 12 productos');
-  setTimeout(()=>goStep(2),500);
+// ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
+function loadManual() {
+  if (!ST.combos.length) { alert('No hay combos configurados todavía. Cargalos en Configuración → Combos.'); return; }
+  ST.sales = ST.combos.map(c => ({
+    code: c.name.toLowerCase().replace(/\s+/g,''),
+    name: c.name,
+    qty: 0,
+    family: c.family,
+    matched: true
+  }));
+  ST.adj = {};
+  showStatus('success', `${ST.sales.length} combos listos para completar cantidades`);
+  setTimeout(() => {
+    goStep(2);
+    // Default to "cantidad" mode so typing a number directly sets the quantity (base venta is 0)
+    const modeSel = document.getElementById('adjMode');
+    if (modeSel) { modeSel.value = 'qty'; renderSales(); }
+  }, 300);
 }
 
 // ═══════════════════════════════════════════════════════
