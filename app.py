@@ -276,7 +276,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div id="s6" class="hidden">
     <div class="tabs">
       <div class="tab active" onclick="showTab('tc',this)">Combos</div>
-      <div class="tab" onclick="showTab('tr',this)">Rolls y recetas</div>
+      <div class="tab" onclick="showTab('tr',this)">Rolls</div>
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
       <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
       <div class="tab" onclick="showTab('tin',this)">Insumos</div>
@@ -294,7 +294,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div id="tr" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Rolls y recetas</div>
+          <div class="card-title" style="margin:0">Rolls</div>
           <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
         </div>
         <div id="rollCfg"></div>
@@ -338,7 +338,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Usá los templates oficiales. Si el nombre ya existe se <strong>actualiza</strong>, si es nuevo se <strong>agrega</strong>.</span>
         </div>
-        <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y recetas</div>
+        <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;align-items:start">
           <div>
             <div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Subí <strong>recetas_rolls.xlsx</strong></div>
@@ -969,6 +969,7 @@ function renderRollCfg() {
     h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
@@ -991,6 +992,7 @@ function renderSemiCfg() {
       <td>${rendDisplay}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
@@ -1066,8 +1068,8 @@ async function saveSm(id) {
 }
 
 // ── Roll modal ──
-function openRollModal(id) {
-  const roll=id?ST.rolls.find(r=>r.id===id):null;
+function openRollModal(id, dup) {
+  const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
   const ins=roll?.insumos||{};
   const fields=INSUMO_KEYS.map(k=>`
     <div class="row" style="margin-bottom:7px">
@@ -1075,11 +1077,16 @@ function openRollModal(id) {
       <input type="number" id="ins_${k}" value="${ins[k]||0}" min="0" step="0.5" style="width:80px">
       <span style="font-size:12px;color:var(--text3)">${k==='algas'?'hojas':k==='langos'?'u':'g'}</span>
     </div>`).join('');
-  openModal(id?'Editar roll':'Nuevo roll',`
+  openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
     <div class="form-lbl" style="margin-bottom:8px">Insumos por rollo</div>${fields}`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
   );
+}
+function duplicateRoll(id) {
+  const roll = ST.rolls.find(r=>r.id===id);
+  if(!roll) return;
+  openRollModal(null, {...roll, name: roll.name + ' (copia)'});
 }
 async function saveRoll(id) {
   const name=document.getElementById('m_name').value.trim();
@@ -1157,12 +1164,12 @@ function ingRow(nombre, cantidad, unidad) {
 function addIngRow() {
   document.getElementById('ingRows').appendChild(ingRow('', '', 'g'));
 }
-function openSemiModal(id) {
-  const semi=id?ST.semielaborados.find(s=>s.id===id):null;
+function openSemiModal(id, dup) {
+  const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
   const keyOpts=INSUMO_KEYS.map(k=>`<option value="${k}" ${semi?.insumo_key===k?'selected':''}>${INSUMO_LABELS[k]}</option>`).join('');
   const rollChecks=ST.rolls.map(r=>`<label style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer">
       <input type="checkbox" value="${r.name}" ${semi?.rolls.includes(r.name)?'checked':''}> ${r.name}</label>`).join('');
-  openModal(id?'Editar semielaborado':'Nuevo semielaborado',`
+  openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Insumo clave</label><select id="m_insumo" class="w-full">${keyOpts}</select></div>
@@ -1198,6 +1205,11 @@ function openSemiModal(id) {
   } else {
     ingRowsDiv.appendChild(ingRow('', '', 'g'));
   }
+}
+function duplicateSemi(id) {
+  const semi = ST.semielaborados.find(s=>s.id===id);
+  if(!semi) return;
+  openSemiModal(null, {...semi, name: semi.name + ' (copia)'});
 }
 async function saveSemi(id) {
   const name=document.getElementById('m_name').value.trim();
