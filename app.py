@@ -53,6 +53,16 @@ def init_db():
     ''')
     conn.commit()
 
+    # Migration: add recipe columns to semielaborados if they don't exist yet
+    existing_cols = [r['name'] for r in c.execute('PRAGMA table_info(semielaborados)').fetchall()]
+    if 'receta' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN receta TEXT NOT NULL DEFAULT '[]'")
+    if 'rendimiento_cantidad' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_cantidad REAL NOT NULL DEFAULT 0")
+    if 'rendimiento_unidad' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_unidad TEXT NOT NULL DEFAULT 'g'")
+    conn.commit()
+
     # Seed if empty
     if c.execute('SELECT COUNT(*) FROM rolls').fetchone()[0] == 0:
         seed_path = os.path.join(os.path.dirname(__file__), 'data', 'seed.json')
@@ -166,14 +176,22 @@ def get_semielaborados():
     rows = conn.execute('SELECT * FROM semielaborados ORDER BY name').fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'], 'insumo_key': r['insumo_key'],
-                     'unit': r['unit'], 'rolls': json.loads(r['rolls'])} for r in rows])
+                     'unit': r['unit'], 'rolls': json.loads(r['rolls']),
+                     'receta': json.loads(r['receta'] or '[]'),
+                     'rendimiento_cantidad': r['rendimiento_cantidad'],
+                     'rendimiento_unidad': r['rendimiento_unidad']} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 def create_semi():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?)',
-                 (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls'])))
+    conn.execute('''INSERT INTO semielaborados
+                    (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad)
+                    VALUES (?,?,?,?,?,?,?)''',
+                 (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                  json.dumps(data.get('receta', [])),
+                  data.get('rendimiento_cantidad', 0),
+                  data.get('rendimiento_unidad', 'g')))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -182,9 +200,12 @@ def create_semi():
 def update_semi(semi_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=? WHERE id=?',
-                 (data['name'], data['insumo_key'], data['unit'],
-                  json.dumps(data['rolls']), semi_id))
+    conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
+                    receta=?, rendimiento_cantidad=?, rendimiento_unidad=? WHERE id=?''',
+                 (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                  json.dumps(data.get('receta', [])),
+                  data.get('rendimiento_cantidad', 0),
+                  data.get('rendimiento_unidad', 'g'), semi_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -378,12 +399,36 @@ def calcular():
             unit = semi['unit']
             display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
                        else f"{round(total)} u")
-            semis_out.append({
+
+            semi_out = {
                 'name': semi['name'],
                 'usedIn': ', '.join(used_in),
                 'display': display,
                 'total': round(total)
-            })
+            }
+
+            # Si tiene receta cargada, calcular lotes e ingredientes crudos
+            receta = json.loads(semi['receta'] or '[]')
+            rend_cant = semi['rendimiento_cantidad'] or 0
+            rend_unid = semi['rendimiento_unidad'] or unit
+            if receta and rend_cant > 0:
+                scale = total / rend_cant
+                batches = -(-scale // 1)  # ceil
+                semi_out['receta'] = {
+                    'rendimiento_cantidad': rend_cant,
+                    'rendimiento_unidad': rend_unid,
+                    'lotes_necesarios': int(batches),
+                    'escala_exacta': round(scale, 2),
+                    'ingredientes': [
+                        {
+                            'nombre': ing['nombre'],
+                            'cantidad_receta': ing['cantidad'],
+                            'unidad': ing['unidad'],
+                            'cantidad_total': round(ing['cantidad'] * scale, 1)
+                        } for ing in receta
+                    ]
+                }
+            semis_out.append(semi_out)
 
     return jsonify({
         'production': production,
@@ -562,17 +607,24 @@ def importar_semielaborados():
                     insumo_key = v
                     break
 
+            receta_json = json.dumps(ingredientes)
+
             existing = conn.execute('SELECT id FROM semielaborados WHERE LOWER(name)=LOWER(?)', (semi_name,)).fetchone()
             rolls_json = json.dumps([])
             if existing:
                 ex_full = conn.execute('SELECT rolls FROM semielaborados WHERE id=?', (existing['id'],)).fetchone()
                 rolls_json = ex_full['rolls'] if ex_full else '[]'
-                conn.execute('UPDATE semielaborados SET insumo_key=?, unit=?, rolls=? WHERE id=?',
-                            (insumo_key, unidad_rend, rolls_json, existing['id']))
+                conn.execute('''UPDATE semielaborados SET insumo_key=?, unit=?, rolls=?,
+                                receta=?, rendimiento_cantidad=?, rendimiento_unidad=? WHERE id=?''',
+                            (insumo_key, unidad_rend, rolls_json, receta_json,
+                             rendimiento or 0, unidad_rend, existing['id']))
                 actualizados.append(semi_name)
             else:
-                conn.execute('INSERT INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?)',
-                            (semi_name, insumo_key, unidad_rend, rolls_json))
+                conn.execute('''INSERT INTO semielaborados
+                                (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad)
+                                VALUES (?,?,?,?,?,?,?)''',
+                            (semi_name, insumo_key, unidad_rend, rolls_json, receta_json,
+                             rendimiento or 0, unidad_rend))
                 creados.append(semi_name)
 
         conn.commit()
