@@ -987,9 +987,9 @@ function renderComboCfg() {
 }
 
 function renderRollCfg() {
-  let h='<table><thead><tr><th>Roll</th><th>Insumos (g por rollo)</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Roll</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${INSUMO_LABELS[k]||k}: ${v}`).join(' · ');
+    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
@@ -1012,7 +1012,9 @@ function renderSemiCfg() {
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
       : '<span style="color:var(--text3)">—</span>';
-    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${s.rolls.join(', ')||'—'}</td>
+    const usedInRolls = ST.rolls.filter(r=>(r.insumos[s.insumo_key]||0) > 0).map(r=>r.name);
+    const usedInDisplay = usedInRolls.length ? usedInRolls.join(', ') : '<span style="color:var(--text3);font-style:italic">Ningún roll lo usa todavía</span>';
+    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${usedInDisplay}</td>
       <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
       <td>${rendDisplay}</td>
       <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
@@ -1135,22 +1137,85 @@ async function saveSm(id) {
 }
 
 // ── Roll modal ──
+// Helpers: resolve label/unit for any ingredient key (raw insumo OR semielaborado)
+function getIngredientLabel(key) {
+  const master = ST.insumosMaster.find(i=>i.key===key);
+  if (master) return master.label;
+  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
+  if (semi) return semi.name + ' (semielaborado)';
+  return INSUMO_LABELS[key] || key;
+}
+function getIngredientUnit(key) {
+  const master = ST.insumosMaster.find(i=>i.key===key);
+  if (master) return master.unidad_receta;
+  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
+  if (semi) return semi.unit;
+  return key==='algas'?'hojas':key==='langos'?'u':'g';
+}
+function buildIngredientOptions() {
+  // datalist options combining master insumos + semielaborados, deduped by key
+  const seen = new Set();
+  let opts = '';
+  ST.insumosMaster.forEach(i=>{
+    if (seen.has(i.key)) return; seen.add(i.key);
+    opts += `<option data-key="${i.key}" value="${i.label}"></option>`;
+  });
+  ST.semielaborados.forEach(s=>{
+    if (seen.has(s.insumo_key)) return; seen.add(s.insumo_key);
+    opts += `<option data-key="${s.insumo_key}" value="${s.name} (semielaborado)"></option>`;
+  });
+  return opts;
+}
+function rollIngRow(key, qty) {
+  const div = document.createElement('div');
+  div.className = 'row roll-ing-row';
+  div.style.marginBottom = '6px';
+  div.dataset.key = key;
+  const label = document.createElement('div');
+  label.style.flex = '1'; label.style.fontSize = '13px';
+  label.textContent = getIngredientLabel(key);
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
+  const unit = document.createElement('span');
+  unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
+  unit.textContent = getIngredientUnit(key);
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.onclick = () => div.remove();
+  div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
+  return div;
+}
+function addIngredientToRoll() {
+  const searchInput = document.getElementById('rollIngSearch');
+  const listEl = document.getElementById('rollIngDatalist');
+  const typedValue = searchInput.value.trim();
+  const match = [...listEl.options].find(o=>o.value===typedValue);
+  if (!match) { alert('Elegí un insumo o semielaborado de la lista'); return; }
+  const key = match.dataset.key;
+  const container = document.getElementById('rollIngRows');
+  const existing = [...container.children].find(row=>row.dataset.key===key);
+  if (existing) { existing.querySelector('input').focus(); searchInput.value=''; return; }
+  container.appendChild(rollIngRow(key, 1));
+  searchInput.value = '';
+}
 function openRollModal(id, dup) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
-  const ins=roll?.insumos||{};
-  const fields=INSUMO_KEYS.map(k=>`
-    <div class="row" style="margin-bottom:7px">
-      <label style="min-width:160px;font-size:13px">${INSUMO_LABELS[k]}</label>
-      <input type="number" id="ins_${k}" value="${ins[k]||0}" min="0" step="0.5" style="width:80px">
-      <span style="font-size:12px;color:var(--text3)">${k==='algas'?'hojas':k==='langos'?'u':'g'}</span>
-    </div>`).join('');
+  const ins = roll?.insumos || {};
   openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos por rollo</div>${fields}
-    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
+    <div class="row" style="margin-bottom:10px">
+      <input type="text" id="rollIngSearch" list="rollIngDatalist" placeholder="Buscar insumo o semielaborado..." style="flex:1">
+      <datalist id="rollIngDatalist">${buildIngredientOptions()}</datalist>
+      <button class="btn btn-sm" onclick="addIngredientToRoll()"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+    <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
+    <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
   );
+  const container = document.getElementById('rollIngRows');
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(rollIngRow(key, qty)); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -1161,7 +1226,10 @@ async function saveRoll(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
   const insumos={};
-  INSUMO_KEYS.forEach(k=>{const v=parseFloat(document.getElementById('ins_'+k).value)||0; if(v) insumos[k]=v;});
+  document.querySelectorAll('#rollIngRows .roll-ing-row').forEach(row=>{
+    const v = parseFloat(row.querySelector('input').value)||0;
+    if (v>0) insumos[row.dataset.key] = v;
+  });
   const marcas = readMarcaChecks('rollMarcaChecks');
   await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas})});
   closeModal(); await loadConfig(); renderRollCfg();
@@ -1239,19 +1307,19 @@ function addIngRow() {
 }
 function openSemiModal(id, dup) {
   const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
-  const keyOpts=INSUMO_KEYS.map(k=>`<option value="${k}" ${semi?.insumo_key===k?'selected':''}>${INSUMO_LABELS[k]}</option>`).join('');
-  const rollChecks=ST.rolls.map(r=>`<label style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer">
-      <input type="checkbox" value="${r.name}" ${semi?.rolls.includes(r.name)?'checked':''}> ${r.name}</label>`).join('');
   openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Insumo clave</label><select id="m_insumo" class="w-full">${keyOpts}</select></div>
+      <div><label class="form-lbl">Clave interna <span style="font-weight:400;color:var(--text3);text-transform:none">(para vincularlo en las recetas de rolls)</span></label>
+        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío"></div>
       <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full">
         <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
     </div>
-    <div class="form-lbl" style="margin-bottom:8px">Rolls que usan este semielaborado</div>
-    <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem" id="rollChecks">${rollChecks}</div>
+    <div class="alert alert-info" style="margin-bottom:1.25rem">
+      <i class="ti ti-info-circle"></i>
+      <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
+    </div>
 
     <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Cargá todos los ingredientes de la receta con sus cantidades. La app va a calcular cuánto necesitás preparar según la producción del día.</div>
@@ -1290,7 +1358,6 @@ function duplicateSemi(id) {
 async function saveSemi(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
-  const rolls=[...document.querySelectorAll('#rollChecks input:checked')].map(c=>c.value);
   const receta=[...document.querySelectorAll('#ingRows .ing-row')].map(row=>{
     const inputs = row.querySelectorAll('input');
     const nombre = inputs[0].value.trim();
@@ -1301,8 +1368,10 @@ async function saveSemi(id) {
   const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
   const rendimiento_unidad = document.getElementById('m_rendUnid').value;
   const marcas = readMarcaChecks('semiMarcaChecks');
-  const data={name,insumo_key:document.getElementById('m_insumo').value,unit:document.getElementById('m_unit').value,
-              rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas};
+  let insumoKey = document.getElementById('m_insumo').value.trim();
+  if (!insumoKey) insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
+              rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
