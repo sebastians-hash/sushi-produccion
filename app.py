@@ -437,19 +437,18 @@ def calcular():
             'display': display
         }
 
-    # Semielaborados
+    # Semielaborados — se detectan automáticamente según qué rolls producidos
+    # incluyen su insumo_key en su receta (no depende de una lista manual)
     semis_out = []
     for semi in semis_db:
-        semi_rolls = json.loads(semi['rolls'])
         total = 0
         used_in = []
-        for rn in semi_rolls:
-            prod = next((p for p in production if p['name'] == rn), None)
-            recipe = rolls_db.get(rn, {})
+        for prod in production:
+            recipe = rolls_db.get(prod['name'], {})
             amt = recipe.get(semi['insumo_key'], 0)
-            if prod and amt:
+            if amt:
                 total += amt * prod['qty']
-                used_in.append(rn)
+                used_in.append(prod['name'])
         if total > 0:
             unit = semi['unit']
             display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
