@@ -108,6 +108,18 @@ input[type=range]{width:100%;accent-color:var(--text)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .hidden{display:none!important}
 .empty{text-align:center;padding:2rem;color:var(--text3);font-size:13px}
+
+/* Custom ingredient search dropdown */
+.ing-search-wrap{position:relative;flex:1}
+.ing-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--rsm);box-shadow:0 6px 20px rgba(0,0,0,.12);
+  max-height:240px;overflow-y:auto;z-index:50}
+.ing-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px}
+.ing-item:hover,.ing-item.active{background:var(--bg)}
+.ing-item-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
+.ing-item-badge.insumo{background:var(--blue-bg);color:var(--blue)}
+.ing-item-badge.semi{background:var(--green-bg);color:var(--green)}
+.ing-item-empty{padding:12px;font-size:12px;color:var(--text3);text-align:center}
 @media(max-width:600px){
   .metrics{grid-template-columns:repeat(2,1fr)}
   .form-grid{grid-template-columns:1fr}
@@ -1152,19 +1164,19 @@ function getIngredientUnit(key) {
   if (semi) return semi.unit;
   return key==='algas'?'hojas':key==='langos'?'u':'g';
 }
-function buildIngredientOptions() {
-  // datalist options combining master insumos + semielaborados, deduped by key
+function buildIngredientList() {
+  // combined list of {key, label, type} from master insumos + semielaborados, deduped by key
   const seen = new Set();
-  let opts = '';
+  const list = [];
   ST.insumosMaster.forEach(i=>{
     if (seen.has(i.key)) return; seen.add(i.key);
-    opts += `<option data-key="${i.key}" value="${i.label}"></option>`;
+    list.push({key:i.key, label:i.label, type:'insumo'});
   });
   ST.semielaborados.forEach(s=>{
     if (seen.has(s.insumo_key)) return; seen.add(s.insumo_key);
-    opts += `<option data-key="${s.insumo_key}" value="${s.name} (semielaborado)"></option>`;
+    list.push({key:s.insumo_key, label:s.name, type:'semi'});
   });
-  return opts;
+  return list;
 }
 function rollIngRow(key, qty) {
   const div = document.createElement('div');
@@ -1185,18 +1197,83 @@ function rollIngRow(key, qty) {
   div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
   return div;
 }
-function addIngredientToRoll() {
-  const searchInput = document.getElementById('rollIngSearch');
-  const listEl = document.getElementById('rollIngDatalist');
-  const typedValue = searchInput.value.trim();
-  const match = [...listEl.options].find(o=>o.value===typedValue);
-  if (!match) { alert('Elegí un insumo o semielaborado de la lista'); return; }
-  const key = match.dataset.key;
+
+// ── Custom ingredient search dropdown (replaces native <datalist>) ──
+let ingDropdownActiveIdx = -1;
+let ingDropdownItems = [];
+
+function normalizeSearchText(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function filterIngredientDropdown() {
+  const input = document.getElementById('rollIngSearch');
+  const dropdown = document.getElementById('rollIngDropdown');
+  const q = normalizeSearchText(input.value.trim());
+  const all = buildIngredientList();
+  ingDropdownItems = q ? all.filter(i=>normalizeSearchText(i.label).includes(q)) : all;
+  ingDropdownActiveIdx = -1;
+  renderIngredientDropdown();
+  dropdown.classList.remove('hidden');
+}
+function renderIngredientDropdown() {
+  const dropdown = document.getElementById('rollIngDropdown');
+  if (!ingDropdownItems.length) {
+    dropdown.innerHTML = '<div class="ing-item-empty">No se encontraron resultados</div>';
+    return;
+  }
+  dropdown.innerHTML = ingDropdownItems.map((item,idx)=>`
+    <div class="ing-item${idx===ingDropdownActiveIdx?' active':''}" data-idx="${idx}"
+         onmousedown="event.preventDefault();selectIngredientFromDropdown(${idx})">
+      <span class="ing-item-badge ${item.type}">${item.type==='insumo'?'Insumo':'Semielaborado'}</span>
+      <span>${item.label}</span>
+    </div>`).join('');
+}
+function selectIngredientFromDropdown(idx) {
+  const item = ingDropdownItems[idx];
+  if (!item) return;
   const container = document.getElementById('rollIngRows');
-  const existing = [...container.children].find(row=>row.dataset.key===key);
-  if (existing) { existing.querySelector('input').focus(); searchInput.value=''; return; }
-  container.appendChild(rollIngRow(key, 1));
-  searchInput.value = '';
+  const existing = [...container.children].find(row=>row.dataset.key===item.key);
+  if (existing) {
+    existing.querySelector('input').focus();
+    existing.querySelector('input').select();
+  } else {
+    container.appendChild(rollIngRow(item.key, 1));
+  }
+  document.getElementById('rollIngSearch').value = '';
+  document.getElementById('rollIngDropdown').classList.add('hidden');
+  document.getElementById('rollIngSearch').focus();
+}
+function handleIngredientKeydown(e) {
+  const dropdown = document.getElementById('rollIngDropdown');
+  if (dropdown.classList.contains('hidden')) {
+    if (e.key === 'ArrowDown') filterIngredientDropdown();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    ingDropdownActiveIdx = Math.min(ingDropdownActiveIdx+1, ingDropdownItems.length-1);
+    renderIngredientDropdown();
+    scrollActiveIngIntoView();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    ingDropdownActiveIdx = Math.max(ingDropdownActiveIdx-1, 0);
+    renderIngredientDropdown();
+    scrollActiveIngIntoView();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const idx = ingDropdownActiveIdx >= 0 ? ingDropdownActiveIdx : 0;
+    if (ingDropdownItems.length) selectIngredientFromDropdown(idx);
+  } else if (e.key === 'Escape') {
+    dropdown.classList.add('hidden');
+  }
+}
+function scrollActiveIngIntoView() {
+  const active = document.querySelector('#rollIngDropdown .ing-item.active');
+  if (active && typeof active.scrollIntoView === 'function') active.scrollIntoView({block:'nearest'});
+}
+function closeIngredientDropdownOnBlur() {
+  // slight delay so a click (mousedown already handled selection) doesn't get lost
+  setTimeout(()=>{ const d=document.getElementById('rollIngDropdown'); if(d) d.classList.add('hidden'); }, 100);
 }
 function openRollModal(id, dup) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
@@ -1204,10 +1281,11 @@ function openRollModal(id, dup) {
   openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
-    <div class="row" style="margin-bottom:10px">
-      <input type="text" id="rollIngSearch" list="rollIngDatalist" placeholder="Buscar insumo o semielaborado..." style="flex:1">
-      <datalist id="rollIngDatalist">${buildIngredientOptions()}</datalist>
-      <button class="btn btn-sm" onclick="addIngredientToRoll()"><i class="ti ti-plus"></i> Agregar</button>
+    <div class="ing-search-wrap" style="margin-bottom:10px">
+      <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
+        oninput="filterIngredientDropdown()" onfocus="filterIngredientDropdown()"
+        onkeydown="handleIngredientKeydown(event)" onblur="closeIngredientDropdownOnBlur()">
+      <div id="rollIngDropdown" class="ing-dropdown hidden"></div>
     </div>
     <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
