@@ -1,10 +1,22 @@
-from flask import Flask, request, jsonify, send_file, render_template
-import sqlite3, json, os, tempfile
+from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
+import sqlite3, json, os, tempfile, functools
 from datetime import datetime
 from gen_pdf import build_pdf
+from authlib.integrations.flask_client import OAuth
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODUCCION')
 DB = os.path.join(os.path.dirname(__file__), 'data', 'sushi.db')
+
+# ── Google OAuth setup ──────────────────────────────────────────────────────
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
 
 # ── DB ────────────────────────────────────────────────────────────────────
 def get_db():
@@ -54,8 +66,25 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            nombre TEXT,
+            role TEXT NOT NULL DEFAULT 'user',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT
+        );
     ''')
     conn.commit()
+
+    # Bootstrap: si no hay usuarios todavía, crear el admin inicial
+    # a partir de la variable de entorno ADMIN_EMAIL
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    n_users = c.execute('SELECT COUNT(*) FROM usuarios').fetchone()[0]
+    if n_users == 0 and admin_email:
+        c.execute('INSERT OR IGNORE INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,1,?)',
+                   (admin_email.strip().lower(), 'Administrador', 'admin', datetime.now().isoformat()))
+        conn.commit()
 
     # Migration: add recipe columns to semielaborados if they don't exist yet
     existing_cols = [r['name'] for r in c.execute('PRAGMA table_info(semielaborados)').fetchall()]
@@ -106,13 +135,134 @@ def init_db():
             conn.commit()
     conn.close()
 
+# ── Auth helpers ─────────────────────────────────────────────────────────
+def login_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_email' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'No autenticado'}), 401
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_email' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'No autenticado'}), 401
+            return redirect('/login')
+        if session.get('user_role') != 'admin':
+            return jsonify({'error': 'Requiere permisos de administrador'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+# ── Auth routes ──────────────────────────────────────────────────────────
+@app.route('/login')
+def login_page():
+    if 'user_email' in session:
+        return redirect('/')
+    return render_template('login.html')
+
+@app.route('/auth/google')
+def auth_google():
+    redirect_uri = url_for('auth_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/auth/callback')
+def auth_callback():
+    token = google.authorize_access_token()
+    user_info = token.get('userinfo')
+    if not user_info or not user_info.get('email'):
+        return render_template('login.html', error='No se pudo verificar tu cuenta de Google. Intentá de nuevo.')
+
+    email = user_info['email'].strip().lower()
+    conn = get_db()
+    user = conn.execute('SELECT * FROM usuarios WHERE email=?', (email,)).fetchone()
+    conn.close()
+
+    if not user or not user['active']:
+        return render_template('login.html',
+            error=f'La cuenta {email} no tiene acceso autorizado. Pedile a un administrador que te agregue.')
+
+    session['user_email'] = email
+    session['user_name'] = user_info.get('name', email)
+    session['user_picture'] = user_info.get('picture', '')
+    session['user_role'] = user['role']
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
 # ── Routes ────────────────────────────────────────────────────────────────
 @app.route('/')
+@login_required
 def index():
-    return render_template('index.html')
+    return render_template('index.html',
+        is_admin=(session.get('user_role')=='admin'),
+        user_name=session.get('user_name',''),
+        user_email=session.get('user_email',''),
+        user_picture=session.get('user_picture',''))
+
+# ── Usuarios (solo admin) ──
+@app.route('/api/usuarios', methods=['GET'])
+@admin_required
+def get_usuarios():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM usuarios ORDER BY email').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'email': r['email'], 'nombre': r['nombre'],
+                     'role': r['role'], 'active': bool(r['active'])} for r in rows])
+
+@app.route('/api/usuarios', methods=['POST'])
+@admin_required
+def create_usuario():
+    data = request.json
+    email = data['email'].strip().lower()
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,?,?)',
+                     (email, data.get('nombre',''), data.get('role','user'),
+                      int(data.get('active', True)), datetime.now().isoformat()))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Ese email ya está registrado'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
+@admin_required
+def update_usuario(usuario_id):
+    data = request.json
+    conn = get_db()
+    conn.execute('UPDATE usuarios SET email=?, nombre=?, role=?, active=? WHERE id=?',
+                 (data['email'].strip().lower(), data.get('nombre',''), data.get('role','user'),
+                  int(data.get('active', True)), usuario_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['DELETE'])
+@admin_required
+def delete_usuario(usuario_id):
+    conn = get_db()
+    # Evitar que el admin se borre a si mismo y se quede afuera
+    row = conn.execute('SELECT email FROM usuarios WHERE id=?', (usuario_id,)).fetchone()
+    if row and row['email'] == session.get('user_email'):
+        conn.close()
+        return jsonify({'error': 'No podés eliminar tu propio usuario mientras estás conectado'}), 400
+    conn.execute('DELETE FROM usuarios WHERE id=?', (usuario_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
+@login_required
 def get_rolls():
     conn = get_db()
     rows = conn.execute('SELECT * FROM rolls ORDER BY name').fetchall()
@@ -122,6 +272,7 @@ def get_rolls():
                      'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
+@admin_required
 def create_roll():
     data = request.json
     conn = get_db()
@@ -132,6 +283,7 @@ def create_roll():
     return jsonify({'ok': True})
 
 @app.route('/api/rolls/<int:roll_id>', methods=['PUT'])
+@admin_required
 def update_roll(roll_id):
     data = request.json
     conn = get_db()
@@ -142,6 +294,7 @@ def update_roll(roll_id):
     return jsonify({'ok': True})
 
 @app.route('/api/rolls/<int:roll_id>', methods=['DELETE'])
+@admin_required
 def delete_roll(roll_id):
     conn = get_db()
     conn.execute('DELETE FROM rolls WHERE id=?', (roll_id,))
@@ -151,6 +304,7 @@ def delete_roll(roll_id):
 
 # ── Combos ──
 @app.route('/api/combos', methods=['GET'])
+@login_required
 def get_combos():
     conn = get_db()
     rows = conn.execute('SELECT * FROM combos ORDER BY family, name').fetchall()
@@ -160,6 +314,7 @@ def get_combos():
                      'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/combos', methods=['POST'])
+@admin_required
 def create_combo():
     data = request.json
     conn = get_db()
@@ -170,6 +325,7 @@ def create_combo():
     return jsonify({'ok': True})
 
 @app.route('/api/combos/<int:combo_id>', methods=['PUT'])
+@admin_required
 def update_combo(combo_id):
     data = request.json
     conn = get_db()
@@ -180,6 +336,7 @@ def update_combo(combo_id):
     return jsonify({'ok': True})
 
 @app.route('/api/combos/<int:combo_id>', methods=['DELETE'])
+@admin_required
 def delete_combo(combo_id):
     conn = get_db()
     conn.execute('DELETE FROM combos WHERE id=?', (combo_id,))
@@ -189,6 +346,7 @@ def delete_combo(combo_id):
 
 # ── Semielaborados ──
 @app.route('/api/semielaborados', methods=['GET'])
+@login_required
 def get_semielaborados():
     conn = get_db()
     rows = conn.execute('SELECT * FROM semielaborados ORDER BY name').fetchall()
@@ -201,6 +359,7 @@ def get_semielaborados():
                      'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
+@admin_required
 def create_semi():
     data = request.json
     conn = get_db()
@@ -217,6 +376,7 @@ def create_semi():
     return jsonify({'ok': True})
 
 @app.route('/api/semielaborados/<int:semi_id>', methods=['PUT'])
+@admin_required
 def update_semi(semi_id):
     data = request.json
     conn = get_db()
@@ -232,6 +392,7 @@ def update_semi(semi_id):
     return jsonify({'ok': True})
 
 @app.route('/api/semielaborados/<int:semi_id>', methods=['DELETE'])
+@admin_required
 def delete_semi(semi_id):
     conn = get_db()
     conn.execute('DELETE FROM semielaborados WHERE id=?', (semi_id,))
@@ -241,6 +402,7 @@ def delete_semi(semi_id):
 
 # ── Sushimanes ──
 @app.route('/api/sushimanes', methods=['GET'])
+@login_required
 def get_sushimanes():
     conn = get_db()
     rows = conn.execute('SELECT * FROM sushimanes ORDER BY name').fetchall()
@@ -250,6 +412,7 @@ def get_sushimanes():
                      'active': bool(r['active'])} for r in rows])
 
 @app.route('/api/sushimanes', methods=['POST'])
+@admin_required
 def create_sushiman():
     data = request.json
     conn = get_db()
@@ -260,6 +423,7 @@ def create_sushiman():
     return jsonify({'ok': True})
 
 @app.route('/api/sushimanes/<int:sm_id>', methods=['PUT'])
+@admin_required
 def update_sushiman(sm_id):
     data = request.json
     conn = get_db()
@@ -270,6 +434,7 @@ def update_sushiman(sm_id):
     return jsonify({'ok': True})
 
 @app.route('/api/sushimanes/<int:sm_id>', methods=['DELETE'])
+@admin_required
 def delete_sushiman(sm_id):
     conn = get_db()
     conn.execute('DELETE FROM sushimanes WHERE id=?', (sm_id,))
@@ -279,6 +444,7 @@ def delete_sushiman(sm_id):
 
 # ── Marcas ──
 @app.route('/api/marcas', methods=['GET'])
+@login_required
 def get_marcas():
     conn = get_db()
     rows = conn.execute('SELECT * FROM marcas ORDER BY name').fetchall()
@@ -286,6 +452,7 @@ def get_marcas():
     return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
 
 @app.route('/api/marcas', methods=['POST'])
+@admin_required
 def create_marca():
     data = request.json
     conn = get_db()
@@ -295,6 +462,7 @@ def create_marca():
     return jsonify({'ok': True})
 
 @app.route('/api/marcas/<int:marca_id>', methods=['PUT'])
+@admin_required
 def update_marca(marca_id):
     data = request.json
     conn = get_db()
@@ -304,6 +472,7 @@ def update_marca(marca_id):
     return jsonify({'ok': True})
 
 @app.route('/api/marcas/<int:marca_id>', methods=['DELETE'])
+@admin_required
 def delete_marca(marca_id):
     conn = get_db()
     conn.execute('DELETE FROM marcas WHERE id=?', (marca_id,))
@@ -313,6 +482,7 @@ def delete_marca(marca_id):
 
 # ── Insumos (tabla maestra de unidades) ──
 @app.route('/api/insumos', methods=['GET'])
+@login_required
 def get_insumos():
     conn = get_db()
     rows = conn.execute('SELECT * FROM insumos ORDER BY label').fetchall()
@@ -324,6 +494,7 @@ def get_insumos():
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
+@admin_required
 def create_insumo():
     data = request.json
     conn = get_db()
@@ -336,6 +507,7 @@ def create_insumo():
     return jsonify({'ok': True})
 
 @app.route('/api/insumos/<int:ins_id>', methods=['PUT'])
+@admin_required
 def update_insumo(ins_id):
     data = request.json
     conn = get_db()
@@ -348,6 +520,7 @@ def update_insumo(ins_id):
     return jsonify({'ok': True})
 
 @app.route('/api/insumos/<int:ins_id>', methods=['DELETE'])
+@admin_required
 def delete_insumo(ins_id):
     conn = get_db()
     conn.execute('DELETE FROM insumos WHERE id=?', (ins_id,))
@@ -357,6 +530,7 @@ def delete_insumo(ins_id):
 
 # ── Calcular producción ──
 @app.route('/api/calcular', methods=['POST'])
+@login_required
 def calcular():
     body       = request.json
     sales      = body.get('sales', [])
@@ -492,6 +666,7 @@ def calcular():
 
 # ── Generar PDF ──
 @app.route('/api/pdf', methods=['POST'])
+@login_required
 def generar_pdf():
     body = request.json
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
@@ -504,6 +679,7 @@ def generar_pdf():
 
 # ── Importar recetas desde Excel ──────────────────────────────────────────
 @app.route('/api/importar/rolls', methods=['POST'])
+@admin_required
 def importar_rolls():
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió archivo'}), 400
@@ -593,6 +769,7 @@ def importar_rolls():
 
 
 @app.route('/api/importar/semielaborados', methods=['POST'])
+@admin_required
 def importar_semielaborados():
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió archivo'}), 400
