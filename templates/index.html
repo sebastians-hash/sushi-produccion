@@ -137,6 +137,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="hdr-title">Planificador de Producción</div>
       <div class="hdr-sub" id="todayDate"></div>
     </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+      <div style="text-align:right;line-height:1.3">
+        <div style="font-size:12px;font-weight:600;color:#fff">{{ user_name }}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
+      </div>
+      {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
+      <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i></a>
+    </div>
   </header>
 
   <div class="steps">
@@ -145,7 +153,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
     <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
     <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
-    <div class="step nav" id="si6" onclick="goStep(6)"><span class="step-n">⚙</span>Config</div>
+    {% if is_admin %}<div class="step nav" id="si6" onclick="goStep(6)"><span class="step-n">⚙</span>Config</div>{% endif %}
   </div>
 
   <!-- ── STEP 1 ── -->
@@ -294,6 +302,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
       <div class="tab" onclick="showTab('tin',this)">Insumos</div>
       <div class="tab" onclick="showTab('tma',this)">Marcas</div>
+      <div class="tab" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
       <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar</div>
     </div>
     <div id="tc">
@@ -356,6 +365,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
         </div>
         <div id="marcaCfg"></div>
+      </div>
+    </div>
+    <div id="tus" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Usuarios con acceso</div>
+          <button class="btn btn-sm" onclick="openUsuarioModal()"><i class="ti ti-plus"></i> Nuevo usuario</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Solo las cuentas de Google registradas acá pueden entrar a la app. <strong>Admin</strong> ve y edita Configuración; <strong>Usuario</strong> solo usa el flujo de producción.</span>
+        </div>
+        <div id="usuarioCfg"></div>
       </div>
     </div>
     <div id="timp" class="hidden">
@@ -426,6 +448,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+window.CURRENT_USER_EMAIL = {{ user_email|tojson }};
 // ═══════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════
@@ -434,7 +458,7 @@ const ST = {
   sales:[], adj:{}, globalPct:100,
   production:[], insumos:{}, semis:[],
   schedule:null, editingGrid:false, scheduleBackup:null,
-  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[],
+  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[],
   dailySm:{}
 };
 
@@ -467,6 +491,9 @@ async function loadConfig() {
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
+    if (IS_ADMIN) {
+      ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
+    }
   } catch(e){ console.error('loadConfig',e); }
 }
 
@@ -474,11 +501,13 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goStep(n) {
+  if(n===6 && !IS_ADMIN) return; // solo admins pueden entrar a Configuración
   if(n>1&&n<6&&!ST.sales.length) return;
   ST.prevStep=ST.step; ST.step=n;
   for(let i=1;i<=6;i++){
     document.getElementById('s'+i).classList.toggle('hidden',i!==n);
     const si=document.getElementById('si'+i);
+    if(!si) continue; // si6 no existe en el DOM para usuarios no-admin
     si.className='step'+(i===n?' active':i<n&&i<6?' done nav':i===6?' nav':'');
     if(i<n&&i<6) si.onclick=()=>goStep(i);
     else if(i===6) si.onclick=()=>goStep(6);
@@ -491,7 +520,7 @@ function goStep(n) {
 }
 
 function showTab(id, el) {
-  ['tc','tr','ts','tsu','tin','tma','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  ['tc','tr','ts','tsu','tin','tma','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='tc') renderComboCfg();
@@ -500,6 +529,7 @@ function showTab(id, el) {
   if(id==='tsu') renderSmCfg();
   if(id==='tin') renderInsumoCfg();
   if(id==='tma') renderMarcaCfg();
+  if(id==='tus') renderUsuarioCfg();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1109,6 +1139,65 @@ function marcaChecks(selectedNames) {
 }
 function readMarcaChecks(containerId) {
   return [...document.querySelectorAll(`#${containerId} .marca-check:checked`)].map(c=>c.value);
+}
+
+// ── Usuarios (admin) ──
+function renderUsuarioCfg() {
+  let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.usuarios.forEach(u=>{
+    const isMe = u.email === (window.CURRENT_USER_EMAIL||'');
+    h+=`<tr><td style="font-weight:600">${u.email}${isMe?' <span class="badge b-blue" style="margin-left:4px">vos</span>':''}</td>
+      <td>${u.nombre||'—'}</td>
+      <td><span class="badge ${u.role==='admin'?'b-warn':'b-blue'}">${u.role==='admin'?'Admin':'Usuario'}</span></td>
+      <td><span class="badge ${u.active?'b-green':'b-red'}">${u.active?'Activo':'Inactivo'}</span></td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openUsuarioModal(${u.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteUsuario(${u.id})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.usuarios.length) h='<div class="empty">No hay usuarios cargados todavía.</div>';
+  document.getElementById('usuarioCfg').innerHTML=h;
+}
+function openUsuarioModal(id) {
+  const u = id ? ST.usuarios.find(x=>x.id===id) : null;
+  openModal(id?'Editar usuario':'Nuevo usuario',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Email de Google</label>
+      <input type="email" id="m_email" class="w-full" value="${u?.email||''}" placeholder="persona@gmail.com"></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional, se completa solo al iniciar sesión)</span></label>
+      <input type="text" id="m_nombre" class="w-full" value="${u?.nombre||''}"></div>
+    <div class="form-grid">
+      <div><label class="form-lbl">Rol</label><select id="m_role" class="w-full">
+        <option value="user" ${u?.role==='user'?'selected':''}>Usuario (solo producción)</option>
+        <option value="admin" ${u?.role==='admin'?'selected':''}>Administrador (ve y edita Configuración)</option>
+      </select></div>
+      <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
+        <option value="1" ${u?.active!==false?'selected':''}>Activo</option>
+        <option value="0" ${u?.active===false?'selected':''}>Inactivo (bloqueado)</option>
+      </select></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUsuario(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveUsuario(id) {
+  const email=document.getElementById('m_email').value.trim().toLowerCase();
+  if(!email || !email.includes('@')){alert('Ingresá un email válido');return;}
+  const data={
+    email, nombre: document.getElementById('m_nombre').value.trim(),
+    role: document.getElementById('m_role').value,
+    active: document.getElementById('m_active').value==='1'
+  };
+  const res = await fetch(id?`/api/usuarios/${id}`:'/api/usuarios',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderUsuarioCfg();
+}
+async function deleteUsuario(id) {
+  if(!confirm('¿Confirmar eliminación? Esa cuenta perderá el acceso a la app.')) return;
+  const res = await fetch(`/api/usuarios/${id}`,{method:'DELETE'});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig(); renderUsuarioCfg();
 }
 
 async function deleteItem(endpoint, id, rerender) {
