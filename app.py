@@ -159,6 +159,37 @@ def admin_required(f):
     return decorated
 
 # ── Auth routes ──────────────────────────────────────────────────────────
+@app.route('/debug/env')
+def debug_env():
+    """Ruta temporal de diagnostico. Borrar despues de resolver el problema de login."""
+    def mask(val, keep_start=12, keep_end=8):
+        if not val:
+            return 'NO CONFIGURADA (vacia o None)'
+        val = str(val)
+        if len(val) <= keep_start + keep_end:
+            return f'(muy corta, {len(val)} caracteres) {val[:3]}...'
+        return f'{val[:keep_start]}...{val[-keep_end:]}  (longitud total: {len(val)})'
+
+    client_id = os.environ.get('GOOGLE_CLIENT_ID')
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    secret_key = os.environ.get('FLASK_SECRET_KEY')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+
+    lines = [
+        f"GOOGLE_CLIENT_ID: {mask(client_id)}",
+        f"  -> termina en .apps.googleusercontent.com: {str(client_id).strip().endswith('.apps.googleusercontent.com') if client_id else 'N/A'}",
+        f"  -> tiene espacios al inicio/final sin recortar: {(client_id != client_id.strip()) if client_id else 'N/A'}",
+        "",
+        f"GOOGLE_CLIENT_SECRET: {'CONFIGURADA (longitud ' + str(len(client_secret)) + ')' if client_secret else 'NO CONFIGURADA'}",
+        "",
+        f"FLASK_SECRET_KEY: {'CONFIGURADA' if secret_key else 'NO CONFIGURADA (usando valor por defecto, inseguro)'}",
+        "",
+        f"ADMIN_EMAIL: {admin_email if admin_email else 'NO CONFIGURADA'}",
+        "",
+        f"URL de callback que la app va a pedirle a Google: {url_for('auth_callback', _external=True)}",
+    ]
+    return "<pre style='font-family:monospace;font-size:14px;padding:20px'>" + "\n".join(lines) + "</pre>"
+
 @app.route('/login')
 def login_page():
     if 'user_email' in session:
