@@ -3,9 +3,14 @@ import sqlite3, json, os, tempfile, functools
 from datetime import datetime
 from gen_pdf import build_pdf
 from authlib.integrations.flask_client import OAuth
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODUCCION')
+# Railway (y la mayoria de plataformas cloud) terminan el HTTPS en su proxy y
+# reenvian a la app como HTTP interno. Sin esto, url_for(..., _external=True)
+# generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 DB = os.path.join(os.path.dirname(__file__), 'data', 'sushi.db')
 
 # ── Google OAuth setup ──────────────────────────────────────────────────────
