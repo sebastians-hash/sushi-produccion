@@ -11,7 +11,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODU
 # reenvian a la app como HTTP interno. Sin esto, url_for(..., _external=True)
 # generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-DB = os.path.join(os.path.dirname(__file__), 'data', 'sushi.db')
+DB = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), 'data', 'sushi.db'))
 
 # ── Google OAuth setup ──────────────────────────────────────────────────────
 oauth = OAuth(app)
@@ -295,6 +295,71 @@ def delete_usuario(usuario_id):
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
+
+# ── Respaldo completo (backup / restore) — solo admin ──────────────────────
+@app.route('/api/backup', methods=['GET'])
+@admin_required
+def backup_data():
+    conn = get_db()
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios']
+    data = {'version': 1, 'exported_at': datetime.now().isoformat()}
+    for table in TABLES:
+        rows = conn.execute(f'SELECT * FROM {table}').fetchall()
+        data[table] = [dict(r) for r in rows]
+    conn.close()
+
+    resp = jsonify(data)
+    filename = f'backup_sushi_{datetime.now().strftime("%Y%m%d_%H%M")}.json'
+    resp.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    return resp
+
+@app.route('/api/restore', methods=['POST'])
+@admin_required
+def restore_data():
+    data = request.json
+    if not data or 'version' not in data:
+        return jsonify({'error': 'El archivo no parece ser un respaldo válido'}), 400
+
+    conn = get_db()
+    counts = {}
+
+    def upsert(table, rows, unique_col, insert_cols):
+        n = 0
+        for row in rows:
+            key_val = row.get(unique_col)
+            if key_val is None:
+                continue
+            existing = conn.execute(f'SELECT id FROM {table} WHERE {unique_col}=?', (key_val,)).fetchone()
+            values = [row.get(c) for c in insert_cols]
+            if existing:
+                set_clause = ', '.join(f'{c}=?' for c in insert_cols)
+                conn.execute(f'UPDATE {table} SET {set_clause} WHERE id=?', values + [existing['id']])
+            else:
+                cols_clause = ', '.join(insert_cols)
+                placeholders = ', '.join('?' for _ in insert_cols)
+                conn.execute(f'INSERT INTO {table} ({cols_clause}) VALUES ({placeholders})', values)
+            n += 1
+        return n
+
+    counts['combos'] = upsert('combos', data.get('combos', []), 'name',
+                               ['name', 'family', 'rolls', 'marcas'])
+    counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
+                              ['name', 'insumos', 'marcas'])
+    counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
+                              ['name', 'insumo_key', 'unit', 'rolls', 'receta',
+                               'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
+    counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
+                              ['name', 'productivity', 'active'])
+    counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
+                              ['key', 'label', 'unidad_receta', 'unidad_resumen',
+                               'factor_conversion', 'precio_unidad'])
+    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
+    counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
+                              ['email', 'nombre', 'role', 'active', 'created_at'])
+
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'counts': counts})
 
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
