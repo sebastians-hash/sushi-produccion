@@ -568,9 +568,21 @@ function processFile(file) {
       const data=XLSX.utils.sheet_to_json(ws,{header:1});
       const rows=data.filter(r=>r.length>=2);
       const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+
+      // Código: primera columna que contenga "cod"
       const ci=hdr.findIndex(h=>h.includes('cod'));
-      const ni=hdr.findIndex(h=>h.includes('prod')||h.includes('nombre')||h.includes('descrip'));
-      const qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta')||h.includes('total'));
+
+      // Producto: preferir coincidencia EXACTA con "producto" (evita confundir con "producto id")
+      let ni=hdr.findIndex(h=>h==='producto');
+      if(ni<0) ni=hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
+      if(ni<0) ni=hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+
+      // Cantidad: preferir "1/2 porciones" o "porciones" exacto (formato habitual del sistema de ventas),
+      // y solo si no aparece, caer a la búsqueda genérica anterior (cant/qty/venta/total)
+      let qi=hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
+      if(qi<0) qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
+      if(qi<0) qi=hdr.findIndex(h=>h.includes('total'));
+
       if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
       const grp={};
       rows.slice(1).forEach(r=>{
