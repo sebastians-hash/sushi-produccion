@@ -382,6 +382,23 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div id="timp" class="hidden">
       <div class="card">
+        <div class="card-title">Respaldo completo de la app</div>
+        <div class="alert alert-info" style="margin-bottom:1.25rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Descargá un archivo con <strong>todo</strong> lo cargado (combos, rolls, semielaborados, sushimanes, insumos, marcas y usuarios) para guardarlo como respaldo o restaurarlo más adelante.</span>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="downloadBackup()" id="backupBtn">
+            <i class="ti ti-download"></i> Descargar respaldo completo
+          </button>
+          <button class="btn" onclick="document.getElementById('fileRestore').click()">
+            <i class="ti ti-upload"></i> Restaurar desde un respaldo
+          </button>
+          <input type="file" id="fileRestore" class="hidden" accept=".json" onchange="restoreBackup(event)">
+        </div>
+        <div id="restoreResult" class="hidden" style="margin-top:1rem"></div>
+      </div>
+      <div class="card">
         <div class="card-title">Importar recetas desde Excel</div>
         <div class="alert alert-info" style="margin-bottom:1.25rem">
           <i class="ti ti-info-circle"></i>
@@ -1595,6 +1612,71 @@ async function saveInsumo(id) {
 // ═══════════════════════════════════════════════════════
 // IMPORT
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// BACKUP / RESTORE
+// ═══════════════════════════════════════════════════════
+async function downloadBackup() {
+  const btn = document.getElementById('backupBtn');
+  btn.innerHTML = '<span class="loader" style="border-top-color:#fff"></span> Generando...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/backup');
+    if (!res.ok) throw new Error('No se pudo generar el respaldo');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_sushi_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Error al descargar el respaldo: ' + e.message);
+  } finally {
+    btn.innerHTML = '<i class="ti ti-download"></i> Descargar respaldo completo';
+    btn.disabled = false;
+  }
+}
+
+async function restoreBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('Esto va a agregar/actualizar datos desde el archivo de respaldo. ¿Continuar?')) {
+    e.target.value = '';
+    return;
+  }
+  const resultEl = document.getElementById('restoreResult');
+  resultEl.classList.remove('hidden');
+  resultEl.innerHTML = '<div class="alert alert-info"><span class="loader" style="border-top-color:var(--blue)"></span> Restaurando...</div>';
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const res = await fetch('/api/restore', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.error) {
+      resultEl.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>${result.error}</span></div>`;
+      return;
+    }
+    const labels = {combos:'Combos', rolls:'Rolls', semielaborados:'Semielaborados',
+                     sushimanes:'Sushimanes', insumos:'Insumos', marcas:'Marcas', usuarios:'Usuarios'};
+    let html = '<div class="alert alert-success"><i class="ti ti-circle-check"></i><span>Respaldo restaurado correctamente</span></div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+    Object.entries(result.counts).forEach(([k,v])=>{
+      html += `<span class="badge b-green">${labels[k]||k}: ${v}</span>`;
+    });
+    html += '</div>';
+    resultEl.innerHTML = html;
+    await loadConfig();
+    renderComboCfg();
+  } catch(err) {
+    resultEl.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Error: el archivo no es un respaldo válido (${err.message})</span></div>`;
+  } finally {
+    e.target.value = '';
+  }
+}
+
 function handleImportDrop(e, type) {
   e.preventDefault();
   const dropId = type === 'rolls' ? 'dropRolls' : 'dropSemi';
