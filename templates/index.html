@@ -585,17 +585,49 @@ function processFile(file) {
 
       if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
       const grp={};
+
+      function addToGroup(key, name, family, matched, qty) {
+        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
+        grp[key].qty+=qty;
+      }
+
       rows.slice(1).forEach(r=>{
         const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
         const rawName=ni>=0?(r[ni]||'').toString().trim():code;
         const qty=parseInt(r[qi])||0;
-        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-        if(!key||!qty) return;
+        if(!qty) return;
+
         const mc=findCombo(code,rawName);
-        const name=mc?mc.name:rawName;
-        const family=mc?mc.family:'Otros';
-        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched:!!mc};
-        grp[key].qty+=qty;
+
+        if(mc){
+          // Coincidencia directa con un combo existente
+          const key=code||rawName.toLowerCase().replace(/\s+/g,'');
+          addToGroup(key, mc.name, mc.family, true, qty);
+          return;
+        }
+
+        // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
+        // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
+        // Separamos por "+" y tratamos de matchear cada parte por separado.
+        if(rawName.includes('+')){
+          const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
+          if(parts.length > 1){
+            const matchedParts = parts.map(p=>findCombo('', p));
+            if(matchedParts.every(m=>m)){
+              // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
+              matchedParts.forEach(m=>{
+                const key = m.name.toLowerCase().replace(/\s+/g,'');
+                addToGroup(key, m.name, m.family, true, qty);
+              });
+              return;
+            }
+          }
+        }
+
+        // No matcheó ni directo ni como combinación de combos conocidos
+        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
+        if(!key) return;
+        addToGroup(key, rawName, 'Otros', false, qty);
       });
       ST.sales=Object.values(grp).filter(s=>s.qty>0);
       const unm=ST.sales.filter(s=>!s.matched).length;
