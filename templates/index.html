@@ -229,6 +229,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
@@ -298,10 +299,12 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="tabs">
       <div class="tab active" onclick="showTab('tc',this)">Combos</div>
       <div class="tab" onclick="showTab('tr',this)">Rolls</div>
+      <div class="tab" onclick="showTab('top',this)">Otros productos</div>
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
       <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
       <div class="tab" onclick="showTab('tin',this)">Insumos</div>
       <div class="tab" onclick="showTab('tma',this)">Marcas</div>
+      <div class="tab" onclick="showTab('tfa',this)">Familias</div>
       <div class="tab" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
       <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar</div>
     </div>
@@ -321,6 +324,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
         </div>
         <div id="rollCfg"></div>
+      </div>
+    </div>
+    <div id="top" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Otros productos</div>
+          <button class="btn btn-sm" onclick="openOtroProductoModal()"><i class="ti ti-plus"></i> Nuevo producto</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Porciones sueltas, ensaladas poke, entradas y platos calientes — cualquier producto que se venda con receta directa de insumos y semielaborados, sin pasar por rolls.</span>
+        </div>
+        <div id="otroProductoCfg"></div>
       </div>
     </div>
     <div id="ts" class="hidden">
@@ -365,6 +381,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
         </div>
         <div id="marcaCfg"></div>
+      </div>
+    </div>
+    <div id="tfa" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Familias</div>
+          <button class="btn btn-sm" onclick="openFamiliaModal()"><i class="ti ti-plus"></i> Nueva familia</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Las familias agrupan combos y otros productos (ej: Alaska, Tokyo, Porciones, Ensaladas). Se usan en el paso de ajuste de venta para organizar todo por categoría.</span>
+        </div>
+        <div id="familiaCfg"></div>
       </div>
     </div>
     <div id="tus" class="hidden">
@@ -473,9 +502,9 @@ window.CURRENT_USER_EMAIL = {{ user_email|tojson }};
 const ST = {
   step:1, prevStep:1,
   sales:[], adj:{}, globalPct:100,
-  production:[], insumos:{}, semis:[],
+  production:[], insumos:{}, semis:[], otrosVenta:[],
   schedule:null, editingGrid:false, scheduleBackup:null,
-  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[],
+  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[],
   dailySm:{}
 };
 
@@ -498,15 +527,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
       fetch('/api/sushimanes').then(r=>r.json()),
       fetch('/api/insumos').then(r=>r.json()),
       fetch('/api/marcas').then(r=>r.json()),
+      fetch('/api/familias').then(r=>r.json()),
+      fetch('/api/otros-productos').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
+    ST.familias=familias; ST.otrosProductos=otrosProd;
     sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
     if (IS_ADMIN) {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
@@ -537,15 +569,17 @@ function goStep(n) {
 }
 
 function showTab(id, el) {
-  ['tc','tr','ts','tsu','tin','tma','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  ['tc','tr','top','ts','tsu','tin','tma','tfa','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='tc') renderComboCfg();
   if(id==='tr') renderRollCfg();
+  if(id==='top') renderOtroProductoCfg();
   if(id==='ts') renderSemiCfg();
   if(id==='tsu') renderSmCfg();
   if(id==='tin') renderInsumoCfg();
   if(id==='tma') renderMarcaCfg();
+  if(id==='tfa') renderFamiliaCfg();
   if(id==='tus') renderUsuarioCfg();
 }
 
@@ -606,6 +640,14 @@ function processFile(file) {
           return;
         }
 
+        // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+        const mp=findOtroProducto(code,rawName);
+        if(mp){
+          const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
+          addToGroup(key, mp.name, mp.familia||'Otros', true, qty);
+          return;
+        }
+
         // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
         // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
         // Separamos por "+" y tratamos de matchear cada parte por separado.
@@ -644,6 +686,10 @@ function findCombo(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
   return ST.combos.find(c=>n(c.name)===n(code)||n(c.name)===n(name));
 }
+function findOtroProducto(code, name) {
+  const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
+  return ST.otrosProductos.find(p=>n(p.name)===n(code)||n(p.name)===n(name));
+}
 
 function showStatus(type,msg) {
   const el=document.getElementById('fStatus');
@@ -654,16 +700,24 @@ function showStatus(type,msg) {
 
 // ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
 function loadManual() {
-  if (!ST.combos.length) { alert('No hay combos configurados todavía. Cargalos en Configuración → Combos.'); return; }
-  ST.sales = ST.combos.map(c => ({
+  if (!ST.combos.length && !ST.otrosProductos.length) { alert('No hay combos ni otros productos configurados todavía. Cargalos en Configuración.'); return; }
+  const comboEntries = ST.combos.map(c => ({
     code: c.name.toLowerCase().replace(/\s+/g,''),
     name: c.name,
     qty: 0,
     family: c.family,
     matched: true
   }));
+  const otroEntries = ST.otrosProductos.map(p => ({
+    code: 'op_'+p.name.toLowerCase().replace(/\s+/g,''),
+    name: p.name,
+    qty: 0,
+    family: p.familia || 'Otros',
+    matched: true
+  }));
+  ST.sales = [...comboEntries, ...otroEntries];
   ST.adj = {};
-  showStatus('success', `${ST.sales.length} combos listos para completar cantidades`);
+  showStatus('success', `${ST.sales.length} productos listos para completar cantidades`);
   setTimeout(() => {
     goStep(2);
     // Default to "cantidad" mode so typing a number directly sets the quantity (base venta is 0)
@@ -718,13 +772,15 @@ async function doConfirm() {
     const res=await fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
     const data=await res.json();
-    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis;
+    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[];
     const totR=ST.production.reduce((s,r)=>s+r.qty,0);
+    const totOtros=ST.otrosVenta.reduce((s,p)=>s+p.qty,0);
     const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
     document.getElementById('sumMetrics').innerHTML=`
       <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
       <div class="metric"><div class="metric-lbl">Tipos de roll</div><div class="metric-val">${ST.production.length}</div></div>
       <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
+      <div class="metric"><div class="metric-lbl">Otros productos</div><div class="metric-val">${totOtros}</div></div>
       <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
     let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
     ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.qty*14}</td></tr>`);
@@ -774,6 +830,15 @@ function renderProduction() {
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
   document.getElementById('semiTbl').innerHTML=sh;
+
+  let oh='<table><thead><tr><th>Producto</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  if(ST.otrosVenta.length) {
+    ST.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+  } else {
+    oh+='<tr><td colspan="3" class="empty">No hay otros productos en esta producción</td></tr>';
+  }
+  oh+='</tbody></table>';
+  document.getElementById('otrosTbl').innerHTML=oh;
 
   let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
   ST.sales.forEach(s=>{ const qty=Math.round(getAdjQty(s)*ST.globalPct/100); if(qty>0) ch+=`<tr><td>${s.name}</td><td style="text-align:right">${qty}</td></tr>`; });
@@ -1189,6 +1254,114 @@ async function saveMarca(id) {
   closeModal(); await loadConfig(); renderMarcaCfg();
 }
 
+// ── Familias ──
+function renderFamiliaCfg() {
+  let h='<table><thead><tr><th>Familia</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.familias.forEach(f=>{
+    h+=`<tr><td style="font-weight:600">${f.name}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openFamiliaModal(${f.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('familias',${f.id},renderFamiliaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.familias.length) h='<div class="empty">No hay familias configuradas.</div>';
+  document.getElementById('familiaCfg').innerHTML=h;
+}
+function openFamiliaModal(id) {
+  const familia = id ? ST.familias.find(f=>f.id===id) : null;
+  openModal(id?'Editar familia':'Nueva familia',`
+    <div><label class="form-lbl">Nombre de la familia</label><input type="text" id="m_name" class="w-full" value="${familia?.name||''}" placeholder="Ej: Ensaladas"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveFamilia(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveFamilia(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const res = await fetch(id?`/api/familias/${id}`:'/api/familias',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderFamiliaCfg();
+}
+function familiaOptions(selected) {
+  if (!ST.familias.length) return `<option value="Otros">Otros</option>`;
+  return ST.familias.map(f=>`<option value="${f.name}" ${selected===f.name?'selected':''}>${f.name}</option>`).join('');
+}
+
+// ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
+const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entrada', plato_caliente:'Plato caliente', otro:'Otro'};
+
+function renderOtroProductoCfg() {
+  let h='<table><thead><tr><th>Producto</th><th>Tipo</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.otrosProductos.forEach(p=>{
+    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    h+=`<tr><td style="font-weight:600">${p.name}</td>
+      <td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td>
+      <td>${p.familia||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm" onclick="duplicateOtroProducto(${p.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},renderOtroProductoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.otrosProductos.length) h='<div class="empty">No hay otros productos cargados. Agregá porciones, ensaladas, entradas o platos calientes.</div>';
+  document.getElementById('otroProductoCfg').innerHTML=h;
+}
+
+function openOtroProductoModal(id, dup) {
+  const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
+  const ins = prod?.insumos || {};
+  const tipoOpts = Object.entries(TIPO_OTRO_LABELS).map(([k,label])=>
+    `<option value="${k}" ${prod?.tipo===k?'selected':''}>${label}</option>`).join('');
+  openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
+      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
+    </div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
+    <div class="ing-search-wrap" style="margin-bottom:10px">
+      <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
+        oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
+        onkeydown="handleIngredientKeydown(event,'otroProd')" onblur="closeIngredientDropdownOnBlur('otroProd')">
+      <div id="otroProdIngDropdown" class="ing-dropdown hidden"></div>
+    </div>
+    <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
+    <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
+    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(prod?.marcas)}</div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
+  );
+  const container = document.getElementById('otroProdIngRows');
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
+}
+function duplicateOtroProducto(id) {
+  const prod = ST.otrosProductos.find(p=>p.id===id);
+  if(!prod) return;
+  openOtroProductoModal(null, {...prod, name: prod.name + ' (copia)'});
+}
+async function saveOtroProducto(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const insumos={};
+  document.querySelectorAll('#otroProdIngRows .roll-ing-row').forEach(row=>{
+    const v = parseFloat(row.querySelector('input').value)||0;
+    if (v>0) insumos[row.dataset.key] = v;
+  });
+  const marcas = readMarcaChecks('otroProdMarcaChecks');
+  const data = {
+    name, tipo: document.getElementById('m_tipo').value,
+    familia: document.getElementById('m_familia').value,
+    insumos, marcas
+  };
+  const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderOtroProductoCfg();
+}
+
 // Helper: renders a checkbox list for selecting marcas, used in combo/roll/semi modals
 function marcaChecks(selectedNames) {
   selectedNames = selectedNames || [];
@@ -1328,7 +1501,7 @@ function buildIngredientList() {
   });
   return list;
 }
-function rollIngRow(key, qty) {
+function makeIngRow(key, qty) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
@@ -1348,16 +1521,20 @@ function rollIngRow(key, qty) {
   return div;
 }
 
-// ── Custom ingredient search dropdown (replaces native <datalist>) ──
+// ── Custom ingredient search dropdown (reutilizable: Rolls y Otros Productos) ──
+// Cada instancia se identifica por un "prefix" (ej: 'roll', 'otroProd') que arma
+// los ids: {prefix}IngSearch, {prefix}IngDropdown, {prefix}IngRows
 let ingDropdownActiveIdx = -1;
 let ingDropdownItems = [];
+let ingDropdownPrefix = 'roll';
 
 function normalizeSearchText(s) {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
-function filterIngredientDropdown() {
-  const input = document.getElementById('rollIngSearch');
-  const dropdown = document.getElementById('rollIngDropdown');
+function filterIngredientDropdown(prefix) {
+  ingDropdownPrefix = prefix || ingDropdownPrefix;
+  const input = document.getElementById(ingDropdownPrefix+'IngSearch');
+  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
   const q = normalizeSearchText(input.value.trim());
   const all = buildIngredientList();
   ingDropdownItems = q ? all.filter(i=>normalizeSearchText(i.label).includes(q)) : all;
@@ -1366,7 +1543,7 @@ function filterIngredientDropdown() {
   dropdown.classList.remove('hidden');
 }
 function renderIngredientDropdown() {
-  const dropdown = document.getElementById('rollIngDropdown');
+  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
   if (!ingDropdownItems.length) {
     dropdown.innerHTML = '<div class="ing-item-empty">No se encontraron resultados</div>';
     return;
@@ -1381,22 +1558,23 @@ function renderIngredientDropdown() {
 function selectIngredientFromDropdown(idx) {
   const item = ingDropdownItems[idx];
   if (!item) return;
-  const container = document.getElementById('rollIngRows');
+  const container = document.getElementById(ingDropdownPrefix+'IngRows');
   const existing = [...container.children].find(row=>row.dataset.key===item.key);
   if (existing) {
     existing.querySelector('input').focus();
     existing.querySelector('input').select();
   } else {
-    container.appendChild(rollIngRow(item.key, 1));
+    container.appendChild(makeIngRow(item.key, 1));
   }
-  document.getElementById('rollIngSearch').value = '';
-  document.getElementById('rollIngDropdown').classList.add('hidden');
-  document.getElementById('rollIngSearch').focus();
+  document.getElementById(ingDropdownPrefix+'IngSearch').value = '';
+  document.getElementById(ingDropdownPrefix+'IngDropdown').classList.add('hidden');
+  document.getElementById(ingDropdownPrefix+'IngSearch').focus();
 }
-function handleIngredientKeydown(e) {
-  const dropdown = document.getElementById('rollIngDropdown');
+function handleIngredientKeydown(e, prefix) {
+  ingDropdownPrefix = prefix || ingDropdownPrefix;
+  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
   if (dropdown.classList.contains('hidden')) {
-    if (e.key === 'ArrowDown') filterIngredientDropdown();
+    if (e.key === 'ArrowDown') filterIngredientDropdown(ingDropdownPrefix);
     return;
   }
   if (e.key === 'ArrowDown') {
@@ -1418,12 +1596,13 @@ function handleIngredientKeydown(e) {
   }
 }
 function scrollActiveIngIntoView() {
-  const active = document.querySelector('#rollIngDropdown .ing-item.active');
+  const active = document.querySelector(`#${ingDropdownPrefix}IngDropdown .ing-item.active`);
   if (active && typeof active.scrollIntoView === 'function') active.scrollIntoView({block:'nearest'});
 }
-function closeIngredientDropdownOnBlur() {
+function closeIngredientDropdownOnBlur(prefix) {
+  const p = prefix || ingDropdownPrefix;
   // slight delay so a click (mousedown already handled selection) doesn't get lost
-  setTimeout(()=>{ const d=document.getElementById('rollIngDropdown'); if(d) d.classList.add('hidden'); }, 100);
+  setTimeout(()=>{ const d=document.getElementById(p+'IngDropdown'); if(d) d.classList.add('hidden'); }, 100);
 }
 function openRollModal(id, dup) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
@@ -1433,8 +1612,8 @@ function openRollModal(id, dup) {
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
-        oninput="filterIngredientDropdown()" onfocus="filterIngredientDropdown()"
-        onkeydown="handleIngredientKeydown(event)" onblur="closeIngredientDropdownOnBlur()">
+        oninput="filterIngredientDropdown('roll')" onfocus="filterIngredientDropdown('roll')"
+        onkeydown="handleIngredientKeydown(event,'roll')" onblur="closeIngredientDropdownOnBlur('roll')">
       <div id="rollIngDropdown" class="ing-dropdown hidden"></div>
     </div>
     <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
@@ -1443,7 +1622,7 @@ function openRollModal(id, dup) {
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
   );
   const container = document.getElementById('rollIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(rollIngRow(key, qty)); });
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -1466,8 +1645,7 @@ async function saveRoll(id) {
 // ── Combo modal ──
 function openComboModal(id) {
   const combo=id?ST.combos.find(c=>c.id===id):null;
-  const FAMS=['Alaska','Tokyo','Limited','Black','Veggie','Belgrano','Recoleta','Libertador','Kill Bill','Hattori','Pai Mei','Cooked','Otros'];
-  const famOpts=FAMS.map(f=>`<option ${combo?.family===f?'selected':''}>${f}</option>`).join('');
+  const famOpts=familiaOptions(combo?.family);
   const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
   const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts)).join(''):'';
   openModal(id?'Editar combo':'Nuevo combo',`
