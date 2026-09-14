@@ -79,6 +79,18 @@ def init_db():
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS familias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS otros_productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'porcion',
+            familia TEXT,
+            insumos TEXT NOT NULL DEFAULT '{}',
+            marcas TEXT NOT NULL DEFAULT '[]'
+        );
     ''')
     conn.commit()
 
@@ -89,6 +101,18 @@ def init_db():
     if n_users == 0 and admin_email:
         c.execute('INSERT OR IGNORE INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,1,?)',
                    (admin_email.strip().lower(), 'Administrador', 'admin', datetime.now().isoformat()))
+        conn.commit()
+
+    # Sembrar familias a partir de las que ya usan los combos existentes
+    # (para no romper nada) mas categorias sugeridas para los productos nuevos
+    n_familias = c.execute('SELECT COUNT(*) FROM familias').fetchone()[0]
+    if n_familias == 0:
+        existing_families = [r['family'] for r in c.execute(
+            'SELECT DISTINCT family FROM combos WHERE family IS NOT NULL AND family != ""').fetchall()]
+        suggested = ['Porciones', 'Ensaladas', 'Entradas', 'Platos Calientes', 'Otros']
+        all_families = list(dict.fromkeys(existing_families + suggested))  # dedup preservando orden
+        for fam in all_families:
+            c.execute('INSERT OR IGNORE INTO familias (name) VALUES (?)', (fam,))
         conn.commit()
 
     # Migration: add recipe columns to semielaborados if they don't exist yet
@@ -360,6 +384,102 @@ def restore_data():
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'counts': counts})
+
+# ── Familias ──
+@app.route('/api/familias', methods=['GET'])
+@login_required
+def get_familias():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM familias ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/familias', methods=['POST'])
+@admin_required
+def create_familia():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO familias (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Esa familia ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/familias/<int:familia_id>', methods=['PUT'])
+@admin_required
+def update_familia(familia_id):
+    data = request.json
+    conn = get_db()
+    old = conn.execute('SELECT name FROM familias WHERE id=?', (familia_id,)).fetchone()
+    new_name = data['name'].strip()
+    conn.execute('UPDATE familias SET name=? WHERE id=?', (new_name, familia_id))
+    # Si se renombra, actualizamos las referencias existentes en combos y otros_productos
+    if old and old['name'] != new_name:
+        conn.execute('UPDATE combos SET family=? WHERE family=?', (new_name, old['name']))
+        conn.execute('UPDATE otros_productos SET familia=? WHERE familia=?', (new_name, old['name']))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/familias/<int:familia_id>', methods=['DELETE'])
+@admin_required
+def delete_familia(familia_id):
+    conn = get_db()
+    conn.execute('DELETE FROM familias WHERE id=?', (familia_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
+@app.route('/api/otros-productos', methods=['GET'])
+@login_required
+def get_otros_productos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM otros_productos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'tipo': r['tipo'],
+                     'familia': r['familia'], 'insumos': json.loads(r['insumos']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+
+@app.route('/api/otros-productos', methods=['POST'])
+@admin_required
+def create_otro_producto():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas) VALUES (?,?,?,?,?)',
+                     (data['name'], data.get('tipo','porcion'), data.get('familia',''),
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', []))))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Ya existe un producto con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/otros-productos/<int:producto_id>', methods=['PUT'])
+@admin_required
+def update_otro_producto(producto_id):
+    data = request.json
+    conn = get_db()
+    conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=? WHERE id=?',
+                 (data['name'], data.get('tipo','porcion'), data.get('familia',''),
+                  json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])), producto_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/otros-productos/<int:producto_id>', methods=['DELETE'])
+@admin_required
+def delete_otro_producto(producto_id):
+    conn = get_db()
+    conn.execute('DELETE FROM otros_productos WHERE id=?', (producto_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
@@ -644,15 +764,23 @@ def calcular():
                  for r in conn.execute('SELECT name, rolls FROM combos').fetchall()}
     rolls_db  = {r['name']: json.loads(r['insumos'])
                  for r in conn.execute('SELECT name, insumos FROM rolls').fetchall()}
+    otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos'])}
+                 for r in conn.execute('SELECT name, tipo, insumos FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
     conn.close()
 
     roll_totals = {}
+    otros_totals = {}  # nombre -> {tipo, qty}
+    direct_insumo_totals = {}  # insumos que vienen DIRECTO de "otros productos" (no de rolls)
+
     for s in sales:
         a = adj.get(s['code'], 0)
         adj_qty = max(0, round(s['qty'] + (s['qty'] * a / 100 if adj_mode == 'pct' else a)))
         final_qty = round(adj_qty * global_pct / 100)
+        if final_qty <= 0:
+            continue
+
         combo = combos_db.get(s['name']) or combos_db.get(s['code'])
         if not combo:
             name_lower = s['name'].lower().replace(' ', '')
@@ -660,16 +788,42 @@ def calcular():
                 if cname.lower().replace(' ', '') == name_lower:
                     combo = crolls
                     break
-        if not combo:
+        if combo:
+            for roll_name, piezas in combo.items():
+                if not piezas:
+                    continue
+                rolls_needed = -(-piezas * final_qty // 14)
+                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
             continue
-        for roll_name, piezas in combo.items():
-            if not piezas:
-                continue
-            rolls_needed = -(-piezas * final_qty // 14)
-            roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
+
+        # No es combo: ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+        otro = otros_db.get(s['name']) or otros_db.get(s['code'])
+        if not otro:
+            name_lower = s['name'].lower().replace(' ', '')
+            for pname, pdata in otros_db.items():
+                if pname.lower().replace(' ', '') == name_lower:
+                    otro = pdata
+                    break
+        if otro:
+            key = None
+            for pname, pdata in otros_db.items():
+                if pdata is otro:
+                    key = pname
+                    break
+            if key:
+                if key not in otros_totals:
+                    otros_totals[key] = {'tipo': otro['tipo'], 'qty': 0}
+                otros_totals[key]['qty'] += final_qty
+            for k, v in otro['insumos'].items():
+                if v:
+                    direct_insumo_totals[k] = direct_insumo_totals.get(k, 0) + v * final_qty
 
     production = sorted(
         [{'name': k, 'qty': v} for k, v in roll_totals.items() if v > 0],
+        key=lambda x: -x['qty']
+    )
+    otros_productos_out = sorted(
+        [{'name': k, 'tipo': v['tipo'], 'qty': v['qty']} for k, v in otros_totals.items() if v['qty'] > 0],
         key=lambda x: -x['qty']
     )
 
@@ -687,6 +841,9 @@ def calcular():
         for k, v in recipe.items():
             if v:
                 insumo_totals[k] = insumo_totals.get(k, 0) + v * r['qty']
+    # Sumar tambien lo que aportan directo los "otros productos"
+    for k, v in direct_insumo_totals.items():
+        insumo_totals[k] = insumo_totals.get(k, 0) + v
 
     insumos_out = {}
     for k, total in sorted(insumo_totals.items(), key=lambda x: -x[1]):
@@ -713,6 +870,7 @@ def calcular():
         }
 
     # Semielaborados — se detectan automáticamente según qué rolls producidos
+    # (o "otros productos": porciones, ensaladas, entradas, platos calientes)
     # incluyen su insumo_key en su receta (no depende de una lista manual)
     semis_out = []
     for semi in semis_db:
@@ -724,6 +882,12 @@ def calcular():
             if amt:
                 total += amt * prod['qty']
                 used_in.append(prod['name'])
+        for otro in otros_productos_out:
+            recipe = otros_db.get(otro['name'], {}).get('insumos', {})
+            amt = recipe.get(semi['insumo_key'], 0)
+            if amt:
+                total += amt * otro['qty']
+                used_in.append(otro['name'])
         if total > 0:
             unit = semi['unit']
             display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
@@ -762,7 +926,8 @@ def calcular():
     return jsonify({
         'production': production,
         'insumos': insumos_out,
-        'semis': semis_out
+        'semis': semis_out,
+        'otrosProductos': otros_productos_out
     })
 
 # ── Generar PDF ──
