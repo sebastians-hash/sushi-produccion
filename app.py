@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
-import sqlite3, json, os, tempfile, functools
+import json, os, tempfile, functools
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 from gen_pdf import build_pdf
 from authlib.integrations.flask_client import OAuth
@@ -11,7 +13,62 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODU
 # reenvian a la app como HTTP interno. Sin esto, url_for(..., _external=True)
 # generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-DB = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), 'data', 'sushi.db'))
+
+# DATABASE_URL la provee Railway automaticamente al agregar un servicio de PostgreSQL
+# y vincularlo a esta app. Es una base de datos administrada: los datos NO se pierden
+# con cada deploy, a diferencia de un archivo SQLite en el filesystem del contenedor.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# ── Postgres IntegrityError, expuesto con el mismo nombre que usa el resto del codigo ──
+IntegrityError = psycopg2.IntegrityError
+
+# ── DB ────────────────────────────────────────────────────────────────────
+class _PGCursorWrapper:
+    """Envuelve un cursor de psycopg2 para que .execute() acepte '?' como
+    placeholder (estilo sqlite3) y devuelva filas con acceso tipo diccionario,
+    manteniendo compatible el resto del codigo sin reescribir cada consulta."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+    def execute(self, sql, params=()):
+        sql_pg = sql.replace('?', '%s')
+        self._cursor.execute(sql_pg, params)
+        return self
+    def executescript(self, script):
+        self._cursor.execute(script)
+        return self
+    def fetchone(self):
+        return self._cursor.fetchone()
+    def fetchall(self):
+        return self._cursor.fetchall()
+    @property
+    def lastrowid(self):
+        return None  # no usado; los INSERT que necesitan el id usan RETURNING
+
+class _PGConnWrapper:
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=()):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        sql_pg = sql.replace('?', '%s')
+        cur.execute(sql_pg, params)
+        return _PGCursorWrapper(cur)
+    def executescript(self, script):
+        cur = self._conn.cursor()
+        cur.execute(script)
+        return _PGCursorWrapper(cur)
+    def cursor(self):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return _PGCursorWrapper(cur)
+    def commit(self):
+        self._conn.commit()
+    def rollback(self):
+        self._conn.rollback()
+    def close(self):
+        self._conn.close()
+
+def get_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    return _PGConnWrapper(conn)
 
 # ── Google OAuth setup ──────────────────────────────────────────────────────
 oauth = OAuth(app)
@@ -23,43 +80,36 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-# ── DB ────────────────────────────────────────────────────────────────────
-def get_db():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 def init_db():
-    os.makedirs(os.path.dirname(DB), exist_ok=True)
     conn = get_db()
     c = conn.cursor()
     c.executescript('''
         CREATE TABLE IF NOT EXISTS rolls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             insumos TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS combos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             family TEXT NOT NULL,
             rolls TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS semielaborados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             insumo_key TEXT NOT NULL,
             unit TEXT NOT NULL,
             rolls TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS sushimanes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             productivity INTEGER NOT NULL DEFAULT 10,
             active INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS insumos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             key TEXT UNIQUE NOT NULL,
             label TEXT NOT NULL,
             unidad_receta TEXT NOT NULL DEFAULT 'g',
@@ -68,11 +118,11 @@ def init_db():
             precio_unidad REAL
         );
         CREATE TABLE IF NOT EXISTS marcas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL
         );
         CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             email TEXT UNIQUE NOT NULL,
             nombre TEXT,
             role TEXT NOT NULL DEFAULT 'user',
@@ -80,11 +130,11 @@ def init_db():
             created_at TEXT
         );
         CREATE TABLE IF NOT EXISTS familias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL
         );
         CREATE TABLE IF NOT EXISTS otros_productos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             tipo TEXT NOT NULL DEFAULT 'porcion',
             familia TEXT,
@@ -97,26 +147,32 @@ def init_db():
     # Bootstrap: si no hay usuarios todavía, crear el admin inicial
     # a partir de la variable de entorno ADMIN_EMAIL
     admin_email = os.environ.get('ADMIN_EMAIL')
-    n_users = c.execute('SELECT COUNT(*) FROM usuarios').fetchone()[0]
+    n_users = c.execute('SELECT COUNT(*) AS cnt FROM usuarios').fetchone()['cnt']
     if n_users == 0 and admin_email:
-        c.execute('INSERT OR IGNORE INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,1,?)',
+        c.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,1,?) ON CONFLICT (email) DO NOTHING',
                    (admin_email.strip().lower(), 'Administrador', 'admin', datetime.now().isoformat()))
         conn.commit()
 
     # Sembrar familias a partir de las que ya usan los combos existentes
     # (para no romper nada) mas categorias sugeridas para los productos nuevos
-    n_familias = c.execute('SELECT COUNT(*) FROM familias').fetchone()[0]
+    n_familias = c.execute('SELECT COUNT(*) AS cnt FROM familias').fetchone()['cnt']
     if n_familias == 0:
         existing_families = [r['family'] for r in c.execute(
-            'SELECT DISTINCT family FROM combos WHERE family IS NOT NULL AND family != ""').fetchall()]
+            "SELECT DISTINCT family FROM combos WHERE family IS NOT NULL AND family != ''").fetchall()]
         suggested = ['Porciones', 'Ensaladas', 'Entradas', 'Platos Calientes', 'Otros']
         all_families = list(dict.fromkeys(existing_families + suggested))  # dedup preservando orden
         for fam in all_families:
-            c.execute('INSERT OR IGNORE INTO familias (name) VALUES (?)', (fam,))
+            c.execute('INSERT INTO familias (name) VALUES (?) ON CONFLICT (name) DO NOTHING', (fam,))
         conn.commit()
 
     # Migration: add recipe columns to semielaborados if they don't exist yet
-    existing_cols = [r['name'] for r in c.execute('PRAGMA table_info(semielaborados)').fetchall()]
+    def get_columns(table):
+        rows = c.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+            (table,)).fetchall()
+        return [r['column_name'] for r in rows]
+
+    existing_cols = get_columns('semielaborados')
     if 'receta' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN receta TEXT NOT NULL DEFAULT '[]'")
     if 'rendimiento_cantidad' not in existing_cols:
@@ -127,38 +183,38 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
 
     # Migration: add 'marcas' column to combos and rolls
-    combo_cols = [r['name'] for r in c.execute('PRAGMA table_info(combos)').fetchall()]
+    combo_cols = get_columns('combos')
     if 'marcas' not in combo_cols:
         c.execute("ALTER TABLE combos ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
 
-    roll_cols = [r['name'] for r in c.execute('PRAGMA table_info(rolls)').fetchall()]
+    roll_cols = get_columns('rolls')
     if 'marcas' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
 
     conn.commit()
 
     # Seed if empty
-    if c.execute('SELECT COUNT(*) FROM rolls').fetchone()[0] == 0:
+    if c.execute('SELECT COUNT(*) AS cnt FROM rolls').fetchone()['cnt'] == 0:
         seed_path = os.path.join(os.path.dirname(__file__), 'data', 'seed.json')
         if os.path.exists(seed_path):
             with open(seed_path) as f:
                 seed = json.load(f)
             for roll in seed.get('rolls', []):
-                c.execute('INSERT OR IGNORE INTO rolls (name, insumos) VALUES (?,?)',
+                c.execute('INSERT INTO rolls (name, insumos) VALUES (?,?) ON CONFLICT (name) DO NOTHING',
                           (roll['name'], json.dumps(roll['insumos'])))
             for combo in seed.get('combos', []):
-                c.execute('INSERT OR IGNORE INTO combos (name, family, rolls) VALUES (?,?,?)',
+                c.execute('INSERT INTO combos (name, family, rolls) VALUES (?,?,?) ON CONFLICT (name) DO NOTHING',
                           (combo['name'], combo['family'], json.dumps(combo['rolls'])))
             for semi in seed.get('semielaborados', []):
-                c.execute('INSERT OR IGNORE INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?)',
+                c.execute('INSERT INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?) ON CONFLICT (name) DO NOTHING',
                           (semi['name'], semi['insumo_key'], semi['unit'], json.dumps(semi['rolls'])))
             for sm in seed.get('sushimanes', []):
-                c.execute('INSERT OR IGNORE INTO sushimanes (name, productivity) VALUES (?,?)',
+                c.execute('INSERT INTO sushimanes (name, productivity) VALUES (?,?) ON CONFLICT (name) DO NOTHING',
                           (sm['name'], sm['productivity']))
             for ins in seed.get('insumos', []):
-                c.execute('''INSERT OR IGNORE INTO insumos
+                c.execute('''INSERT INTO insumos
                     (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
-                    VALUES (?,?,?,?,?,?)''',
+                    VALUES (?,?,?,?,?,?) ON CONFLICT (key) DO NOTHING''',
                     (ins['key'], ins['label'], ins['unidad_receta'],
                      ins['unidad_resumen'], ins['factor_conversion'], ins.get('precio_unidad')))
             conn.commit()
@@ -203,8 +259,24 @@ def debug_env():
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
     secret_key = os.environ.get('FLASK_SECRET_KEY')
     admin_email = os.environ.get('ADMIN_EMAIL')
+    db_url = os.environ.get('DATABASE_URL')
+
+    db_status = 'NO CONFIGURADA — la app no puede guardar datos de forma persistente sin esto'
+    db_conn_test = 'N/A'
+    if db_url:
+        db_status = mask(db_url, keep_start=15, keep_end=10)
+        try:
+            test_conn = get_db()
+            test_conn.execute('SELECT 1')
+            test_conn.close()
+            db_conn_test = 'OK — se pudo conectar y ejecutar una consulta de prueba'
+        except Exception as e:
+            db_conn_test = f'ERROR al conectar: {e}'
 
     lines = [
+        f"DATABASE_URL: {db_status}",
+        f"  -> prueba de conexion: {db_conn_test}",
+        "",
         f"GOOGLE_CLIENT_ID: {mask(client_id)}",
         f"  -> termina en .apps.googleusercontent.com: {str(client_id).strip().endswith('.apps.googleusercontent.com') if client_id else 'N/A'}",
         f"  -> tiene espacios al inicio/final sin recortar: {(client_id != client_id.strip()) if client_id else 'N/A'}",
@@ -288,7 +360,8 @@ def create_usuario():
                      (email, data.get('nombre',''), data.get('role','user'),
                       int(data.get('active', True)), datetime.now().isoformat()))
         conn.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
+        conn.rollback()
         conn.close()
         return jsonify({'error': 'Ese email ya está registrado'}), 400
     conn.close()
@@ -299,10 +372,15 @@ def create_usuario():
 def update_usuario(usuario_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE usuarios SET email=?, nombre=?, role=?, active=? WHERE id=?',
-                 (data['email'].strip().lower(), data.get('nombre',''), data.get('role','user'),
-                  int(data.get('active', True)), usuario_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE usuarios SET email=?, nombre=?, role=?, active=? WHERE id=?',
+                     (data['email'].strip().lower(), data.get('nombre',''), data.get('role','user'),
+                      int(data.get('active', True)), usuario_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese email ya está registrado en otro usuario'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -325,7 +403,7 @@ def delete_usuario(usuario_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -380,6 +458,9 @@ def restore_data():
     counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
     counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
                               ['email', 'nombre', 'role', 'active', 'created_at'])
+    counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
+    counts['otros_productos'] = upsert('otros_productos', data.get('otros_productos', []), 'name',
+                              ['name', 'tipo', 'familia', 'insumos', 'marcas'])
 
     conn.commit()
     conn.close()
@@ -402,7 +483,8 @@ def create_familia():
     try:
         conn.execute('INSERT INTO familias (name) VALUES (?)', (data['name'].strip(),))
         conn.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
+        conn.rollback()
         conn.close()
         return jsonify({'error': 'Esa familia ya existe'}), 400
     conn.close()
@@ -415,12 +497,17 @@ def update_familia(familia_id):
     conn = get_db()
     old = conn.execute('SELECT name FROM familias WHERE id=?', (familia_id,)).fetchone()
     new_name = data['name'].strip()
-    conn.execute('UPDATE familias SET name=? WHERE id=?', (new_name, familia_id))
-    # Si se renombra, actualizamos las referencias existentes en combos y otros_productos
-    if old and old['name'] != new_name:
-        conn.execute('UPDATE combos SET family=? WHERE family=?', (new_name, old['name']))
-        conn.execute('UPDATE otros_productos SET familia=? WHERE familia=?', (new_name, old['name']))
-    conn.commit()
+    try:
+        conn.execute('UPDATE familias SET name=? WHERE id=?', (new_name, familia_id))
+        # Si se renombra, actualizamos las referencias existentes en combos y otros_productos
+        if old and old['name'] != new_name:
+            conn.execute('UPDATE combos SET family=? WHERE family=?', (new_name, old['name']))
+            conn.execute('UPDATE otros_productos SET familia=? WHERE familia=?', (new_name, old['name']))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra familia con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -454,7 +541,8 @@ def create_otro_producto():
                      (data['name'], data.get('tipo','porcion'), data.get('familia',''),
                       json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', []))))
         conn.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
+        conn.rollback()
         conn.close()
         return jsonify({'error': 'Ya existe un producto con ese nombre'}), 400
     conn.close()
@@ -465,10 +553,15 @@ def create_otro_producto():
 def update_otro_producto(producto_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=? WHERE id=?',
-                 (data['name'], data.get('tipo','porcion'), data.get('familia',''),
-                  json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])), producto_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=? WHERE id=?',
+                     (data['name'], data.get('tipo','porcion'), data.get('familia',''),
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])), producto_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro producto con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -497,9 +590,14 @@ def get_rolls():
 def create_roll():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO rolls (name, insumos, marcas) VALUES (?,?,?)',
-                 (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', []))))
-    conn.commit()
+    try:
+        conn.execute('INSERT INTO rolls (name, insumos, marcas) VALUES (?,?,?)',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un roll con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -508,9 +606,14 @@ def create_roll():
 def update_roll(roll_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=? WHERE id=?',
-                 (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])), roll_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=? WHERE id=?',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])), roll_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro roll con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -539,9 +642,14 @@ def get_combos():
 def create_combo():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO combos (name, family, rolls, marcas) VALUES (?,?,?,?)',
-                 (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', []))))
-    conn.commit()
+    try:
+        conn.execute('INSERT INTO combos (name, family, rolls, marcas) VALUES (?,?,?,?)',
+                     (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un combo con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -550,9 +658,14 @@ def create_combo():
 def update_combo(combo_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE combos SET name=?, family=?, rolls=?, marcas=? WHERE id=?',
-                 (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', [])), combo_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE combos SET name=?, family=?, rolls=?, marcas=? WHERE id=?',
+                     (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', [])), combo_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro combo con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -584,15 +697,20 @@ def get_semielaborados():
 def create_semi():
     data = request.json
     conn = get_db()
-    conn.execute('''INSERT INTO semielaborados
-                    (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
-                    VALUES (?,?,?,?,?,?,?,?)''',
-                 (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
-                  json.dumps(data.get('receta', [])),
-                  data.get('rendimiento_cantidad', 0),
-                  data.get('rendimiento_unidad', 'g'),
-                  json.dumps(data.get('marcas', []))))
-    conn.commit()
+    try:
+        conn.execute('''INSERT INTO semielaborados
+                        (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
+                        VALUES (?,?,?,?,?,?,?,?)''',
+                     (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                      json.dumps(data.get('receta', [])),
+                      data.get('rendimiento_cantidad', 0),
+                      data.get('rendimiento_unidad', 'g'),
+                      json.dumps(data.get('marcas', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un semielaborado con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -601,14 +719,19 @@ def create_semi():
 def update_semi(semi_id):
     data = request.json
     conn = get_db()
-    conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
-                    receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=? WHERE id=?''',
-                 (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
-                  json.dumps(data.get('receta', [])),
-                  data.get('rendimiento_cantidad', 0),
-                  data.get('rendimiento_unidad', 'g'),
-                  json.dumps(data.get('marcas', [])), semi_id))
-    conn.commit()
+    try:
+        conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
+                        receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=? WHERE id=?''',
+                     (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                      json.dumps(data.get('receta', [])),
+                      data.get('rendimiento_cantidad', 0),
+                      data.get('rendimiento_unidad', 'g'),
+                      json.dumps(data.get('marcas', [])), semi_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro semielaborado con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -637,9 +760,14 @@ def get_sushimanes():
 def create_sushiman():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO sushimanes (name, productivity) VALUES (?,?)',
-                 (data['name'], data.get('productivity', 10)))
-    conn.commit()
+    try:
+        conn.execute('INSERT INTO sushimanes (name, productivity) VALUES (?,?)',
+                     (data['name'], data.get('productivity', 10)))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un sushiman con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -648,9 +776,14 @@ def create_sushiman():
 def update_sushiman(sm_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=? WHERE id=?',
-                 (data['name'], data['productivity'], int(data.get('active', True)), sm_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=? WHERE id=?',
+                     (data['name'], data['productivity'], int(data.get('active', True)), sm_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro sushiman con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -677,8 +810,13 @@ def get_marcas():
 def create_marca():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
-    conn.commit()
+    try:
+        conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa marca ya existe'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -687,8 +825,13 @@ def create_marca():
 def update_marca(marca_id):
     data = request.json
     conn = get_db()
-    conn.execute('UPDATE marcas SET name=? WHERE id=?', (data['name'], marca_id))
-    conn.commit()
+    try:
+        conn.execute('UPDATE marcas SET name=? WHERE id=?', (data['name'], marca_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra marca con ese nombre'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -719,11 +862,16 @@ def get_insumos():
 def create_insumo():
     data = request.json
     conn = get_db()
-    conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
-                    VALUES (?,?,?,?,?,?)''',
-                 (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
-                  data['factor_conversion'], data.get('precio_unidad')))
-    conn.commit()
+    try:
+        conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
+                        VALUES (?,?,?,?,?,?)''',
+                     (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
+                      data['factor_conversion'], data.get('precio_unidad')))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un insumo con esa clave'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -732,11 +880,16 @@ def create_insumo():
 def update_insumo(ins_id):
     data = request.json
     conn = get_db()
-    conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
-                    factor_conversion=?, precio_unidad=? WHERE id=?''',
-                 (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
-                  data['factor_conversion'], data.get('precio_unidad'), ins_id))
-    conn.commit()
+    try:
+        conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
+                        factor_conversion=?, precio_unidad=? WHERE id=?''',
+                     (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
+                      data['factor_conversion'], data.get('precio_unidad'), ins_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro insumo con esa clave'}), 400
     conn.close()
     return jsonify({'ok': True})
 
