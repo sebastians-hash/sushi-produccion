@@ -87,7 +87,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS rolls (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
-            insumos TEXT NOT NULL
+            insumos TEXT NOT NULL,
+            piezas_por_rollo INTEGER NOT NULL DEFAULT 14
         );
         CREATE TABLE IF NOT EXISTS combos (
             id SERIAL PRIMARY KEY,
@@ -190,6 +191,8 @@ def init_db():
     roll_cols = get_columns('rolls')
     if 'marcas' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+    if 'piezas_por_rollo' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
 
     conn.commit()
 
@@ -445,8 +448,13 @@ def restore_data():
 
     counts['combos'] = upsert('combos', data.get('combos', []), 'name',
                                ['name', 'family', 'rolls', 'marcas'])
+    # Backups viejos (de antes de agregar "piezas por rollo") no tienen este campo;
+    # les asignamos 14 por defecto para no romper la restauracion.
+    for r in data.get('rolls', []):
+        if r.get('piezas_por_rollo') is None:
+            r['piezas_por_rollo'] = 14
     counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
-                              ['name', 'insumos', 'marcas'])
+                              ['name', 'insumos', 'marcas', 'piezas_por_rollo'])
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
@@ -583,7 +591,8 @@ def get_rolls():
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'],
                      'insumos': json.loads(r['insumos']),
-                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'piezas_por_rollo': r['piezas_por_rollo']} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
 @admin_required
@@ -591,8 +600,9 @@ def create_roll():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO rolls (name, insumos, marcas) VALUES (?,?,?)',
-                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', []))))
+        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo) VALUES (?,?,?,?)',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
+                      data.get('piezas_por_rollo', 14)))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -607,8 +617,9 @@ def update_roll(roll_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=? WHERE id=?',
-                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])), roll_id))
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=? WHERE id=?',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
+                      data.get('piezas_por_rollo', 14), roll_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -917,6 +928,8 @@ def calcular():
                  for r in conn.execute('SELECT name, rolls FROM combos').fetchall()}
     rolls_db  = {r['name']: json.loads(r['insumos'])
                  for r in conn.execute('SELECT name, insumos FROM rolls').fetchall()}
+    roll_piezas_db = {r['name']: r['piezas_por_rollo']
+                 for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
     otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos'])}
                  for r in conn.execute('SELECT name, tipo, insumos FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
@@ -945,7 +958,8 @@ def calcular():
             for roll_name, piezas in combo.items():
                 if not piezas:
                     continue
-                rolls_needed = -(-piezas * final_qty // 14)
+                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
+                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
                 roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
             continue
 
@@ -972,7 +986,8 @@ def calcular():
                     direct_insumo_totals[k] = direct_insumo_totals.get(k, 0) + v * final_qty
 
     production = sorted(
-        [{'name': k, 'qty': v} for k, v in roll_totals.items() if v > 0],
+        [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
+          'piezas': v * (roll_piezas_db.get(k, 14) or 14)} for k, v in roll_totals.items() if v > 0],
         key=lambda x: -x['qty']
     )
     otros_productos_out = sorted(
@@ -1159,6 +1174,13 @@ def importar_rolls():
                 continue
             nombre = str(nombre).strip()
 
+            piezas_por_rollo = 14
+            if len(row) > 1 and row[1] is not None:
+                try:
+                    piezas_por_rollo = int(float(row[1]))
+                except (ValueError, TypeError):
+                    pass
+
             insumos = {}
             for ci, header in enumerate(headers[2:], 2):
                 if ci >= len(row): break
@@ -1173,10 +1195,12 @@ def importar_rolls():
 
             existing = conn.execute('SELECT id FROM rolls WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
             if existing:
-                conn.execute('UPDATE rolls SET insumos=? WHERE id=?', (json.dumps(insumos), existing['id']))
+                conn.execute('UPDATE rolls SET insumos=?, piezas_por_rollo=? WHERE id=?',
+                             (json.dumps(insumos), piezas_por_rollo, existing['id']))
                 actualizados.append(nombre)
             else:
-                conn.execute('INSERT INTO rolls (name, insumos) VALUES (?,?)', (nombre, json.dumps(insumos)))
+                conn.execute('INSERT INTO rolls (name, insumos, piezas_por_rollo) VALUES (?,?,?)',
+                             (nombre, json.dumps(insumos), piezas_por_rollo))
                 creados.append(nombre)
 
         conn.commit()
