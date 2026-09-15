@@ -783,7 +783,7 @@ async function doConfirm() {
       <div class="metric"><div class="metric-lbl">Otros productos</div><div class="metric-val">${totOtros}</div></div>
       <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
     let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
-    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.qty*14}</td></tr>`);
+    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
     h+='</tbody></table>';
     document.getElementById('sumRolls').innerHTML=h;
     goStep(3);
@@ -796,9 +796,10 @@ async function doConfirm() {
 // ═══════════════════════════════════════════════════════
 function renderProduction() {
   const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-  let rh='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
-  ST.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.qty*14}</td></tr>`);
-  rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totR*14}</td></tr></tbody></table>`;
+  let rh='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th><th style="text-align:right">Corte</th></tr></thead><tbody>';
+  const totPiezas = ST.production.reduce((s,r)=>s+r.piezas,0);
+  ST.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td><td style="text-align:right;color:var(--text3);font-size:11px">${r.piezasPorRollo}/rollo</td></tr>`);
+  rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totPiezas}</td><td></td></tr></tbody></table>`;
   document.getElementById('rollsTbl').innerHTML=rh;
 
   let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">Total</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
@@ -1155,10 +1156,12 @@ function renderComboCfg() {
 }
 
 function renderRollCfg() {
-  let h='<table><thead><tr><th>Roll</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
     const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
-    h+=`<tr><td style="font-weight:600">${r.name}</td><td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+    h+=`<tr><td style="font-weight:600">${r.name}</td>
+      <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -1608,7 +1611,10 @@ function openRollModal(id, dup) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
   const ins = roll?.insumos || {};
   openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
+      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50"></div>
+    </div>
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
@@ -1638,7 +1644,10 @@ async function saveRoll(id) {
     if (v>0) insumos[row.dataset.key] = v;
   });
   const marcas = readMarcaChecks('rollMarcaChecks');
-  await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas})});
+  const piezas_por_rollo = parseInt(document.getElementById('m_piezas').value)||14;
+  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderRollCfg();
 }
 
