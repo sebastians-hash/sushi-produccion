@@ -327,12 +327,11 @@ def page3_story(data, cw):
 # ── BUILD ──
 def build_pdf(data: dict, out_path: str):
     from pypdf import PdfWriter, PdfReader
+    import tempfile
 
     cw_p = A4_P[0] - 2*MARGIN
     cw_l = A4_L[0] - 2*MARGIN
 
-    tmp_dir = tempfile_dir = os.environ.get('TMPDIR', '/tmp')
-    import tempfile
     tmp_dir = tempfile.gettempdir()
     p1_path = os.path.join(tmp_dir, 'sushi_p1.pdf')
     p2_path = os.path.join(tmp_dir, 'sushi_p2.pdf')
