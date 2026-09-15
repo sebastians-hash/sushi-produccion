@@ -76,7 +76,7 @@ def metrics_row(combos_total, rolls_total, piezas_total, global_pct, width):
     items = [
         ("COMBOS",  str(combos_total), "unidades"),
         ("ROLLOS",  str(rolls_total),  "total"),
-        ("PIEZAS",  str(piezas_total), "14 x rollo"),
+        ("PIEZAS",  str(piezas_total), "total"),
         ("% PROD.", f"{global_pct}%",  "sobre venta"),
     ]
     cw = width / 4
@@ -128,7 +128,7 @@ def page1_story(data, cw):
 
     total_rolls  = sum(r['qty'] for r in production)
     total_combos = sum(c['qty'] for c in combos)
-    total_piezas = total_rolls * 14
+    total_piezas = sum(r.get('piezas', r['qty']*14) for r in production)
 
     story.append(cover_band(date_str, global_pct, cw))
     story.append(Spacer(1, 4*mm))
@@ -187,8 +187,10 @@ def page1_story(data, cw):
     for i in range(max_r):
         lr = left_r[i]  if i < len(left_r)  else {'name':'','qty':0}
         rr = right_r[i] if i < len(right_r) else {'name':'','qty':0}
-        roll_rows.append([lr['name'], str(lr['qty']) if lr['qty'] else '', str(lr['qty']*14) if lr['qty'] else '',
-                          '', rr['name'], str(rr['qty']) if rr['qty'] else '', str(rr['qty']*14) if rr['qty'] else ''])
+        lr_piezas = lr.get('piezas', lr['qty']*14) if lr.get('qty') else ''
+        rr_piezas = rr.get('piezas', rr['qty']*14) if rr.get('qty') else ''
+        roll_rows.append([lr['name'], str(lr['qty']) if lr['qty'] else '', str(lr_piezas),
+                          '', rr['name'], str(rr['qty']) if rr['qty'] else '', str(rr_piezas)])
     roll_rows.append(['TOTAL', str(total_rolls), str(total_piezas), '', '', '', ''])
 
     gap2   = 3*mm
