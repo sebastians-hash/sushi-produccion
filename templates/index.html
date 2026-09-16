@@ -104,6 +104,11 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .modal-hdr{display:flex;justify-content:space-between;align-items:center;
   padding:1rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
 .modal-title{font-size:15px;font-weight:700}
+.modal-close-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-size:22px;line-height:1;font-weight:400;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+  transition:background .12s,border-color .12s}
+.modal-close-btn:hover{background:var(--border);border-color:var(--text3)}
 .modal-body{padding:1.25rem}
 .modal-foot{padding:.75rem 1.25rem;border-top:1px solid var(--border);
   display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface)}
@@ -500,7 +505,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div class="modal">
     <div class="modal-hdr">
       <div class="modal-title" id="modalTitle"></div>
-      <button class="btn btn-sm" onclick="closeModal()"><i class="ti ti-x"></i></button>
+      <button class="modal-close-btn" onclick="closeModal()" title="Cerrar" aria-label="Cerrar">&times;</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-foot" id="modalFoot"></div>
@@ -802,7 +807,7 @@ async function doConfirm() {
     ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[];
     const totR=ST.production.reduce((s,r)=>s+r.qty,0);
     const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
-    const tiempoEstimado = (totR / 35).toFixed(1);
+    const tiempoEstimado = Math.ceil(totR / 35);
     document.getElementById('sumMetrics').innerHTML=`
       <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
       <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
