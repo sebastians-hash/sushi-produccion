@@ -256,12 +256,12 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
         <div>
           <label class="form-lbl">Hora de inicio <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
-          <input type="time" id="startTimeManual" class="w-full">
+          <input type="time" id="startTimeManual" class="w-full" step="1800">
           <div style="font-size:11px;color:var(--text3);margin-top:3px">Vacío = automático</div>
         </div>
         <div>
           <label class="form-lbl">Hora de fin de producción</label>
-          <input type="time" id="endTime" value="20:00" class="w-full">
+          <input type="time" id="endTime" value="20:00" class="w-full" step="1800">
         </div>
         <div>
           <label class="form-lbl">Corte y armado</label>
@@ -639,7 +639,14 @@ async function loadConfig() {
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
     ST.rolloBlancoGrupos=rolloBlancoGrupos;
-    sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
+    const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const hoyNombre = DIAS_SEMANA[new Date().getDay()];
+    sms.forEach(s=>{
+      if(!ST.dailySm[s.id]) {
+        const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
+        ST.dailySm[s.id]={avail: s.active && !esFrancoHoy, prod:s.productivity, ingreso: s.horario_ingreso||''};
+      }
+    });
     if (IS_ADMIN) {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
     }
@@ -984,13 +991,19 @@ function renderProduction() {
 // ═══════════════════════════════════════════════════════
 function renderSmList() {
   let h='';
+  const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const hoyNombre = DIAS_SEMANA[new Date().getDay()];
   ST.sushimanes.forEach(s=>{
-    const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity};
+    const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity,ingreso:s.horario_ingreso||''};
+    const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
     h+=`<div class="chk-row">
       <input type="checkbox" id="sm${s.id}" ${d.avail?'checked':''}
         onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},avail:this.checked}">
       <div class="avatar">${s.name.slice(0,2).toUpperCase()}</div>
-      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}</label>
+      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}${esFrancoHoy?' <span class="badge b-warn" style="font-size:10px">Franco hoy</span>':''}</label>
+      <span style="font-size:12px;color:var(--text3)">Ingreso</span>
+      <input type="time" value="${d.ingreso||''}" style="width:110px" step="1800"
+        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},ingreso:this.value}">
       <input type="number" value="${d.prod}" style="width:60px" min="1" max="50"
         onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},prod:parseInt(this.value)||8}">
       <span style="font-size:12px;color:var(--text3)">rolls/h</span>
@@ -1012,13 +1025,18 @@ const fmt=m=>`${String(Math.floor(((m%1440)+1440)%1440/60)).padStart(2,'0')}:${S
 const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
 
 function buildHourAssign(avail, startMins, prodH) {
-  const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`}));
+  const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`, startMins:startMins+i*60}));
   let remaining={};
   ST.production.forEach(r=>remaining[r.name]=r.qty);
   let queue=[...ST.production].map(r=>r.name);
-  const hourAssign=hours.map(()=>{
+  const hourAssign=hours.map(hour=>{
     const row={};
     avail.forEach(sm=>{
+      const ingreso = ST.dailySm[sm.id]?.ingreso;
+      if (ingreso && toMins(ingreso) > hour.startMins) {
+        row[sm.id]=[]; // todavia no llego a trabajar en este horario
+        return;
+      }
       const cap=ST.dailySm[sm.id]?.prod||sm.productivity;
       let left=cap; const tasks=[];
       for(let i=0;i<queue.length&&left>0;i++){
@@ -1031,7 +1049,8 @@ function buildHourAssign(avail, startMins, prodH) {
     });
     return row;
   });
-  return {hours, hourAssign};
+  const totalAsignado = Object.values(remaining).length ? ST.production.reduce((s,r)=>s+r.qty,0) - Object.values(remaining).reduce((s,v)=>s+v,0) : 0;
+  return {hours, hourAssign, totalAsignado};
 }
 
 function calcSchedule() {
@@ -1042,24 +1061,36 @@ function calcSchedule() {
   if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
 
   const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-  const capPH=avail.reduce((s,sm)=>s+(ST.dailySm[sm.id]?.prod||sm.productivity),0);
   const endMins=toMins(endT)-cut;
 
-  let startMins, prodH;
+  let startMins, prodH, hours, hourAssign;
+
   if(startManual) {
     startMins=toMins(startManual);
-    prodH=Math.ceil((endMins-startMins)/60);
+    prodH=Math.max(1,Math.ceil((endMins-startMins)/60));
+    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH));
   } else {
-    prodH=Math.ceil(totR/capPH);
-    startMins=endMins-prodH*60;
-  }
+    // Como cada sushiman puede tener un horario de ingreso distinto, la capacidad
+    // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
+    let asignado=0; prodH=0;
+    const maxHoras=20;
+    do {
+      prodH++;
+      startMins=endMins-prodH*60;
+      const sim=buildHourAssign(avail, startMins, prodH);
+      hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
+    } while(asignado<totR && prodH<maxHoras);
 
-  const {hours, hourAssign}=buildHourAssign(avail, startMins, prodH);
+    if(asignado<totR){
+      alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
+      return;
+    }
+  }
 
   ST.schedule={
     startTime:fmt(startMins), rollsEndTime:fmt(endMins),
     cutMins:cut, endTime:endT,
-    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity})),
+    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
     hours:hours.map((h,hi)=>({label:h.label,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
   };
   ST.editingGrid=false;
@@ -1892,19 +1923,34 @@ function closeModal(){ document.getElementById('modal').classList.add('hidden');
 // ── Sushiman modal ──
 function openSmModal(id) {
   const sm=id?ST.sushimanes.find(s=>s.id===id):null;
+  const dias = sm?.dias_franco || [];
+  const diasSemana = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
   openModal(id?'Editar sushiman':'Nuevo sushiman',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${sm?.name||''}"></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
-    <div><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
+      <div><label class="form-lbl">Horario de ingreso habitual</label><input type="time" id="m_ingreso" class="w-full" step="1800" value="${sm?.horario_ingreso||''}"></div>
+    </div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
       <option value="1" ${sm?.active!==false?'selected':''}>Activo</option>
-      <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>`,
+      <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>
+    <div class="form-lbl" style="margin-bottom:8px">Días de franco</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">
+      ${diasSemana.map(d=>`<label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+        <input type="checkbox" class="dia-franco-check" value="${d}" ${dias.includes(d)?'checked':''}> ${d}</label>`).join('')}
+    </div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSm(${id||'null'})">Guardar</button>`
   );
 }
 async function saveSm(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
-  const data={name,productivity:parseInt(document.getElementById('m_prod').value)||10,active:document.getElementById('m_active').value==='1'};
+  const dias_franco = [...document.querySelectorAll('.dia-franco-check:checked')].map(c=>c.value);
+  const data={
+    name, productivity:parseInt(document.getElementById('m_prod').value)||10,
+    active:document.getElementById('m_active').value==='1',
+    dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null
+  };
   await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
 }
