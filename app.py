@@ -1374,6 +1374,22 @@ def calcular():
     # Semielaborados — se detectan automáticamente según qué rolls producidos
     # (o "otros productos": porciones, ensaladas, entradas, platos calientes)
     # incluyen su insumo_key en su receta (no depende de una lista manual)
+    semis_by_key = {s['insumo_key']: s['name'] for s in semis_db}
+
+    def resolve_ing(ing):
+        """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
+        el formato: nuevo (con 'key' hacia insumos/semielaborados) o viejo (texto libre)."""
+        if ing.get('key'):
+            k = ing['key']
+            master = insumos_master.get(k)
+            if master:
+                return {'nombre': master['label'], 'unidad': master['unidad_receta'], 'cantidad': ing['cantidad']}
+            semi_name = semis_by_key.get(k)
+            if semi_name:
+                return {'nombre': semi_name + ' (elaborado)', 'unidad': 'g', 'cantidad': ing['cantidad']}
+            return {'nombre': k, 'unidad': ing.get('unidad', 'g'), 'cantidad': ing['cantidad']}
+        return {'nombre': ing.get('nombre', '?'), 'unidad': ing.get('unidad', 'g'), 'cantidad': ing['cantidad']}
+
     semis_out = []
     for semi in semis_db:
         total = 0
@@ -1416,9 +1432,9 @@ def calcular():
                     'escala_exacta': round(scale, 2),
                     'ingredientes': [
                         {
-                            'nombre': ing['nombre'],
+                            'nombre': resolve_ing(ing)['nombre'],
                             'cantidad_receta': ing['cantidad'],
-                            'unidad': ing['unidad'],
+                            'unidad': resolve_ing(ing)['unidad'],
                             'cantidad_total': round(ing['cantidad'] * scale, 1)
                         } for ing in receta
                     ]
