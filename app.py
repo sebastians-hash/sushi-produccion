@@ -116,7 +116,29 @@ def init_db():
             unidad_receta TEXT NOT NULL DEFAULT 'g',
             unidad_resumen TEXT NOT NULL DEFAULT 'kg',
             factor_conversion REAL NOT NULL DEFAULT 0.001,
-            precio_unidad REAL
+            precio_unidad REAL,
+            categoria TEXT,
+            es_80_20 INTEGER NOT NULL DEFAULT 0,
+            comentario TEXT,
+            marca_producto TEXT,
+            marca_tipo TEXT,
+            zona_almacenamiento TEXT,
+            proveedor_principal_id INTEGER,
+            proveedor_alt1_id INTEGER,
+            proveedor_alt2_id INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS categorias_insumos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS zonas_almacenamiento (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS proveedores (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            contactos TEXT NOT NULL DEFAULT '[]'
         );
         CREATE TABLE IF NOT EXISTS marcas (
             id SERIAL PRIMARY KEY,
@@ -201,6 +223,23 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
     if 'piezas_por_rollo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
+
+    # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
+    insumo_cols = get_columns('insumos')
+    insumo_new_cols = {
+        'categoria': "ALTER TABLE insumos ADD COLUMN categoria TEXT",
+        'es_80_20': "ALTER TABLE insumos ADD COLUMN es_80_20 INTEGER NOT NULL DEFAULT 0",
+        'comentario': "ALTER TABLE insumos ADD COLUMN comentario TEXT",
+        'marca_producto': "ALTER TABLE insumos ADD COLUMN marca_producto TEXT",
+        'marca_tipo': "ALTER TABLE insumos ADD COLUMN marca_tipo TEXT",
+        'zona_almacenamiento': "ALTER TABLE insumos ADD COLUMN zona_almacenamiento TEXT",
+        'proveedor_principal_id': "ALTER TABLE insumos ADD COLUMN proveedor_principal_id INTEGER",
+        'proveedor_alt1_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt1_id INTEGER",
+        'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
+    }
+    for col, stmt in insumo_new_cols.items():
+        if col not in insumo_cols:
+            c.execute(stmt)
 
     conn.commit()
 
@@ -414,7 +453,7 @@ def delete_usuario(usuario_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -468,15 +507,37 @@ def restore_data():
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
     counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
                               ['name', 'productivity', 'active'])
+    # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
+    for i in data.get('insumos', []):
+        if i.get('es_80_20') is None:
+            i['es_80_20'] = False
     counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
                               ['key', 'label', 'unidad_receta', 'unidad_resumen',
-                               'factor_conversion', 'precio_unidad'])
+                               'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
+                               'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
+                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id'])
     counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
     counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
                               ['email', 'nombre', 'role', 'active', 'created_at'])
     counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
     counts['otros_productos'] = upsert('otros_productos', data.get('otros_productos', []), 'name',
                               ['name', 'tipo', 'familia', 'insumos', 'marcas'])
+    counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
+    counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
+    counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
+
+    # Equivalencias: clave compuesta (tipo, nombre_alias), no calza con el helper 'upsert' generico.
+    # Reemplazo completo simple: borramos todo y volvemos a insertar lo que venga en el backup.
+    equiv_rows = data.get('equivalencias', [])
+    conn.execute('DELETE FROM equivalencias')
+    n_equiv = 0
+    for e in equiv_rows:
+        if not e.get('nombre_alias'):
+            continue
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
+                     (e['tipo'], e['nombre_canonico'], e['nombre_alias'], e.get('marca', '')))
+        n_equiv += 1
+    counts['equivalencias'] = n_equiv
 
     conn.commit()
     conn.close()
@@ -666,6 +727,157 @@ def sync_equivalencias():
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'count': count})
+
+# ── Categorías de insumos ──
+@app.route('/api/categorias-insumos', methods=['GET'])
+@login_required
+def get_categorias_insumos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM categorias_insumos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/categorias-insumos', methods=['POST'])
+@admin_required
+def create_categoria_insumo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO categorias_insumos (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa categoría ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/categorias-insumos/<int:cat_id>', methods=['PUT'])
+@admin_required
+def update_categoria_insumo(cat_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE categorias_insumos SET name=? WHERE id=?', (data['name'].strip(), cat_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa categoría ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/categorias-insumos/<int:cat_id>', methods=['DELETE'])
+@admin_required
+def delete_categoria_insumo(cat_id):
+    conn = get_db()
+    conn.execute('DELETE FROM categorias_insumos WHERE id=?', (cat_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Zonas de almacenamiento ──
+@app.route('/api/zonas-almacenamiento', methods=['GET'])
+@login_required
+def get_zonas_almacenamiento():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM zonas_almacenamiento ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/zonas-almacenamiento', methods=['POST'])
+@admin_required
+def create_zona_almacenamiento():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO zonas_almacenamiento (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa zona ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/zonas-almacenamiento/<int:zona_id>', methods=['PUT'])
+@admin_required
+def update_zona_almacenamiento(zona_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE zonas_almacenamiento SET name=? WHERE id=?', (data['name'].strip(), zona_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa zona ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/zonas-almacenamiento/<int:zona_id>', methods=['DELETE'])
+@admin_required
+def delete_zona_almacenamiento(zona_id):
+    conn = get_db()
+    conn.execute('DELETE FROM zonas_almacenamiento WHERE id=?', (zona_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Proveedores (con contactos) ──
+@app.route('/api/proveedores', methods=['GET'])
+@login_required
+def get_proveedores():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM proveedores ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'],
+                     'contactos': json.loads(r['contactos'] or '[]')} for r in rows])
+
+@app.route('/api/proveedores', methods=['POST'])
+@admin_required
+def create_proveedor():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO proveedores (name, contactos) VALUES (?,?)',
+                     (data['name'].strip(), json.dumps(data.get('contactos', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese proveedor ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/proveedores/<int:prov_id>', methods=['PUT'])
+@admin_required
+def update_proveedor(prov_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE proveedores SET name=?, contactos=? WHERE id=?',
+                     (data['name'].strip(), json.dumps(data.get('contactos', [])), prov_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese proveedor ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/proveedores/<int:prov_id>', methods=['DELETE'])
+@admin_required
+def delete_proveedor(prov_id):
+    conn = get_db()
+    # Desvincular este proveedor de cualquier insumo que lo tenga asignado, para no dejar referencias rotas
+    conn.execute('UPDATE insumos SET proveedor_principal_id=NULL WHERE proveedor_principal_id=?', (prov_id,))
+    conn.execute('UPDATE insumos SET proveedor_alt1_id=NULL WHERE proveedor_alt1_id=?', (prov_id,))
+    conn.execute('UPDATE insumos SET proveedor_alt2_id=NULL WHERE proveedor_alt2_id=?', (prov_id,))
+    conn.execute('DELETE FROM proveedores WHERE id=?', (prov_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
@@ -950,7 +1162,13 @@ def get_insumos():
     return jsonify([{
         'id': r['id'], 'key': r['key'], 'label': r['label'],
         'unidad_receta': r['unidad_receta'], 'unidad_resumen': r['unidad_resumen'],
-        'factor_conversion': r['factor_conversion'], 'precio_unidad': r['precio_unidad']
+        'factor_conversion': r['factor_conversion'], 'precio_unidad': r['precio_unidad'],
+        'categoria': r['categoria'], 'es_80_20': bool(r['es_80_20']), 'comentario': r['comentario'],
+        'marca_producto': r['marca_producto'], 'marca_tipo': r['marca_tipo'],
+        'zona_almacenamiento': r['zona_almacenamiento'],
+        'proveedor_principal_id': r['proveedor_principal_id'],
+        'proveedor_alt1_id': r['proveedor_alt1_id'],
+        'proveedor_alt2_id': r['proveedor_alt2_id'],
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
@@ -959,10 +1177,15 @@ def create_insumo():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
-                        VALUES (?,?,?,?,?,?)''',
+        conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
+                        categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
-                      data['factor_conversion'], data.get('precio_unidad')))
+                      data['factor_conversion'], data.get('precio_unidad'),
+                      data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
+                      data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id')))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -978,9 +1201,15 @@ def update_insumo(ins_id):
     conn = get_db()
     try:
         conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
-                        factor_conversion=?, precio_unidad=? WHERE id=?''',
+                        factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
+                        marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
+                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=? WHERE id=?''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
-                      data['factor_conversion'], data.get('precio_unidad'), ins_id))
+                      data['factor_conversion'], data.get('precio_unidad'),
+                      data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
+                      data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      ins_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
