@@ -312,6 +312,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
       <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
       <div class="tab" onclick="showTab('tin',this)">Insumos</div>
+      <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
+      <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
+      <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
       <div class="tab" onclick="showTab('tma',this)">Marcas</div>
       <div class="tab" onclick="showTab('tfa',this)">Familias</div>
       <div class="tab" onclick="showTab('teq',this)"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
@@ -378,6 +381,45 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <span>Configurá cómo se mide cada insumo en la receta (ej: gramos) y cómo querés verlo sumado en el resumen (ej: kilogramos).</span>
         </div>
         <div id="insumoCfg"></div>
+      </div>
+    </div>
+    <div id="tcat" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Categorías de insumos</div>
+          <button class="btn btn-sm" onclick="openCategoriaModal()"><i class="ti ti-plus"></i> Nueva categoría</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Agrupá los insumos por categoría (ej: Verduras, Proteínas, Secos) para organizarlos en la tabla maestra.</span>
+        </div>
+        <div id="categoriaCfg"></div>
+      </div>
+    </div>
+    <div id="tzon" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Zonas de almacenamiento</div>
+          <button class="btn btn-sm" onclick="openZonaModal()"><i class="ti ti-plus"></i> Nueva zona</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Dónde se guarda cada insumo (ej: Cámara de frío, Depósito secos, Heladera). Se asigna al editar cada insumo.</span>
+        </div>
+        <div id="zonaCfg"></div>
+      </div>
+    </div>
+    <div id="tprov" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Proveedores</div>
+          <button class="btn btn-sm" onclick="openProveedorModal()"><i class="ti ti-plus"></i> Nuevo proveedor</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Cargá tus proveedores y sus contactos. Después podés asignarle a cada insumo un proveedor principal y hasta dos alternativos, para más adelante calcular compras por proveedor.</span>
+        </div>
+        <div id="proveedorCfg"></div>
       </div>
     </div>
     <div id="tma" class="hidden">
@@ -524,7 +566,7 @@ const ST = {
   sales:[], adj:{}, globalPct:100,
   production:[], insumos:{}, semis:[], otrosVenta:[],
   schedule:null, editingGrid:false, scheduleBackup:null,
-  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[],
+  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[], categoriasInsumos:[], zonasAlmacenamiento:[], proveedores:[],
   dailySm:{}
 };
 
@@ -547,7 +589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -557,9 +599,13 @@ async function loadConfig() {
       fetch('/api/familias').then(r=>r.json()),
       fetch('/api/otros-productos').then(r=>r.json()),
       fetch('/api/equivalencias').then(r=>r.json()),
+      fetch('/api/categorias-insumos').then(r=>r.json()),
+      fetch('/api/zonas-almacenamiento').then(r=>r.json()),
+      fetch('/api/proveedores').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
+    ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
     sms.forEach(s=>{ if(!ST.dailySm[s.id]) ST.dailySm[s.id]={avail:s.active,prod:s.productivity}; });
     if (IS_ADMIN) {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
@@ -590,7 +636,7 @@ function goStep(n) {
 }
 
 function showTab(id, el) {
-  ['tc','tr','top','ts','tsu','tin','tma','tfa','teq','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  ['tc','tr','top','ts','tsu','tin','tcat','tzon','tprov','tma','tfa','teq','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='tc') renderComboCfg();
@@ -599,6 +645,9 @@ function showTab(id, el) {
   if(id==='ts') renderSemiCfg();
   if(id==='tsu') renderSmCfg();
   if(id==='tin') renderInsumoCfg();
+  if(id==='tcat') renderCategoriaCfg();
+  if(id==='tzon') renderZonaCfg();
+  if(id==='tprov') renderProveedorCfg();
   if(id==='tma') renderMarcaCfg();
   if(id==='tfa') renderFamiliaCfg();
   if(id==='teq') renderEquivalenciaCfg();
@@ -1246,9 +1295,12 @@ function renderSmCfg() {
 }
 
 function renderInsumoCfg() {
-  let h='<table><thead><tr><th>Insumo</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.insumosMaster.forEach(i=>{
-    h+=`<tr><td style="font-weight:600">${i.label}</td><td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
+    h+=`<tr><td style="font-weight:600">${i.label}</td>
+      <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td style="text-align:center">${i.es_80_20?'<span class="badge b-warn">80/20</span>':'—'}</td>
+      <td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
       <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openInsumoModal(${i.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -1317,6 +1369,147 @@ async function saveFamilia(id) {
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderFamiliaCfg();
 }
+
+// ── Categorías de insumos ──
+function renderCategoriaCfg() {
+  let h='<table><thead><tr><th>Categoría</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.categoriasInsumos.forEach(c=>{
+    h+=`<tr><td style="font-weight:600">${c.name}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openCategoriaModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('categorias-insumos',${c.id},renderCategoriaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.categoriasInsumos.length) h='<div class="empty">No hay categorías configuradas.</div>';
+  document.getElementById('categoriaCfg').innerHTML=h;
+}
+function openCategoriaModal(id) {
+  const cat = id ? ST.categoriasInsumos.find(c=>c.id===id) : null;
+  openModal(id?'Editar categoría':'Nueva categoría',`
+    <div><label class="form-lbl">Nombre de la categoría</label><input type="text" id="m_name" class="w-full" value="${cat?.name||''}" placeholder="Ej: Verduras"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCategoria(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveCategoria(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const res = await fetch(id?`/api/categorias-insumos/${id}`:'/api/categorias-insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderCategoriaCfg();
+}
+function categoriaOptions(selected) {
+  const opts = ST.categoriasInsumos.map(c=>`<option value="${c.name}" ${selected===c.name?'selected':''}>${c.name}</option>`).join('');
+  return `<option value="">Sin categoría</option>` + opts;
+}
+
+// ── Zonas de almacenamiento ──
+function renderZonaCfg() {
+  let h='<table><thead><tr><th>Zona</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.zonasAlmacenamiento.forEach(z=>{
+    h+=`<tr><td style="font-weight:600">${z.name}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openZonaModal(${z.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('zonas-almacenamiento',${z.id},renderZonaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.zonasAlmacenamiento.length) h='<div class="empty">No hay zonas configuradas.</div>';
+  document.getElementById('zonaCfg').innerHTML=h;
+}
+function openZonaModal(id) {
+  const zona = id ? ST.zonasAlmacenamiento.find(z=>z.id===id) : null;
+  openModal(id?'Editar zona':'Nueva zona',`
+    <div><label class="form-lbl">Nombre de la zona</label><input type="text" id="m_name" class="w-full" value="${zona?.name||''}" placeholder="Ej: Cámara de frío"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveZona(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveZona(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const res = await fetch(id?`/api/zonas-almacenamiento/${id}`:'/api/zonas-almacenamiento',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderZonaCfg();
+}
+function zonaOptions(selected) {
+  const opts = ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}" ${selected===z.name?'selected':''}>${z.name}</option>`).join('');
+  return `<option value="">Sin asignar</option>` + opts;
+}
+
+// ── Proveedores (con contactos) ──
+function renderProveedorCfg() {
+  let h='<table><thead><tr><th>Proveedor</th><th>Contactos</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.proveedores.forEach(p=>{
+    const contactosResumen = p.contactos.length
+      ? p.contactos.map(c=>c.nombre).join(', ')
+      : '<span style="color:var(--text3);font-style:italic">Sin contactos cargados</span>';
+    h+=`<tr><td style="font-weight:600">${p.name}</td>
+      <td style="font-size:12px;color:var(--text2)">${contactosResumen}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openProveedorModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('proveedores',${p.id},renderProveedorCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.proveedores.length) h='<div class="empty">No hay proveedores cargados.</div>';
+  document.getElementById('proveedorCfg').innerHTML=h;
+}
+function contactoRow(c) {
+  const div = document.createElement('div');
+  div.className = 'contacto-row';
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML = `
+    <input type="text" class="ct-nombre" placeholder="Nombre" value="${c?.nombre||''}">
+    <input type="text" class="ct-cargo" placeholder="Cargo" value="${c?.cargo||''}">
+    <input type="text" class="ct-telefono" placeholder="Teléfono" value="${c?.telefono||''}">
+    <input type="email" class="ct-email" placeholder="Email" value="${c?.email||''}">
+  `;
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.onclick = () => div.remove();
+  div.appendChild(btn);
+  return div;
+}
+function addContactoRow() {
+  document.getElementById('contactoRows').appendChild(contactoRow(null));
+}
+function openProveedorModal(id) {
+  const prov = id ? ST.proveedores.find(p=>p.id===id) : null;
+  openModal(id?'Editar proveedor':'Nuevo proveedor',`
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Nombre del proveedor</label><input type="text" id="m_name" class="w-full" value="${prov?.name||''}" placeholder="Ej: Pescadería Sur"></div>
+    <div class="form-lbl" style="margin-bottom:8px">Contactos</div>
+    <div id="contactoRows" style="margin-bottom:8px"></div>
+    <button class="btn btn-sm" onclick="addContactoRow()"><i class="ti ti-plus"></i> Agregar contacto</button>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveProveedor(${id||'null'})">Guardar</button>`
+  );
+  const container = document.getElementById('contactoRows');
+  if (prov?.contactos?.length) {
+    prov.contactos.forEach(c => container.appendChild(contactoRow(c)));
+  } else {
+    container.appendChild(contactoRow(null));
+  }
+}
+async function saveProveedor(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const contactos = [...document.querySelectorAll('#contactoRows .contacto-row')].map(row=>({
+    nombre: row.querySelector('.ct-nombre').value.trim(),
+    cargo: row.querySelector('.ct-cargo').value.trim(),
+    telefono: row.querySelector('.ct-telefono').value.trim(),
+    email: row.querySelector('.ct-email').value.trim(),
+  })).filter(c=>c.nombre);
+  const res = await fetch(id?`/api/proveedores/${id}`:'/api/proveedores',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,contactos})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderProveedorCfg();
+}
+function proveedorOptions(selectedId) {
+  const opts = ST.proveedores.map(p=>`<option value="${p.id}" ${String(selectedId)===String(p.id)?'selected':''}>${p.name}</option>`).join('');
+  return `<option value="">Sin asignar</option>` + opts;
+}
+
 function familiaOptions(selected) {
   if (!ST.familias.length) return `<option value="Otros">Otros</option>`;
   return ST.familias.map(f=>`<option value="${f.name}" ${selected===f.name?'selected':''}>${f.name}</option>`).join('');
@@ -1923,8 +2116,37 @@ function openInsumoModal(id) {
     <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
       <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
       <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
-    <div><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
-      <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>`,
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
+      <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>
+
+    <div class="sec"><i class="ti ti-tag"></i> Clasificación</div>
+    <div class="form-grid" style="margin-bottom:1.25rem">
+      <div><label class="form-lbl">Categoría</label><select id="m_categoria" class="w-full">${categoriaOptions(ins?.categoria)}</select></div>
+      <div><label class="form-lbl">Zona de almacenamiento</label><select id="m_zona" class="w-full">${zonaOptions(ins?.zona_almacenamiento)}</select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;cursor:pointer">
+      <input type="checkbox" id="m_8020" ${ins?.es_80_20?'checked':''} style="width:18px;height:18px">
+      <span class="form-lbl" style="margin:0">Es 80/20 <span style="font-weight:400;color:var(--text3);text-transform:none">(producto principal)</span></span>
+    </label>
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Comentario <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></label>
+      <textarea id="m_comentario" class="w-full" rows="2" placeholder="Ej: comprar siempre fresco, no congelado">${ins?.comentario||''}</textarea></div>
+
+    <div class="sec"><i class="ti ti-award"></i> Marca del producto</div>
+    <div class="form-grid" style="margin-bottom:1.25rem">
+      <div><label class="form-lbl">Marca <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></label>
+        <input type="text" id="m_marcaProd" class="w-full" value="${ins?.marca_producto||''}" placeholder="Ej: AquaChile"></div>
+      <div><label class="form-lbl">Tipo</label><select id="m_marcaTipo" class="w-full">
+        <option value="sugerida" ${ins?.marca_tipo==='sugerida'?'selected':''}>Sugerida</option>
+        <option value="obligatoria" ${ins?.marca_tipo==='obligatoria'?'selected':''}>Obligatoria</option></select></div>
+    </div>
+
+    <div class="sec"><i class="ti ti-truck"></i> Proveedores</div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Proveedor principal</label>
+      <select id="m_provPrincipal" class="w-full">${proveedorOptions(ins?.proveedor_principal_id)}</select></div>
+    <div class="form-grid">
+      <div><label class="form-lbl">Alternativo 1</label><select id="m_provAlt1" class="w-full">${proveedorOptions(ins?.proveedor_alt1_id)}</select></div>
+      <div><label class="form-lbl">Alternativo 2</label><select id="m_provAlt2" class="w-full">${proveedorOptions(ins?.proveedor_alt2_id)}</select></div>
+    </div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveInsumo(${id||'null'})">Guardar</button>`
   );
 }
@@ -1940,14 +2162,28 @@ async function saveInsumo(id) {
   const key=document.getElementById('m_key').value.trim().toLowerCase().replace(/\s+/g,'_');
   if(!label||!key){alert('Completá nombre y clave');return;}
   const precioVal=document.getElementById('m_precio').value;
+  const provPrincipal = document.getElementById('m_provPrincipal').value;
+  const provAlt1 = document.getElementById('m_provAlt1').value;
+  const provAlt2 = document.getElementById('m_provAlt2').value;
   const data={
     label, key,
     unidad_receta:document.getElementById('m_ur').value,
     unidad_resumen:document.getElementById('m_us').value,
     factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
-    precio_unidad:precioVal?parseFloat(precioVal):null
+    precio_unidad:precioVal?parseFloat(precioVal):null,
+    categoria: document.getElementById('m_categoria').value || null,
+    es_80_20: document.getElementById('m_8020').checked,
+    comentario: document.getElementById('m_comentario').value.trim() || null,
+    marca_producto: document.getElementById('m_marcaProd').value.trim() || null,
+    marca_tipo: document.getElementById('m_marcaProd').value.trim() ? document.getElementById('m_marcaTipo').value : null,
+    zona_almacenamiento: document.getElementById('m_zona').value || null,
+    proveedor_principal_id: provPrincipal ? parseInt(provPrincipal) : null,
+    proveedor_alt1_id: provAlt1 ? parseInt(provAlt1) : null,
+    proveedor_alt2_id: provAlt2 ? parseInt(provAlt2) : null,
   };
-  await fetch(id?`/api/insumos/${id}`:'/api/insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const res = await fetch(id?`/api/insumos/${id}`:'/api/insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderInsumoCfg();
 }
 
