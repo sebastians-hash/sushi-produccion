@@ -1037,10 +1037,33 @@ const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
 
 function buildHourAssign(avail, startMins, prodH) {
   const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`, startMins:startMins+i*60}));
+
+  // Presupuesto total del turno por sushiman = promedio x cantidad de horas que trabaja
+  // (segun su horario de ingreso), repartido lo mas parejo posible entre esas horas
+  // (en vez de dejar que se concentre todo en una sola). El resto de la division
+  // se reparte de a una unidad en las primeras horas trabajadas.
+  const hourlyTarget={};
+  avail.forEach(sm=>{
+    const ingreso=ST.dailySm[sm.id]?.ingreso;
+    const ingresoMins=ingreso?toMins(ingreso):null;
+    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
+    const workedIdx=hours.map((h,i)=>i).filter(i=>!ingresoMins||hours[i].startMins>=ingresoMins);
+    const n=workedIdx.length;
+    const targets=new Array(hours.length).fill(0);
+    if(n>0){
+      const totalBudget=prod*n;
+      const base=Math.floor(totalBudget/n);
+      let remainder=totalBudget-base*n;
+      workedIdx.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
+    }
+    hourlyTarget[sm.id]=targets;
+  });
+
   let remaining={};
   ST.production.forEach(r=>remaining[r.name]=r.qty);
-  let queue=[...ST.production].map(r=>r.name);
-  const hourAssign=hours.map(hour=>{
+  let queueOrder=[...ST.production].map(r=>r.name); // orden base, por qty desc
+  const lastRoll={}; // ultima variedad asignada a cada sushiman, para preferir variar
+  const hourAssign=hours.map((hour,hi)=>{
     const row={};
     avail.forEach(sm=>{
       const ingreso = ST.dailySm[sm.id]?.ingreso;
@@ -1048,16 +1071,26 @@ function buildHourAssign(avail, startMins, prodH) {
         row[sm.id]=[]; // todavia no llego a trabajar en este horario
         return;
       }
-      const cap=ST.dailySm[sm.id]?.prod||sm.productivity;
-      let left=cap; const tasks=[];
-      for(let i=0;i<queue.length&&left>0;i++){
-        const rn=queue[i]; if((remaining[rn]||0)<=0) continue;
+      let left=hourlyTarget[sm.id][hi]||0;
+      if(left<=0){ row[sm.id]=[]; return; }
+
+      // Preferir NO repetir la misma variedad que le toco la hora anterior, si hay otra opcion
+      let order=queueOrder.filter(rn=>(remaining[rn]||0)>0);
+      const prev=lastRoll[sm.id];
+      if(prev && order.length>1 && order.includes(prev)){
+        order=order.filter(rn=>rn!==prev).concat([prev]);
+      }
+
+      const tasks=[];
+      for(let i=0;i<order.length&&left>0;i++){
+        const rn=order[i];
         const take=Math.min(left,remaining[rn]);
         if(take>0){tasks.push({name:rn,qty:take});remaining[rn]-=take;left-=take;}
       }
-      queue=queue.filter(rn=>(remaining[rn]||0)>0);
+      if(tasks.length) lastRoll[sm.id]=tasks[tasks.length-1].name;
       row[sm.id]=tasks;
     });
+    queueOrder=queueOrder.filter(rn=>(remaining[rn]||0)>0);
     return row;
   });
   const totalAsignado = Object.values(remaining).length ? ST.production.reduce((s,r)=>s+r.qty,0) - Object.values(remaining).reduce((s,v)=>s+v,0) : 0;
