@@ -128,6 +128,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .ing-item-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
 .ing-item-badge.insumo{background:var(--blue-bg);color:var(--blue)}
 .ing-item-badge.semi{background:var(--green-bg);color:var(--green)}
+.roll-ing-row.dragging{opacity:.4}
+.roll-ing-row.legacy-row{background:var(--warn-bg);border-radius:var(--rsm);padding:4px 6px}
 .ing-item-empty{padding:12px;font-size:12px;color:var(--text3);text-align:center}
 @media(max-width:600px){
   .metrics{grid-template-columns:repeat(2,1fr)}
@@ -1272,7 +1274,11 @@ function renderSemiCfg() {
   ST.semielaborados.forEach(s=>{
     const hasReceta = s.receta && s.receta.length > 0;
     const recetaSummary = hasReceta
-      ? s.receta.map(i=>`${i.nombre} (${i.cantidad}${i.unidad})`).join(', ')
+      ? s.receta.map(i=>{
+          const nombre = i.key ? getIngredientLabel(i.key) : i.nombre;
+          const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
+          return `${nombre} (${i.cantidad}${unidad})`;
+        }).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
@@ -1859,11 +1865,48 @@ function buildIngredientList() {
   });
   return list;
 }
+// ── Reordenar por drag & drop (generico, se aplica a cualquier fila de receta) ──
+let draggedRow = null;
+function makeDraggable(row) {
+  row.draggable = true;
+  row.addEventListener('dragstart', () => {
+    draggedRow = row;
+    row.classList.add('dragging');
+  });
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+    draggedRow = null;
+  });
+  row.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (!draggedRow || draggedRow === row || row.parentNode !== draggedRow.parentNode) return;
+    const rect = row.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    if (e.clientY < midpoint) row.parentNode.insertBefore(draggedRow, row);
+    else row.parentNode.insertBefore(draggedRow, row.nextSibling);
+  });
+}
+function dragHandle() {
+  const h = document.createElement('span');
+  h.innerHTML = '<i class="ti ti-grip-vertical"></i>';
+  h.style.cssText = 'cursor:grab;color:var(--text3);flex-shrink:0;padding:0 2px;user-select:none';
+  h.title = 'Arrastrar para reordenar';
+  return h;
+}
+function tipoBadge(type) {
+  const b = document.createElement('span');
+  b.className = `ing-item-badge ${type}`;
+  b.style.flexShrink = '0';
+  b.textContent = type === 'insumo' ? 'Insumo' : 'Semielaborado';
+  return b;
+}
+
 function makeIngRow(key, qty) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
   div.dataset.key = key;
+  const isInsumo = ST.insumosMaster.some(i=>i.key===key);
   const label = document.createElement('div');
   label.style.flex = '1'; label.style.fontSize = '13px';
   label.textContent = getIngredientLabel(key);
@@ -1875,8 +1918,61 @@ function makeIngRow(key, qty) {
   const btn = document.createElement('button');
   btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
   btn.onclick = () => div.remove();
+  div.appendChild(dragHandle());
+  div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
   div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
+  makeDraggable(div);
   return div;
+}
+
+// ── Filas "sin vincular": entradas viejas de receta en texto libre (antes de
+// que existiera el buscador). Se pueden asociar a un insumo/elaborado real. ──
+let legacyLinkTarget = null;
+function legacyIngRow(nombre, cantidad, unidad, prefix) {
+  const div = document.createElement('div');
+  div.className = 'row roll-ing-row legacy-row';
+  div.style.marginBottom = '6px';
+  div.dataset.legacyNombre = nombre;
+  div.dataset.legacyUnidad = unidad || 'g';
+
+  const badge = document.createElement('span');
+  badge.className = 'ing-item-badge';
+  badge.style.cssText += 'background:var(--bg);color:var(--text3);flex-shrink:0';
+  badge.textContent = 'Sin vincular';
+
+  const label = document.createElement('div');
+  label.style.flex = '1'; label.style.fontSize = '13px';
+  label.textContent = nombre;
+
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.value = cantidad || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
+  inp.className = 'legacy-cant';
+
+  const unitSpan = document.createElement('span');
+  unitSpan.style.fontSize = '12px'; unitSpan.style.color = 'var(--text3)'; unitSpan.style.minWidth = '40px';
+  unitSpan.textContent = unidad || 'g';
+
+  const vincularBtn = document.createElement('button');
+  vincularBtn.className = 'btn btn-sm'; vincularBtn.innerHTML = '<i class="ti ti-link"></i>';
+  vincularBtn.title = 'Vincular a un insumo o elaborado real';
+  vincularBtn.onclick = () => vincularLegacyRow(div, prefix);
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.onclick = () => div.remove();
+
+  div.appendChild(dragHandle());
+  div.appendChild(badge); div.appendChild(label); div.appendChild(inp); div.appendChild(unitSpan);
+  div.appendChild(vincularBtn); div.appendChild(btn);
+  makeDraggable(div);
+  return div;
+}
+function vincularLegacyRow(rowEl, prefix) {
+  const cantidad = parseFloat(rowEl.querySelector('.legacy-cant').value) || 1;
+  legacyLinkTarget = { row: rowEl, cantidad };
+  document.getElementById(prefix+'IngSearch').value = rowEl.dataset.legacyNombre;
+  document.getElementById(prefix+'IngSearch').focus();
+  filterIngredientDropdown(prefix);
 }
 
 // ── Custom ingredient search dropdown (reutilizable: Rolls y Otros Productos) ──
@@ -1917,12 +2013,22 @@ function selectIngredientFromDropdown(idx) {
   const item = ingDropdownItems[idx];
   if (!item) return;
   const container = document.getElementById(ingDropdownPrefix+'IngRows');
-  const existing = [...container.children].find(row=>row.dataset.key===item.key);
-  if (existing) {
-    existing.querySelector('input').focus();
-    existing.querySelector('input').select();
+
+  if (legacyLinkTarget) {
+    // Reemplaza la fila "sin vincular" por una fila real, conservando la cantidad
+    const { row, cantidad } = legacyLinkTarget;
+    const nueva = makeIngRow(item.key, cantidad);
+    row.parentNode.insertBefore(nueva, row);
+    row.remove();
+    legacyLinkTarget = null;
   } else {
-    container.appendChild(makeIngRow(item.key, 1));
+    const existing = [...container.children].find(row=>row.dataset.key===item.key);
+    if (existing) {
+      existing.querySelector('input').focus();
+      existing.querySelector('input').select();
+    } else {
+      container.appendChild(makeIngRow(item.key, 1));
+    }
   }
   document.getElementById(ingDropdownPrefix+'IngSearch').value = '';
   document.getElementById(ingDropdownPrefix+'IngDropdown').classList.add('hidden');
@@ -2059,23 +2165,6 @@ async function saveCombo(id) {
 }
 
 // ── Semi modal ──
-function ingRow(nombre, cantidad, unidad) {
-  const div = document.createElement('div');
-  div.className = 'row ing-row';
-  div.style.marginBottom = '6px';
-  const inpN = document.createElement('input'); inpN.type='text'; inpN.placeholder='Ingrediente'; inpN.value=nombre||''; inpN.style.flex='1';
-  const inpC = document.createElement('input'); inpC.type='number'; inpC.placeholder='Cant.'; inpC.value=cantidad||''; inpC.step='0.1'; inpC.style.width='75px';
-  const selU = document.createElement('select'); selU.style.width='75px';
-  ['g','ml','u','kg','L'].forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; if(u===(unidad||'g')) o.selected=true; selU.appendChild(o); });
-  const btn = document.createElement('button'); btn.className='btn btn-sm btn-danger'; btn.innerHTML='<i class="ti ti-x"></i>';
-  btn.onclick = () => div.remove();
-  div.appendChild(inpN); div.appendChild(inpC); div.appendChild(selU); div.appendChild(btn);
-  return div;
-}
-function addIngRow() {
-  document.getElementById('ingRows').appendChild(ingRow('', '', 'g'));
-}
-
 // ── Escalar receta segun un ingrediente (regla de tres sobre toda la receta) ──
 function toggleConversorReceta() {
   const panel = document.getElementById('conversorReceta');
@@ -2086,12 +2175,26 @@ function toggleConversorReceta() {
   if (abriendo) poblarSelectConversor();
   else { const prev = document.getElementById('convPreviewModal'); if (prev) prev.innerHTML = ''; }
 }
+function getRecetaRowInfo(row) {
+  if (row.dataset.key) {
+    return {
+      nombre: getIngredientLabel(row.dataset.key),
+      qtyInput: row.querySelector('input[type=number]'),
+      unidad: getIngredientUnit(row.dataset.key)
+    };
+  }
+  return {
+    nombre: row.dataset.legacyNombre,
+    qtyInput: row.querySelector('.legacy-cant'),
+    unidad: row.dataset.legacyUnidad
+  };
+}
 function poblarSelectConversor() {
   const sel = document.getElementById('convIngSelect');
-  const rows = document.querySelectorAll('#ingRows .ing-row');
+  const rows = document.querySelectorAll('#semiRecetaIngRows .roll-ing-row');
   let opts = [...rows].map((row, idx) => {
-    const nombre = row.querySelectorAll('input')[0].value.trim() || `(ingrediente ${idx+1})`;
-    return `<option value="${idx}">${nombre}</option>`;
+    const { nombre } = getRecetaRowInfo(row);
+    return `<option value="${idx}">${nombre || `(ingrediente ${idx+1})`}</option>`;
   }).join('');
   const rendActual = parseFloat(document.getElementById('m_rendCant').value);
   if (!isNaN(rendActual) && rendActual > 0) {
@@ -2101,7 +2204,7 @@ function poblarSelectConversor() {
   sel.innerHTML = opts;
 }
 function aplicarConversionReceta() {
-  const rows = [...document.querySelectorAll('#ingRows .ing-row')];
+  const rows = [...document.querySelectorAll('#semiRecetaIngRows .roll-ing-row')];
   const selValue = document.getElementById('convIngSelect').value;
   const nuevaCant = parseFloat(document.getElementById('convNuevaCant').value);
   if (selValue === '' || selValue === undefined) { alert('Elegí un ingrediente o el rendimiento'); return; }
@@ -2116,7 +2219,7 @@ function aplicarConversionReceta() {
   } else {
     const idx = parseInt(selValue);
     if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
-    cantOriginal = parseFloat(rows[idx].querySelectorAll('input')[1].value);
+    cantOriginal = parseFloat(getRecetaRowInfo(rows[idx]).qtyInput.value);
     if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
   }
 
@@ -2125,12 +2228,10 @@ function aplicarConversionReceta() {
 
   // Solo se calcula y se MUESTRA — nunca se escribe en los inputs reales de la receta.
   let filas = rows.map(row => {
-    const inputs = row.querySelectorAll('input');
-    const unidad = row.querySelector('select').value;
-    const nombre = inputs[0].value.trim() || '(sin nombre)';
-    const actual = parseFloat(inputs[1].value);
+    const { nombre, qtyInput, unidad } = getRecetaRowInfo(row);
+    const actual = parseFloat(qtyInput.value);
     if (isNaN(actual)) return null;
-    return `<tr><td>${nombre}</td><td style="text-align:right">${actual} ${unidad}</td><td style="text-align:right;font-weight:700">${escalar(actual)} ${unidad}</td></tr>`;
+    return `<tr><td>${nombre || '(sin nombre)'}</td><td style="text-align:right">${actual} ${unidad}</td><td style="text-align:right;font-weight:700">${escalar(actual)} ${unidad}</td></tr>`;
   }).filter(Boolean).join('');
 
   const rendActual = parseFloat(document.getElementById('m_rendCant').value);
@@ -2172,9 +2273,14 @@ function openSemiModal(id, dup) {
     </div>
 
     <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Cargá todos los ingredientes de la receta con sus cantidades. La app va a calcular cuánto necesitás preparar según la producción del día.</div>
-    <div id="ingRows" style="margin-bottom:8px"></div>
-    <button class="btn btn-sm" onclick="addIngRow()" style="margin-bottom:1rem"><i class="ti ti-plus"></i> Agregar ingrediente</button>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
+    <div class="ing-search-wrap" style="margin-bottom:10px">
+      <input type="text" id="semiRecetaIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
+        oninput="filterIngredientDropdown('semiReceta')" onfocus="filterIngredientDropdown('semiReceta')"
+        onkeydown="handleIngredientKeydown(event,'semiReceta')" onblur="closeIngredientDropdownOnBlur('semiReceta')">
+      <div id="semiRecetaIngDropdown" class="ing-dropdown hidden"></div>
+    </div>
+    <div id="semiRecetaIngRows" style="margin-bottom:1.25rem"></div>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
       <div class="row-between" style="cursor:pointer" onclick="toggleConversorReceta()">
@@ -2208,12 +2314,16 @@ function openSemiModal(id, dup) {
     <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
   );
-  // Populate existing recipe rows
-  const ingRowsDiv = document.getElementById('ingRows');
+  // Populate existing recipe rows (formato nuevo con 'key', o formato viejo en texto libre)
+  const ingRowsDiv = document.getElementById('semiRecetaIngRows');
   if (semi?.receta?.length) {
-    semi.receta.forEach(ing => ingRowsDiv.appendChild(ingRow(ing.nombre, ing.cantidad, ing.unidad)));
-  } else {
-    ingRowsDiv.appendChild(ingRow('', '', 'g'));
+    semi.receta.forEach(ing => {
+      if (ing.key) {
+        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad));
+      } else {
+        ingRowsDiv.appendChild(legacyIngRow(ing.nombre, ing.cantidad, ing.unidad, 'semiReceta'));
+      }
+    });
   }
 }
 function duplicateSemi(id) {
@@ -2224,13 +2334,15 @@ function duplicateSemi(id) {
 async function saveSemi(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
-  const receta=[...document.querySelectorAll('#ingRows .ing-row')].map(row=>{
-    const inputs = row.querySelectorAll('input');
-    const nombre = inputs[0].value.trim();
-    const cantidad = parseFloat(inputs[1].value)||0;
-    const unidad = row.querySelector('select').value;
-    return {nombre, cantidad, unidad};
-  }).filter(i=>i.nombre && i.cantidad>0);
+  const receta=[...document.querySelectorAll('#semiRecetaIngRows .roll-ing-row')].map(row=>{
+    if (row.dataset.key) {
+      const cantidad = parseFloat(row.querySelector('input').value)||0;
+      return {key: row.dataset.key, cantidad};
+    }
+    // Fila vieja sin vincular: se conserva en formato texto libre hasta que se vincule
+    const cantidad = parseFloat(row.querySelector('.legacy-cant').value)||0;
+    return {nombre: row.dataset.legacyNombre, unidad: row.dataset.legacyUnidad, cantidad};
+  }).filter(i=>i.cantidad>0);
   const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
   const rendimiento_unidad = document.getElementById('m_rendUnid').value;
   const marcas = readMarcaChecks('semiMarcaChecks');
