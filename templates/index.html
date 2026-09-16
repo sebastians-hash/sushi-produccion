@@ -2084,6 +2084,7 @@ function toggleConversorReceta() {
   panel.classList.toggle('hidden');
   chevron.style.transform = abriendo ? 'rotate(180deg)' : 'rotate(0deg)';
   if (abriendo) poblarSelectConversor();
+  else { const prev = document.getElementById('convPreviewModal'); if (prev) prev.innerHTML = ''; }
 }
 function poblarSelectConversor() {
   const sel = document.getElementById('convIngSelect');
@@ -2100,37 +2101,45 @@ function aplicarConversionReceta() {
   if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
   if (isNaN(nuevaCant) || nuevaCant <= 0) { alert('Ingresá una cantidad nueva válida'); return; }
 
-  const anchorInput = rows[idx].querySelectorAll('input')[1];
-  const cantOriginal = parseFloat(anchorInput.value);
+  const anchorInputs = rows[idx].querySelectorAll('input');
+  const cantOriginal = parseFloat(anchorInputs[1].value);
   if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
 
   const ratio = nuevaCant / cantOriginal;
   const escalar = v => Math.round(v * ratio * 100) / 100;
 
-  rows.forEach(row => {
-    const cantInput = row.querySelectorAll('input')[1];
-    const actual = parseFloat(cantInput.value);
-    if (!isNaN(actual)) cantInput.value = escalar(actual);
-  });
+  // Solo se calcula y se MUESTRA — nunca se escribe en los inputs reales de la receta.
+  let filas = rows.map(row => {
+    const inputs = row.querySelectorAll('input');
+    const unidad = row.querySelector('select').value;
+    const nombre = inputs[0].value.trim() || '(sin nombre)';
+    const actual = parseFloat(inputs[1].value);
+    if (isNaN(actual)) return null;
+    return `<tr><td>${nombre}</td><td style="text-align:right">${actual} ${unidad}</td><td style="text-align:right;font-weight:700">${escalar(actual)} ${unidad}</td></tr>`;
+  }).filter(Boolean).join('');
 
-  // El rendimiento de la receta escala en la misma proporcion
-  const rendInput = document.getElementById('m_rendCant');
-  const rendActual = parseFloat(rendInput.value);
-  if (!isNaN(rendActual) && rendActual > 0) rendInput.value = escalar(rendActual);
+  const rendActual = parseFloat(document.getElementById('m_rendCant').value);
+  const rendUnidad = document.getElementById('m_rendUnid').value;
+  let rendFila = '';
+  if (!isNaN(rendActual) && rendActual > 0) {
+    rendFila = `<tr style="border-top:2px solid var(--border)"><td style="font-style:italic">Rendimiento</td><td style="text-align:right;font-style:italic">${rendActual} ${rendUnidad}</td><td style="text-align:right;font-weight:700;font-style:italic">${escalar(rendActual)} ${rendUnidad}</td></tr>`;
+  }
 
-  showStatus2Modal(`Receta escalada x${ratio.toFixed(3)} — revisá los valores y guardá cuando estés conforme.`);
+  mostrarPreviewConversion(`
+    <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Solo vista previa — esto NO modifica la receta guardada. Si querés estos valores de verdad, escribilos vos mismo en los campos de arriba.</div>
+    <table style="width:100%"><thead><tr><th>Ingrediente</th><th style="text-align:right">Original</th><th style="text-align:right">Escalado (×${ratio.toFixed(3)})</th></tr></thead>
+    <tbody>${filas}${rendFila}</tbody></table>
+  `);
 }
-function showStatus2Modal(msg) {
-  // Aviso breve dentro del propio modal, sin depender del showStatus de afuera
-  let el = document.getElementById('convAvisoModal');
+function mostrarPreviewConversion(html) {
+  let el = document.getElementById('convPreviewModal');
   if (!el) {
     el = document.createElement('div');
-    el.id = 'convAvisoModal';
-    el.className = 'alert alert-success';
+    el.id = 'convPreviewModal';
     el.style.marginTop = '10px';
     document.getElementById('conversorReceta').appendChild(el);
   }
-  el.innerHTML = `<i class="ti ti-circle-check"></i><span>${msg}</span>`;
+  el.innerHTML = html;
 }
 function openSemiModal(id, dup) {
   const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
@@ -2155,16 +2164,16 @@ function openSemiModal(id, dup) {
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
       <div class="row-between" style="cursor:pointer" onclick="toggleConversorReceta()">
-        <div class="form-lbl" style="margin:0"><i class="ti ti-calculator"></i> Escalar receta según un ingrediente</div>
+        <div class="form-lbl" style="margin:0"><i class="ti ti-calculator"></i> Calculadora: ver receta escalada (no guarda cambios)</div>
         <i class="ti ti-chevron-down" id="convChevron"></i>
       </div>
       <div id="conversorReceta" class="hidden" style="margin-top:10px">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente, poné la cantidad que tenés (ej: lo que trae un paquete) y el resto de la receta —y el rendimiento— se ajustan en la misma proporción.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente y poné la cantidad que tenés (ej: lo que trae un paquete) para ver cómo quedaría el resto de la receta en esa proporción. Es solo para consultar — no modifica ni guarda nada.</div>
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <select id="convIngSelect" style="flex:1;min-width:160px"></select>
           <span style="font-size:13px;color:var(--text3)">→ nueva cantidad:</span>
           <input type="number" id="convNuevaCant" step="0.1" style="width:100px" placeholder="Ej: 150">
-          <button class="btn btn-sm btn-primary" onclick="aplicarConversionReceta()"><i class="ti ti-check"></i> Aplicar</button>
+          <button class="btn btn-sm btn-primary" onclick="aplicarConversionReceta()"><i class="ti ti-calculator"></i> Ver conversión</button>
         </div>
       </div>
     </div>
