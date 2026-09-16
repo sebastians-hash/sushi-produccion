@@ -2089,21 +2089,36 @@ function toggleConversorReceta() {
 function poblarSelectConversor() {
   const sel = document.getElementById('convIngSelect');
   const rows = document.querySelectorAll('#ingRows .ing-row');
-  sel.innerHTML = [...rows].map((row, idx) => {
+  let opts = [...rows].map((row, idx) => {
     const nombre = row.querySelectorAll('input')[0].value.trim() || `(ingrediente ${idx+1})`;
     return `<option value="${idx}">${nombre}</option>`;
   }).join('');
+  const rendActual = parseFloat(document.getElementById('m_rendCant').value);
+  if (!isNaN(rendActual) && rendActual > 0) {
+    const rendUnidad = document.getElementById('m_rendUnid').value;
+    opts += `<option value="rend">— Rendimiento (${rendUnidad}) —</option>`;
+  }
+  sel.innerHTML = opts;
 }
 function aplicarConversionReceta() {
   const rows = [...document.querySelectorAll('#ingRows .ing-row')];
-  const idx = parseInt(document.getElementById('convIngSelect').value);
+  const selValue = document.getElementById('convIngSelect').value;
   const nuevaCant = parseFloat(document.getElementById('convNuevaCant').value);
-  if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
+  if (selValue === '' || selValue === undefined) { alert('Elegí un ingrediente o el rendimiento'); return; }
   if (isNaN(nuevaCant) || nuevaCant <= 0) { alert('Ingresá una cantidad nueva válida'); return; }
 
-  const anchorInputs = rows[idx].querySelectorAll('input');
-  const cantOriginal = parseFloat(anchorInputs[1].value);
-  if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
+  const usaRendimiento = (selValue === 'rend');
+  let cantOriginal, rendUnidad = document.getElementById('m_rendUnid').value;
+
+  if (usaRendimiento) {
+    cantOriginal = parseFloat(document.getElementById('m_rendCant').value);
+    if (!cantOriginal || cantOriginal <= 0) { alert('Cargá primero el rendimiento de la receta'); return; }
+  } else {
+    const idx = parseInt(selValue);
+    if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
+    cantOriginal = parseFloat(rows[idx].querySelectorAll('input')[1].value);
+    if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
+  }
 
   const ratio = nuevaCant / cantOriginal;
   const escalar = v => Math.round(v * ratio * 100) / 100;
@@ -2119,7 +2134,6 @@ function aplicarConversionReceta() {
   }).filter(Boolean).join('');
 
   const rendActual = parseFloat(document.getElementById('m_rendCant').value);
-  const rendUnidad = document.getElementById('m_rendUnid').value;
   let rendFila = '';
   if (!isNaN(rendActual) && rendActual > 0) {
     rendFila = `<tr style="border-top:2px solid var(--border)"><td style="font-style:italic">Rendimiento</td><td style="text-align:right;font-style:italic">${rendActual} ${rendUnidad}</td><td style="text-align:right;font-weight:700;font-style:italic">${escalar(rendActual)} ${rendUnidad}</td></tr>`;
@@ -2168,7 +2182,7 @@ function openSemiModal(id, dup) {
         <i class="ti ti-chevron-down" id="convChevron"></i>
       </div>
       <div id="conversorReceta" class="hidden" style="margin-top:10px">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente y poné la cantidad que tenés (ej: lo que trae un paquete) para ver cómo quedaría el resto de la receta en esa proporción. Es solo para consultar — no modifica ni guarda nada.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente (ej: lo que trae un paquete) <strong>o el rendimiento</strong> (ej: cuánto querés obtener en total) y poné la cantidad deseada, para ver cómo quedaría el resto de la receta en esa proporción. Es solo para consultar — no modifica ni guarda nada.</div>
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <select id="convIngSelect" style="flex:1;min-width:160px"></select>
           <span style="font-size:13px;color:var(--text3)">→ nueva cantidad:</span>
