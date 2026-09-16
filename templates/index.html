@@ -1812,8 +1812,9 @@ function openModal(title,body,footer){
   document.getElementById('modalBody').innerHTML=body;
   document.getElementById('modalFoot').innerHTML=footer;
   document.getElementById('modal').classList.remove('hidden');
+  legacyLinkTarget = null;
 }
-function closeModal(){ document.getElementById('modal').classList.add('hidden'); }
+function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; }
 
 // ── Sushiman modal ──
 function openSmModal(id) {
@@ -2013,6 +2014,13 @@ function selectIngredientFromDropdown(idx) {
   const item = ingDropdownItems[idx];
   if (!item) return;
   const container = document.getElementById(ingDropdownPrefix+'IngRows');
+
+  // Si legacyLinkTarget quedo "pegado" de un modal anterior que se cerro sin
+  // terminar de vincular, su fila ya no esta en el documento — la descartamos
+  // en vez de romper el agregado normal.
+  if (legacyLinkTarget && !document.body.contains(legacyLinkTarget.row)) {
+    legacyLinkTarget = null;
+  }
 
   if (legacyLinkTarget) {
     // Reemplaza la fila "sin vincular" por una fila real, conservando la cantidad
