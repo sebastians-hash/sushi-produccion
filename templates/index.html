@@ -1038,62 +1038,94 @@ const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
 function buildHourAssign(avail, startMins, prodH) {
   const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`, startMins:startMins+i*60}));
 
-  // Presupuesto total del turno por sushiman = promedio x cantidad de horas que trabaja
-  // (segun su horario de ingreso), repartido lo mas parejo posible entre esas horas
-  // (en vez de dejar que se concentre todo en una sola). El resto de la division
-  // se reparte de a una unidad en las primeras horas trabajadas.
-  const hourlyTarget={};
+  // Cuantas horas trabaja cada sushiman (segun su horario de ingreso) y su presupuesto
+  // NOMINAL (promedio x horas) — se usa solo para decidir a quien darle cada tanda,
+  // no como techo final (ver mas abajo).
+  const workedIdx={}, nominalBudget={};
   avail.forEach(sm=>{
     const ingreso=ST.dailySm[sm.id]?.ingreso;
     const ingresoMins=ingreso?toMins(ingreso):null;
     const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
-    const workedIdx=hours.map((h,i)=>i).filter(i=>!ingresoMins||hours[i].startMins>=ingresoMins);
-    const n=workedIdx.length;
+    workedIdx[sm.id]=hours.map((h,i)=>i).filter(i=>!ingresoMins||hours[i].startMins>=ingresoMins);
+    nominalBudget[sm.id]=prod*workedIdx[sm.id].length;
+  });
+
+  // Armar las "tandas": cada roll se corta en tandas de hasta 50 unidades
+  // (menos de 50 = una sola tanda, sin dividir; 50 o mas ya suma otra tanda,
+  // y cada 50 adicionales suma una tanda mas). Cada tanda se asigna ENTERA
+  // a un solo sushiman — nunca se reparte una tanda entre dos personas.
+  let tandas=[];
+  ST.production.forEach(r=>{
+    const numTandas=r.qty<50 ? 1 : 1+Math.floor(r.qty/50);
+    const base=Math.floor(r.qty/numTandas);
+    let remainder=r.qty-base*numTandas;
+    for(let i=0;i<numTandas;i++){
+      const size=base+(i<remainder?1:0);
+      if(size>0) tandas.push({name:r.name, qty:size});
+    }
+  });
+  tandas.sort((a,b)=>b.qty-a.qty); // las tandas mas grandes se reparten primero (balanceo tipo "greedy")
+
+  // Repartir cada tanda completa al sushiman que en ese momento tenga mas presupuesto libre
+  const remainingBudget={...nominalBudget};
+  const assignedTandas={};
+  avail.forEach(sm=>{ assignedTandas[sm.id]=[]; });
+  tandas.forEach(tanda=>{
+    let bestSm=null, bestBudget=-Infinity;
+    avail.forEach(sm=>{ if(remainingBudget[sm.id]>bestBudget){ bestBudget=remainingBudget[sm.id]; bestSm=sm; } });
+    if(!bestSm) return;
+    assignedTandas[bestSm.id].push(tanda);
+    remainingBudget[bestSm.id]-=tanda.qty;
+  });
+
+  // El objetivo por hora se recalcula en base a lo que CADA UNO realmente tiene
+  // asignado (no el presupuesto nominal), para que nunca se pierdan unidades si
+  // a alguien le toco una tanda mas grande que su promedio habitual.
+  const hourlyTarget={};
+  avail.forEach(sm=>{
+    const actualTotal=assignedTandas[sm.id].reduce((s,t)=>s+t.qty,0);
+    const idxs=workedIdx[sm.id];
+    const n=idxs.length;
     const targets=new Array(hours.length).fill(0);
-    if(n>0){
-      const totalBudget=prod*n;
-      const base=Math.floor(totalBudget/n);
-      let remainder=totalBudget-base*n;
-      workedIdx.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
+    if(n>0 && actualTotal>0){
+      const base=Math.floor(actualTotal/n);
+      let remainder=actualTotal-base*n;
+      idxs.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
     }
     hourlyTarget[sm.id]=targets;
   });
 
-  let remaining={};
-  ST.production.forEach(r=>remaining[r.name]=r.qty);
-  let queueOrder=[...ST.production].map(r=>r.name); // orden base, por qty desc
-  const lastRoll={}; // ultima variedad asignada a cada sushiman, para preferir variar
-  const hourAssign=hours.map((hour,hi)=>{
-    const row={};
-    avail.forEach(sm=>{
-      const ingreso = ST.dailySm[sm.id]?.ingreso;
-      if (ingreso && toMins(ingreso) > hour.startMins) {
-        row[sm.id]=[]; // todavia no llego a trabajar en este horario
-        return;
-      }
-      let left=hourlyTarget[sm.id][hi]||0;
-      if(left<=0){ row[sm.id]=[]; return; }
-
-      // Preferir NO repetir la misma variedad que le toco la hora anterior, si hay otra opcion
-      let order=queueOrder.filter(rn=>(remaining[rn]||0)>0);
-      const prev=lastRoll[sm.id];
-      if(prev && order.length>1 && order.includes(prev)){
-        order=order.filter(rn=>rn!==prev).concat([prev]);
-      }
-
+  // Distribuir las tandas de cada sushiman a lo largo de sus horas de trabajo,
+  // respetando su objetivo por hora. Una tanda puede ocupar mas de una hora
+  // de la MISMA persona si hace falta, pero nunca pasa a otra persona.
+  const hourAssign=hours.map(()=>({}));
+  avail.forEach(sm=>{
+    const tandaQueue=[...assignedTandas[sm.id]];
+    let currentName=null, currentLeft=0;
+    hours.forEach((hour,hi)=>{
+      const ingreso=ST.dailySm[sm.id]?.ingreso;
+      if(ingreso && toMins(ingreso)>hour.startMins){ hourAssign[hi][sm.id]=[]; return; }
+      let target=hourlyTarget[sm.id][hi]||0;
       const tasks=[];
-      for(let i=0;i<order.length&&left>0;i++){
-        const rn=order[i];
-        const take=Math.min(left,remaining[rn]);
-        if(take>0){tasks.push({name:rn,qty:take});remaining[rn]-=take;left-=take;}
+      while(target>0){
+        if(currentLeft<=0){
+          if(!tandaQueue.length) break;
+          const next=tandaQueue.shift();
+          currentName=next.name; currentLeft=next.qty;
+        }
+        const take=Math.min(target,currentLeft);
+        if(take<=0) break;
+        const last=tasks[tasks.length-1];
+        if(last && last.name===currentName) last.qty+=take; // fusionar si sigue siendo la misma variedad
+        else tasks.push({name:currentName, qty:take});
+        currentLeft-=take; target-=take;
       }
-      if(tasks.length) lastRoll[sm.id]=tasks[tasks.length-1].name;
-      row[sm.id]=tasks;
+      hourAssign[hi][sm.id]=tasks;
     });
-    queueOrder=queueOrder.filter(rn=>(remaining[rn]||0)>0);
-    return row;
   });
-  const totalAsignado = Object.values(remaining).length ? ST.production.reduce((s,r)=>s+r.qty,0) - Object.values(remaining).reduce((s,v)=>s+v,0) : 0;
+
+  let totalAsignado=0;
+  hourAssign.forEach(row=>Object.values(row).forEach(tasks=>tasks.forEach(t=>{totalAsignado+=t.qty;})));
   return {hours, hourAssign, totalAsignado};
 }
 
