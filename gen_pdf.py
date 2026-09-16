@@ -213,10 +213,38 @@ def page1_story(data, cw):
         ('BACKGROUND',(0,-1),(2,-1),ACCENT), ('FONTNAME',(0,-1),(2,-1),'Helvetica-Bold'),
     ]))
     story.append(rt)
+
+    rollos_blancos = data.get('rollosBlancos', [])
+    if rollos_blancos:
+        story.append(Spacer(1, 5*mm))
+        story.append(section_header("3  ROLLOS BLANCOS (bases compartidas)", cw))
+        story.append(Spacer(1, 2*mm))
+        rb_rows = [['Grupo', 'Detalle', 'Total']]
+        for g in rollos_blancos:
+            detalle = ' + '.join(f"{r['name']} ({r['qty']})" for r in g['rolls'])
+            rb_rows.append([g['grupo'], detalle, str(g['totalQty'])])
+        col_grupo = 40*mm
+        col_total = 25*mm
+        col_detalle = cw - col_grupo - col_total
+        rbt = Table(rb_rows, colWidths=[col_grupo, col_detalle, col_total], repeatRows=1)
+        rbt.setStyle(TableStyle([
+            ('FONTNAME',(0,0),(-1,-1),'Helvetica'), ('FONTSIZE',(0,0),(-1,-1),9),
+            ('LEADING',(0,0),(-1,-1),12), ('TOPPADDING',(0,0),(-1,-1),4),
+            ('BOTTOMPADDING',(0,0),(-1,-1),4), ('LEFTPADDING',(0,0),(-1,-1),5),
+            ('RIGHTPADDING',(0,0),(-1,-1),5),
+            ('GRID',(0,0),(-1,-1),0.3,colors.HexColor('#CCCCCC')),
+            ('BACKGROUND',(0,0),(-1,0),ACCENT), ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+            ('FONTNAME',(0,1),(0,-1),'Helvetica-Bold'),
+            ('ALIGN',(2,0),(2,-1),'CENTER'), ('FONTNAME',(2,1),(2,-1),'Helvetica-Bold'),
+            ('FONTSIZE',(2,1),(2,-1),12),
+            ('ROWBACKGROUNDS',(0,1),(-1,-1),[WHITE,BG_GRAY]),
+        ]))
+        story.append(rbt)
+
     return story
 
 # ── PAGE 2 — Insumos + Semielaborados ──
-def page2_story(data, cw):
+def page2_story(data, cw, start_num=3):
     story = []
     date_str   = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct = data.get('globalPct', 100)
@@ -226,7 +254,7 @@ def page2_story(data, cw):
     story.append(cover_band(date_str, global_pct, cw))
     story.append(Spacer(1, 5*mm))
 
-    story.append(section_header("3  INSUMOS NECESARIOS", cw))
+    story.append(section_header(f"{start_num}  INSUMOS NECESARIOS", cw))
     story.append(Spacer(1, 2*mm))
 
     ins_rows = [['Insumo', 'Total', 'En KG / unidad']]
@@ -237,7 +265,7 @@ def page2_story(data, cw):
     story.append(it)
     story.append(Spacer(1, 6*mm))
 
-    story.append(section_header("4  SEMIELABORADOS", cw))
+    story.append(section_header(f"{start_num+1}  SEMIELABORADOS", cw))
     story.append(Spacer(1, 2*mm))
 
     if semis:
@@ -252,7 +280,7 @@ def page2_story(data, cw):
     return story
 
 # ── PAGE 3 — Grilla (LANDSCAPE) ──
-def page3_story(data, cw):
+def page3_story(data, cw, start_num=5):
     story = []
     date_str   = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct = data.get('globalPct', 100)
@@ -262,7 +290,7 @@ def page3_story(data, cw):
 
     story.append(cover_band(date_str, global_pct, cw))
     story.append(Spacer(1, 4*mm))
-    story.append(section_header("5  GRILLA DE PRODUCCION POR HORA", cw))
+    story.append(section_header(f"{start_num}  GRILLA DE PRODUCCION POR HORA", cw))
     story.append(Spacer(1, 3*mm))
 
     info_data = [[
@@ -343,9 +371,12 @@ def build_pdf(data: dict, out_path: str):
         return SimpleDocTemplate(path, pagesize=pagesize,
             leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN)
 
+    has_rollos_blancos = bool(data.get('rollosBlancos'))
+    offset = 4 if has_rollos_blancos else 3
+
     make_doc(p1_path, A4_P).build(page1_story(data, cw_p))
-    make_doc(p2_path, A4_P).build(page2_story(data, cw_p))
-    make_doc(p3_path, A4_L).build(page3_story(data, cw_l))
+    make_doc(p2_path, A4_P).build(page2_story(data, cw_p, start_num=offset))
+    make_doc(p3_path, A4_L).build(page3_story(data, cw_l, start_num=offset+2))
 
     writer = PdfWriter()
     for path in [p1_path, p2_path, p3_path]:
