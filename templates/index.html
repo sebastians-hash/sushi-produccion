@@ -801,13 +801,12 @@ async function doConfirm() {
     const data=await res.json();
     ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[];
     const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-    const totOtros=ST.otrosVenta.reduce((s,p)=>s+p.qty,0);
     const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
+    const tiempoEstimado = (totR / 35).toFixed(1);
     document.getElementById('sumMetrics').innerHTML=`
       <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
-      <div class="metric"><div class="metric-lbl">Tipos de roll</div><div class="metric-val">${ST.production.length}</div></div>
       <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
-      <div class="metric"><div class="metric-lbl">Otros productos</div><div class="metric-val">${totOtros}</div></div>
+      <div class="metric"><div class="metric-lbl">Tiempo estimado de producción</div><div class="metric-val">${tiempoEstimado} hs</div></div>
       <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
     let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
     ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
