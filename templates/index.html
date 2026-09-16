@@ -131,6 +131,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .roll-ing-row.dragging{opacity:.4}
 .grid-task-row.dragging{opacity:.4}
 .grid-drop-target{outline:2px dashed var(--blue);outline-offset:-2px;background:var(--blue-bg) !important}
+.sm-row-highlight{background:var(--warn-bg) !important;transition:background .3s}
+.grid-task-highlight{outline:2px solid var(--warn);outline-offset:-1px;transition:outline .3s}
 .roll-ing-row.legacy-row{background:var(--warn-bg);border-radius:var(--rsm);padding:4px 6px}
 .ing-item-empty{padding:12px;font-size:12px;color:var(--text3);text-align:center}
 @media(max-width:600px){
@@ -1317,18 +1319,47 @@ function highlightErrors(errorRolls) {
 function renderValidationPanel(totals, required) {
   const errorRolls=new Set();
   let panelHtml='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
-  Object.entries(required).forEach(([name,qty])=>{
+  const sortedEntries=Object.entries(required).sort((a,b)=>a[0].localeCompare(b[0],'es'));
+  sortedEntries.forEach(([name,qty])=>{
     const got=totals[name]||0;
     const ok=got===qty;
     if(!ok) errorRolls.add(name);
     const diff=got-qty; const diffStr=diff>0?`+${diff}`:String(diff);
-    panelHtml+=`<div style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;
+    panelHtml+=`<div onclick="highlightRollInGrid('${name.replace(/'/g,"\\'")}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;
       background:${ok?'var(--green-bg)':'var(--red-bg)'};color:${ok?'var(--green)':'var(--red)'};border:1px solid ${ok?'#c3e6c3':'#f5c6c6'}">
       <i class="ti ti-${ok?'circle-check':'alert-triangle'}" style="font-size:11px"></i>
       ${name}: ${got}/${qty}${!ok?` <strong>(${diffStr})</strong>`:''}</div>`;
   });
   panelHtml+='</div>';
   return {panelHtml, errorRolls};
+}
+
+function highlightRollInGrid(rollName) {
+  document.querySelectorAll('.sm-row-highlight').forEach(el=>el.classList.remove('sm-row-highlight'));
+  document.querySelectorAll('.grid-task-highlight').forEach(el=>el.classList.remove('grid-task-highlight'));
+
+  const matchedRows=new Set();
+  let firstMatch=null;
+  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
+    cell.querySelectorAll('.grid-task-row').forEach(row=>{
+      const sel=row.querySelector('select');
+      if(sel && sel.value===rollName){
+        row.classList.add('grid-task-highlight');
+        if(!firstMatch) firstMatch=row;
+        const m=cell.id.match(/^cell_(\d+)_/);
+        if(m) matchedRows.add(parseInt(m[1]));
+      }
+    });
+  });
+
+  const tbodyRows=document.querySelectorAll('#schedGrid table tbody tr');
+  matchedRows.forEach(si=>{
+    const row=tbodyRows[si];
+    if(row){ const nameCell=row.querySelector('td'); if(nameCell) nameCell.classList.add('sm-row-highlight'); }
+  });
+
+  if(firstMatch) firstMatch.scrollIntoView({behavior:'smooth', block:'center'});
+  else document.getElementById('schedGrid').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function validateAndHighlight() {
