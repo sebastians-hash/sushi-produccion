@@ -403,13 +403,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div id="teq" class="hidden">
       <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Equivalencias entre marcas</div>
-          <button class="btn btn-sm" onclick="openEquivalenciaModal()"><i class="ti ti-plus"></i> Nueva equivalencia</button>
-        </div>
+        <div class="card-title">Equivalencias entre marcas</div>
         <div class="alert alert-info" style="margin-bottom:1rem">
           <i class="ti ti-info-circle"></i>
-          <span>Si distintas marcas venden el mismo combo, roll u otro producto con un nombre distinto, cargalo acá — la app va a sumar todo junto al calcular la producción, sin importar bajo qué nombre se vendió.</span>
+          <span>Elegí una marca. Cada fila es un producto — completá el nombre con el que esa marca lo vende. Dejalo vacío si esa marca no lo vende. La app suma todo bajo el producto real al calcular producción.</span>
         </div>
         <div id="equivalenciaCfg"></div>
       </div>
@@ -1322,7 +1319,9 @@ function familiaOptions(selected) {
 }
 
 // ── Equivalencias (mismo producto, distinto nombre por marca) ──
+// Vista de matriz: filas = productos del tipo elegido, columnas = marcas.
 const TIPO_EQUIV_LABELS = {combo:'Combo', roll:'Roll', otro_producto:'Otro producto'};
+let equivTipoActual = 'combo';
 
 function listaPorTipo(tipo) {
   if (tipo === 'combo') return ST.combos.map(c=>c.name);
@@ -1331,64 +1330,72 @@ function listaPorTipo(tipo) {
 }
 
 function renderEquivalenciaCfg() {
-  let h='<table><thead><tr><th>Tipo</th><th>Producto real</th><th>Alias (otra marca)</th><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.equivalencias.forEach(e=>{
-    h+=`<tr><td><span class="badge b-blue">${TIPO_EQUIV_LABELS[e.tipo]||e.tipo}</span></td>
-      <td style="font-weight:600">${e.nombre_canonico}</td>
-      <td>${e.nombre_alias}</td>
-      <td>${e.marca||'—'}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openEquivalenciaModal(${e.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('equivalencias',${e.id},renderEquivalenciaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
+  const container = document.getElementById('equivalenciaCfg');
+
+  if (!ST.marcas.length) {
+    container.innerHTML = '<div class="empty">Primero cargá al menos una marca en la pestaña "Marcas" para poder armar la tabla de equivalencias.</div>';
+    return;
+  }
+
+  const productos = listaPorTipo(equivTipoActual);
+
+  let h = `<div class="tabs" style="margin-bottom:1rem;border-bottom:1px solid var(--border)">
+    ${['combo','roll','otro_producto'].map(t=>`
+      <div class="tab${t===equivTipoActual?' active':''}" onclick="setEquivTipo('${t}')">${TIPO_EQUIV_LABELS[t]}</div>
+    `).join('')}
+  </div>`;
+
+  if (!productos.length) {
+    h += `<div class="empty">No hay ${TIPO_EQUIV_LABELS[equivTipoActual].toLowerCase()}s cargados todavía.</div>`;
+    container.innerHTML = h;
+    return;
+  }
+
+  h += '<div class="tbl-wrap"><table><thead><tr><th style="min-width:160px">Producto</th>';
+  ST.marcas.forEach(m => h += `<th style="min-width:140px">${m.name}</th>`);
+  h += '</tr></thead><tbody>';
+
+  productos.forEach(prodName => {
+    h += `<tr><td style="font-weight:600">${prodName}</td>`;
+    ST.marcas.forEach(m => {
+      const existing = ST.equivalencias.find(e=>e.tipo===equivTipoActual && e.nombre_canonico===prodName && e.marca===m.name);
+      h += `<td><input type="text" class="equiv-cell" data-producto="${prodName}" data-marca="${m.name}"
+              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%"></td>`;
+    });
+    h += '</tr>';
   });
-  h+='</tbody></table>';
-  if(!ST.equivalencias.length) h='<div class="empty">No hay equivalencias cargadas. Agregá la primera si dos marcas comparten el mismo producto con nombres distintos.</div>';
-  document.getElementById('equivalenciaCfg').innerHTML=h;
+  h += '</tbody></table></div>';
+
+  h += `<div class="flex-end">
+    <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
+  </div>`;
+
+  container.innerHTML = h;
 }
 
-function equivalenciaProductoOptions(tipo, selected) {
-  return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
+function setEquivTipo(tipo) {
+  equivTipoActual = tipo;
+  renderEquivalenciaCfg();
 }
 
-function onEquivTipoChange() {
-  const tipo = document.getElementById('m_equiv_tipo').value;
-  document.getElementById('m_equiv_canonico').innerHTML = equivalenciaProductoOptions(tipo, null);
-}
-
-function openEquivalenciaModal(id) {
-  const eq = id ? ST.equivalencias.find(x=>x.id===id) : null;
-  const tipo = eq?.tipo || 'combo';
-  openModal(id?'Editar equivalencia':'Nueva equivalencia',`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Tipo de producto</label>
-      <select id="m_equiv_tipo" class="w-full" onchange="onEquivTipoChange()">
-        <option value="combo" ${tipo==='combo'?'selected':''}>Combo</option>
-        <option value="roll" ${tipo==='roll'?'selected':''}>Roll</option>
-        <option value="otro_producto" ${tipo==='otro_producto'?'selected':''}>Otro producto (porción/ensalada/entrada/plato)</option>
-      </select></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Producto real <span style="font-weight:400;color:var(--text3);text-transform:none">(el que ya tiene la receta cargada)</span></label>
-      <select id="m_equiv_canonico" class="w-full">${equivalenciaProductoOptions(tipo, eq?.nombre_canonico)}</select></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre alias <span style="font-weight:400;color:var(--text3);text-transform:none">(cómo lo vende la otra marca)</span></label>
-      <input type="text" id="m_equiv_alias" class="w-full" value="${eq?.nombre_alias||''}" placeholder="Ej: Combo Norte 12"></div>
-    <div><label class="form-lbl">Marca <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional, solo de referencia)</span></label>
-      <input type="text" id="m_equiv_marca" class="w-full" value="${eq?.marca||''}" placeholder="Ej: Marca B"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEquivalencia(${id||'null'})">Guardar</button>`
-  );
-}
-
-async function saveEquivalencia(id) {
-  const alias = document.getElementById('m_equiv_alias').value.trim();
-  if(!alias){ alert('Ingresá el nombre alias'); return; }
-  const data = {
-    tipo: document.getElementById('m_equiv_tipo').value,
-    nombre_canonico: document.getElementById('m_equiv_canonico').value,
-    nombre_alias: alias,
-    marca: document.getElementById('m_equiv_marca').value.trim()
-  };
-  const res = await fetch(id?`/api/equivalencias/${id}`:'/api/equivalencias',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+async function saveEquivalenciaMatrix() {
+  const entries = [];
+  document.querySelectorAll('#equivalenciaCfg .equiv-cell').forEach(input => {
+    entries.push({
+      nombre_canonico: input.dataset.producto,
+      marca: input.dataset.marca,
+      nombre_alias: input.value.trim()
+    });
+  });
+  const res = await fetch('/api/equivalencias/sync', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tipo: equivTipoActual, entries})
+  });
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderEquivalenciaCfg();
+  await loadConfig();
+  renderEquivalenciaCfg();
+  showStatus('success', `Equivalencias de ${TIPO_EQUIV_LABELS[equivTipoActual].toLowerCase()}s guardadas (${result.count} activas)`);
 }
 
 // ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
