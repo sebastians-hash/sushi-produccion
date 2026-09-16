@@ -129,6 +129,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .ing-item-badge.insumo{background:var(--blue-bg);color:var(--blue)}
 .ing-item-badge.semi{background:var(--green-bg);color:var(--green)}
 .roll-ing-row.dragging{opacity:.4}
+.grid-task-row.dragging{opacity:.4}
+.grid-drop-target{outline:2px dashed var(--blue);outline-offset:-2px;background:var(--blue-bg) !important}
 .roll-ing-row.legacy-row{background:var(--warn-bg);border-radius:var(--rsm);padding:4px 6px}
 .ing-item-empty{padding:12px;font-size:12px;color:var(--text3);text-align:center}
 @media(max-width:600px){
@@ -295,6 +297,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <div class="sec" style="margin:0"><i class="ti ti-clock"></i> Grilla de producción por hora</div>
           <div class="row" style="gap:6px">
             <span id="schedValidation" style="font-size:12px"></span>
+            <button class="btn btn-sm hidden" id="addHourBtn" onclick="openAddHourModal()"><i class="ti ti-clock-plus"></i> Agregar franja horaria</button>
             <button class="btn btn-sm" id="editGridBtn" onclick="toggleEditGrid()"><i class="ti ti-edit"></i> Editar grilla</button>
             <button class="btn btn-sm btn-primary hidden" id="saveGridBtn" onclick="saveGridEdits()"><i class="ti ti-check"></i> Confirmar cambios</button>
             <button class="btn btn-sm hidden" id="cancelGridBtn" onclick="cancelGridEdits()"><i class="ti ti-x"></i> Cancelar</button>
@@ -1104,12 +1107,24 @@ function calcSchedule() {
     startTime:fmt(startMins), rollsEndTime:fmt(endMins),
     cutMins:cut, endTime:endT,
     sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
-    hours:hours.map((h,hi)=>({label:h.label,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
+    hours:hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
   };
   ST.editingGrid=false;
   renderScheduleDisplay();
   document.getElementById('schedRes').classList.remove('hidden');
   document.getElementById('schedRes').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function getPromedioRollosPorHora(smId) {
+  const hours = ST.schedule.hours;
+  let total = 0, workedHours = 0;
+  hours.forEach(h => {
+    const tasks = h.tasks[smId] || [];
+    const sum = tasks.reduce((s,t)=>s+t.qty,0);
+    if (sum > 0) { total += sum; workedHours++; }
+  });
+  if (workedHours === 0) return 0;
+  return Math.round((total/workedHours)*10)/10;
 }
 
 function renderScheduleDisplay() {
@@ -1124,7 +1139,7 @@ function renderScheduleDisplay() {
   hours.forEach(h=>g+=`<th style="text-align:center;min-width:130px">${h.label}</th>`);
   g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
   sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige)">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${sm.prod} rolls/h</span></td>`;
+    g+=`<tr><td style="font-weight:700;background:var(--beige)">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
     hours.forEach((h)=>{
       const tasks=h.tasks[sm.id]||[];
       if(!tasks.length){g+='<td style="text-align:center;color:var(--text3)">—</td>';return;}
@@ -1136,6 +1151,7 @@ function renderScheduleDisplay() {
   g+='</tbody></table>';
   document.getElementById('schedGrid').innerHTML=g;
   document.getElementById('schedValidation').textContent='';
+  document.getElementById('addHourBtn').classList.add('hidden');
   document.getElementById('editGridBtn').classList.remove('hidden');
   document.getElementById('saveGridBtn').classList.add('hidden');
   document.getElementById('cancelGridBtn').classList.add('hidden');
@@ -1198,6 +1214,58 @@ function validateAndHighlight() {
   return errorRolls.size===0;
 }
 
+function hourOptionsHtml(selectedHour) {
+  let opts = '';
+  for (let h = 0; h < 24; h++) {
+    const hs = String(h).padStart(2,'0');
+    opts += `<option value="${hs}" ${hs===selectedHour?'selected':''}>${hs}</option>`;
+  }
+  return opts;
+}
+function openAddHourModal() {
+  openModal('Agregar franja horaria', `
+    <div class="form-grid" style="margin-bottom:.5rem">
+      <div>
+        <label class="form-lbl">Desde</label>
+        <div class="row" style="gap:4px">
+          <select id="addHourFromH" style="flex:1">${hourOptionsHtml('16')}</select>
+          <span>:</span>
+          <select id="addHourFromM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
+        </div>
+      </div>
+      <div>
+        <label class="form-lbl">Hasta</label>
+        <div class="row" style="gap:4px">
+          <select id="addHourToH" style="flex:1">${hourOptionsHtml('17')}</select>
+          <span>:</span>
+          <select id="addHourToM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3)">Se inserta en el lugar cronológico correcto dentro de la grilla, sin tareas asignadas todavía.</div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmAddHourSlot()">Agregar</button>`
+  );
+}
+function confirmAddHourSlot() {
+  const fromH=document.getElementById('addHourFromH').value, fromM=document.getElementById('addHourFromM').value;
+  const toH=document.getElementById('addHourToH').value, toM=document.getElementById('addHourToM').value;
+  const fromMins=toMins(`${fromH}:${fromM}`), toMinsVal=toMins(`${toH}:${toM}`);
+  if(toMinsVal<=fromMins){ alert('La hora de fin debe ser posterior a la de inicio'); return; }
+
+  syncGridStateFromDOM(); // preservar los cambios ya hechos en la grilla antes de insertar
+
+  const newHour={ label:`${fromH}:${fromM}-${toH}:${toM}`, startMins:fromMins, tasks:{} };
+  ST.schedule.sushimanes.forEach(sm=>{ newHour.tasks[sm.id]=[]; });
+
+  const getStart=h=>h.startMins ?? toMins(h.label.split('-')[0]);
+  let insertIdx=ST.schedule.hours.findIndex(h=>getStart(h)>fromMins);
+  if(insertIdx===-1) insertIdx=ST.schedule.hours.length;
+  ST.schedule.hours.splice(insertIdx,0,newHour);
+
+  closeModal();
+  toggleEditGrid();
+}
+
 function toggleEditGrid() {
   ST.scheduleBackup=JSON.parse(JSON.stringify(ST.schedule));
   const {sushimanes,hours}=ST.schedule;
@@ -1208,18 +1276,23 @@ function toggleEditGrid() {
   g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
 
   sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige);vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${sm.prod} rolls/h</span></td>`;
+    g+=`<tr><td style="font-weight:700;background:var(--beige);vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
     hours.forEach((h,hi)=>{
       const tasks=h.tasks[sm.id]||[];
       const cellId=`cell_${si}_${hi}`;
       let cellHtml=tasks.map((t,ti)=>`
-        <div class="row grid-task-row" style="margin-bottom:5px;gap:3px;border-radius:4px;padding:2px" id="${cellId}_task${ti}">
+        <div class="row grid-task-row" draggable="true" style="margin-bottom:5px;gap:3px;border-radius:4px;padding:2px;cursor:grab" id="${cellId}_task${ti}"
+             ondragstart="onTaskDragStart(event,${si},${hi},${ti})" ondragend="onTaskDragEnd(event)">
+          <span style="color:var(--text3);flex-shrink:0"><i class="ti ti-grip-vertical" style="font-size:12px"></i></span>
           <select style="flex:1;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border)" onchange="onGridChange()">${rollOpts.replace(`value="${t.name}"`,`value="${t.name}" selected`)}</select>
           <input type="number" value="${t.qty}" min="0" max="999" style="width:46px;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border);text-align:center" oninput="onGridChange()">
           <button class="btn btn-sm btn-danger" style="padding:2px 6px;flex-shrink:0" onclick="removeGridTask(${si},${hi},${ti})"><i class="ti ti-x" style="font-size:10px"></i></button>
         </div>`).join('');
       cellHtml+=`<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-top:2px;width:100%" onclick="addGridTask(${si},${hi})"><i class="ti ti-plus" style="font-size:10px"></i> agregar</button>`;
-      g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}">${cellHtml}</td>`;
+      g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}"
+             ondragover="event.preventDefault();this.classList.add('grid-drop-target')"
+             ondragleave="this.classList.remove('grid-drop-target')"
+             ondrop="onCellDrop(event,${si},${hi})">${cellHtml}</td>`;
     });
     if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${ST.schedule.cutMins} min</td>`;
     g+='</tr>';
@@ -1227,6 +1300,7 @@ function toggleEditGrid() {
   g+='</tbody></table><div id="gridValidPanel" style="margin-top:10px"></div>';
 
   document.getElementById('schedGrid').innerHTML=g;
+  document.getElementById('addHourBtn').classList.remove('hidden');
   document.getElementById('editGridBtn').classList.add('hidden');
   document.getElementById('saveGridBtn').classList.remove('hidden');
   document.getElementById('cancelGridBtn').classList.remove('hidden');
@@ -1235,6 +1309,36 @@ function toggleEditGrid() {
 }
 
 function onGridChange() { validateAndHighlight(); }
+
+// ── Drag & drop: mover una tarea de una celda (sushiman+hora) a otra ──
+let draggedTaskInfo = null;
+function onTaskDragStart(e, si, hi, ti) {
+  syncGridStateFromDOM(); // congelar el estado actual antes de mover nada
+  draggedTaskInfo = {si, hi, ti};
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onTaskDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+}
+function onCellDrop(e, toSi, toHi) {
+  e.currentTarget.classList.remove('grid-drop-target');
+  if (!draggedTaskInfo) return;
+  const {si: fromSi, hi: fromHi, ti: fromTi} = draggedTaskInfo;
+  draggedTaskInfo = null;
+  if (fromSi===toSi && fromHi===toHi) return; // solto en la misma celda, no hay nada que hacer
+
+  const fromSmId = ST.schedule.sushimanes[fromSi].id;
+  const toSmId = ST.schedule.sushimanes[toSi].id;
+  const fromTasks = ST.schedule.hours[fromHi].tasks[fromSmId] || [];
+  const task = fromTasks[fromTi];
+  if (!task) return;
+  fromTasks.splice(fromTi, 1);
+  if (!ST.schedule.hours[toHi].tasks[toSmId]) ST.schedule.hours[toHi].tasks[toSmId] = [];
+  ST.schedule.hours[toHi].tasks[toSmId].push(task);
+
+  toggleEditGrid();
+}
 
 function addGridTask(smIdx, hIdx) {
   syncGridStateFromDOM();
