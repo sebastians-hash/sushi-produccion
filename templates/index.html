@@ -2075,6 +2075,63 @@ function ingRow(nombre, cantidad, unidad) {
 function addIngRow() {
   document.getElementById('ingRows').appendChild(ingRow('', '', 'g'));
 }
+
+// ── Escalar receta segun un ingrediente (regla de tres sobre toda la receta) ──
+function toggleConversorReceta() {
+  const panel = document.getElementById('conversorReceta');
+  const chevron = document.getElementById('convChevron');
+  const abriendo = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  chevron.style.transform = abriendo ? 'rotate(180deg)' : 'rotate(0deg)';
+  if (abriendo) poblarSelectConversor();
+}
+function poblarSelectConversor() {
+  const sel = document.getElementById('convIngSelect');
+  const rows = document.querySelectorAll('#ingRows .ing-row');
+  sel.innerHTML = [...rows].map((row, idx) => {
+    const nombre = row.querySelectorAll('input')[0].value.trim() || `(ingrediente ${idx+1})`;
+    return `<option value="${idx}">${nombre}</option>`;
+  }).join('');
+}
+function aplicarConversionReceta() {
+  const rows = [...document.querySelectorAll('#ingRows .ing-row')];
+  const idx = parseInt(document.getElementById('convIngSelect').value);
+  const nuevaCant = parseFloat(document.getElementById('convNuevaCant').value);
+  if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
+  if (isNaN(nuevaCant) || nuevaCant <= 0) { alert('Ingresá una cantidad nueva válida'); return; }
+
+  const anchorInput = rows[idx].querySelectorAll('input')[1];
+  const cantOriginal = parseFloat(anchorInput.value);
+  if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
+
+  const ratio = nuevaCant / cantOriginal;
+  const escalar = v => Math.round(v * ratio * 100) / 100;
+
+  rows.forEach(row => {
+    const cantInput = row.querySelectorAll('input')[1];
+    const actual = parseFloat(cantInput.value);
+    if (!isNaN(actual)) cantInput.value = escalar(actual);
+  });
+
+  // El rendimiento de la receta escala en la misma proporcion
+  const rendInput = document.getElementById('m_rendCant');
+  const rendActual = parseFloat(rendInput.value);
+  if (!isNaN(rendActual) && rendActual > 0) rendInput.value = escalar(rendActual);
+
+  showStatus2Modal(`Receta escalada x${ratio.toFixed(3)} — revisá los valores y guardá cuando estés conforme.`);
+}
+function showStatus2Modal(msg) {
+  // Aviso breve dentro del propio modal, sin depender del showStatus de afuera
+  let el = document.getElementById('convAvisoModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'convAvisoModal';
+    el.className = 'alert alert-success';
+    el.style.marginTop = '10px';
+    document.getElementById('conversorReceta').appendChild(el);
+  }
+  el.innerHTML = `<i class="ti ti-circle-check"></i><span>${msg}</span>`;
+}
 function openSemiModal(id, dup) {
   const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
   openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
@@ -2094,7 +2151,23 @@ function openSemiModal(id, dup) {
     <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Cargá todos los ingredientes de la receta con sus cantidades. La app va a calcular cuánto necesitás preparar según la producción del día.</div>
     <div id="ingRows" style="margin-bottom:8px"></div>
-    <button class="btn btn-sm" onclick="addIngRow()" style="margin-bottom:1.25rem"><i class="ti ti-plus"></i> Agregar ingrediente</button>
+    <button class="btn btn-sm" onclick="addIngRow()" style="margin-bottom:1rem"><i class="ti ti-plus"></i> Agregar ingrediente</button>
+
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
+      <div class="row-between" style="cursor:pointer" onclick="toggleConversorReceta()">
+        <div class="form-lbl" style="margin:0"><i class="ti ti-calculator"></i> Escalar receta según un ingrediente</div>
+        <i class="ti ti-chevron-down" id="convChevron"></i>
+      </div>
+      <div id="conversorReceta" class="hidden" style="margin-top:10px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente, poné la cantidad que tenés (ej: lo que trae un paquete) y el resto de la receta —y el rendimiento— se ajustan en la misma proporción.</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="convIngSelect" style="flex:1;min-width:160px"></select>
+          <span style="font-size:13px;color:var(--text3)">→ nueva cantidad:</span>
+          <input type="number" id="convNuevaCant" step="0.1" style="width:100px" placeholder="Ej: 150">
+          <button class="btn btn-sm btn-primary" onclick="aplicarConversionReceta()"><i class="ti ti-check"></i> Aplicar</button>
+        </div>
+      </div>
+    </div>
 
     <div class="form-grid" style="background:var(--warn-bg);padding:12px;border-radius:var(--rsm);margin-top:.5rem">
       <div><label class="form-lbl" style="color:#7a5500">⚠ Rendimiento de la receta</label>
