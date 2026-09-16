@@ -641,6 +641,32 @@ def delete_equivalencia(equiv_id):
     conn.close()
     return jsonify({'ok': True})
 
+@app.route('/api/equivalencias/sync', methods=['POST'])
+@admin_required
+def sync_equivalencias():
+    """Reemplaza TODAS las equivalencias de un tipo (combo/roll/otro_producto)
+    con el estado actual de la matriz producto x marca que manda el frontend.
+    Las celdas vacias simplemente no generan fila."""
+    data = request.json
+    tipo = data.get('tipo')
+    entries = data.get('entries', [])  # [{nombre_canonico, marca, nombre_alias}]
+    if tipo not in ('combo', 'roll', 'otro_producto'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    conn = get_db()
+    conn.execute('DELETE FROM equivalencias WHERE tipo=?', (tipo,))
+    count = 0
+    for e in entries:
+        alias = (e.get('nombre_alias') or '').strip()
+        if not alias:
+            continue
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
+                     (tipo, e['nombre_canonico'], alias, e.get('marca', '')))
+        count += 1
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'count': count})
+
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
 @login_required
