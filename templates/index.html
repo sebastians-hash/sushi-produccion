@@ -27,6 +27,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hdr .hdr-title{color:#fff;font-size:18px;font-weight:700}
 .hdr .hdr-sub{color:rgba(255,255,255,.65);font-size:12px}
 .steps{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.75rem}
+.main-nav{display:flex;align-items:center;gap:4px;margin-bottom:1.25rem;border-bottom:2px solid var(--border);padding-bottom:0}
+.main-nav-item{padding:10px 16px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;transition:color .12s,border-color .12s;user-select:none}
+.main-nav-item:hover{color:var(--text2)}
+.main-nav-item.active{color:var(--text);border-bottom-color:var(--text)}
+.main-nav-admin{margin-left:auto;padding:10px 12px;font-size:16px}
 .step{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:default;border-right:1px solid var(--border);background:var(--bg);transition:background .12s;user-select:none}
 .step:last-child{border-right:none}
 .step-n{display:block;font-size:15px;font-weight:700;margin-bottom:1px}
@@ -162,13 +167,29 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
   </header>
 
+  <div class="main-nav">
+    <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
+    {% if is_admin %}
+    <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
+    <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
+    <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
+    <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i></div>
+    {% endif %}
+  </div>
+
+  <div id="mainProduccion">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
+      {% if is_admin %}<div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>{% endif %}
+    </div>
+    <div id="prodFlowTab">
   <div class="steps">
     <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
     <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
     <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
     <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
     <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
-    {% if is_admin %}<div class="step nav" id="si6" onclick="goStep(6)"><span class="step-n">⚙</span>Config</div>{% endif %}
   </div>
 
   <!-- ── STEP 1 ── -->
@@ -336,25 +357,25 @@ input[type=range]{width:100%;accent-color:var(--text)}
   </div>
 
   <!-- ── STEP 6 ── -->
-  <div id="s6" class="hidden">
-    <div class="tabs">
-      <div class="tab active" onclick="showTab('tc',this)">Combos</div>
-      <div class="tab" onclick="showTab('tr',this)">Rolls</div>
-      <div class="tab" onclick="showTab('trbg',this)">Grupos de rollo blanco</div>
-      <div class="tab" onclick="showTab('top',this)">Otros productos</div>
-      <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
-      <div class="tab" onclick="showTab('tsu',this)">Sushimanes</div>
-      <div class="tab" onclick="showTab('tin',this)">Insumos</div>
-      <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
-      <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
-      <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
-      <div class="tab" onclick="showTab('tma',this)">Marcas</div>
-      <div class="tab" onclick="showTab('tfa',this)">Familias</div>
-      <div class="tab" onclick="showTab('teq',this)"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
-      <div class="tab" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
-      <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar</div>
+
     </div>
-    <div id="tc">
+    <div id="prodSmTab" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Equipo de sushimanes</div>
+          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+        </div>
+        <div id="smCfg"></div>
+      </div>
+    </div>
+  </div>
+
+    <div id="mainProductos" class="hidden">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showTab('tc',this)">Combos</div>
+      <div class="tab" onclick="showTab('top',this)">Otros productos</div>
+    </div>
+<div id="tc">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Combos configurados</div>
@@ -363,29 +384,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div id="comboCfg"></div>
       </div>
     </div>
-    <div id="tr" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Rolls</div>
-          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
-        </div>
-        <div id="rollCfg"></div>
-      </div>
-    </div>
-    <div id="trbg" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Grupos de rollo blanco</div>
-          <button class="btn btn-sm" onclick="openRolloBlancoGrupoModal()"><i class="ti ti-plus"></i> Nuevo grupo</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Agrupá los rolls que llevan el mismo relleno y solo cambian de cobertura (ej: Apaltado, Napoli, Buenos Aires, Lango Mex). En la producción del día vas a ver estos rolls sumados como uno solo antes de diferenciarlos.</span>
-        </div>
-        <div id="rolloBlancoGrupoCfg"></div>
-      </div>
-    </div>
-    <div id="top" class="hidden">
+<div id="top" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Otros productos</div>
@@ -398,7 +397,37 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div id="otroProductoCfg"></div>
       </div>
     </div>
-    <div id="ts" class="hidden">
+  </div>
+
+    <div id="mainRecetas" class="hidden">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showTab('tr',this)">Rolls</div>
+      <div class="tab" onclick="showTab('trbg',this)">Grupos de rollo blanco</div>
+      <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
+      <div class="tab" onclick="showTab('tma',this)">Marcas</div>
+      <div class="tab" onclick="showTab('tfa',this)">Familias</div>
+    </div>
+<div id="tr">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Rolls</div>
+          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
+        </div>
+        <div id="rollCfg"></div>
+      </div>
+    </div><div id="trbg" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Grupos de rollo blanco</div>
+          <button class="btn btn-sm" onclick="openRolloBlancoGrupoModal()"><i class="ti ti-plus"></i> Nuevo grupo</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Agrupá los rolls que llevan el mismo relleno y solo cambian de cobertura (ej: Apaltado, Napoli, Buenos Aires, Lango Mex). En la producción del día vas a ver estos rolls sumados como uno solo antes de diferenciarlos.</span>
+        </div>
+        <div id="rolloBlancoGrupoCfg"></div>
+      </div>
+    </div><div id="ts" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Semielaborados</div>
@@ -406,17 +435,41 @@ input[type=range]{width:100%;accent-color:var(--text)}
         </div>
         <div id="semiCfg"></div>
       </div>
-    </div>
-    <div id="tsu" class="hidden">
+    </div><div id="tma" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Equipo de sushimanes</div>
-          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          <div class="card-title" style="margin:0">Marcas</div>
+          <button class="btn btn-sm" onclick="openMarcaModal()"><i class="ti ti-plus"></i> Nueva marca</button>
         </div>
-        <div id="smCfg"></div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
+        </div>
+        <div id="marcaCfg"></div>
+      </div>
+    </div><div id="tfa" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Familias</div>
+          <button class="btn btn-sm" onclick="openFamiliaModal()"><i class="ti ti-plus"></i> Nueva familia</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Las familias agrupan combos y otros productos (ej: Alaska, Tokyo, Porciones, Ensaladas). Se usan en el paso de ajuste de venta para organizar todo por categoría.</span>
+        </div>
+        <div id="familiaCfg"></div>
       </div>
     </div>
-    <div id="tin" class="hidden">
+  </div>
+
+  <div id="mainInsumos" class="hidden">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showTab('tin',this)">Insumos</div>
+      <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
+      <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
+      <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
+    </div>
+    <div id="tin">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Tabla maestra de insumos</div>
@@ -482,33 +535,11 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div id="proveedorCfg"></div>
       </div>
     </div>
-    <div id="tma" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Marcas</div>
-          <button class="btn btn-sm" onclick="openMarcaModal()"><i class="ti ti-plus"></i> Nueva marca</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
-        </div>
-        <div id="marcaCfg"></div>
-      </div>
-    </div>
-    <div id="tfa" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Familias</div>
-          <button class="btn btn-sm" onclick="openFamiliaModal()"><i class="ti ti-plus"></i> Nueva familia</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Las familias agrupan combos y otros productos (ej: Alaska, Tokyo, Porciones, Ensaladas). Se usan en el paso de ajuste de venta para organizar todo por categoría.</span>
-        </div>
-        <div id="familiaCfg"></div>
-      </div>
-    </div>
-    <div id="teq" class="hidden">
+
+  </div>
+
+  <div id="mainEquivalencias" class="hidden">
+    <div id="teq">
       <div class="card">
         <div class="card-title">Equivalencias entre marcas</div>
         <div class="alert alert-info" style="margin-bottom:1rem">
@@ -518,7 +549,15 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div id="equivalenciaCfg"></div>
       </div>
     </div>
-    <div id="tus" class="hidden">
+
+  </div>
+
+  <div id="mainAdmin" class="hidden">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
+      <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar / Respaldo</div>
+    </div>
+    <div id="tus">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Usuarios con acceso</div>
@@ -597,9 +636,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
         </div>
       </div>
     </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(ST.prevStep||1)"><i class="ti ti-arrow-left"></i> Volver al flujo</button>
-    </div>
+
   </div>
 </div>
 
@@ -685,35 +722,58 @@ async function loadConfig() {
 // ═══════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
+function goMainSection(name) {
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',admin:'mainAdmin'};
+  Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
+  document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
+  const navEl=document.getElementById('mni-'+name);
+  if(navEl) navEl.classList.add('active');
+  ST.mainSection=name;
+  if(name==='productos') renderComboCfg();
+  if(name==='recetas') renderRollCfg();
+  if(name==='insumos') renderInsumoCfg();
+  if(name==='equivalencias') renderEquivalenciaCfg();
+  if(name==='admin') renderUsuarioCfg();
+}
+
+function showProdSubTab(id, el) {
+  document.getElementById('prodFlowTab').classList.toggle('hidden', id!=='flow');
+  document.getElementById('prodSmTab').classList.toggle('hidden', id!=='sm');
+  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if(id==='sm') renderSmCfg();
+}
+
 function goStep(n) {
-  if(n===6 && !IS_ADMIN) return; // solo admins pueden entrar a Configuración
   if(n>1&&n<6&&!ST.sales.length) return;
   ST.prevStep=ST.step; ST.step=n;
-  for(let i=1;i<=6;i++){
+  for(let i=1;i<=5;i++){
     document.getElementById('s'+i).classList.toggle('hidden',i!==n);
     const si=document.getElementById('si'+i);
-    if(!si) continue; // si6 no existe en el DOM para usuarios no-admin
-    si.className='step'+(i===n?' active':i<n&&i<6?' done nav':i===6?' nav':'');
-    if(i<n&&i<6) si.onclick=()=>goStep(i);
-    else if(i===6) si.onclick=()=>goStep(6);
+    if(!si) continue;
+    si.className='step'+(i===n?' active':i<n?' done nav':'');
+    if(i<n) si.onclick=()=>goStep(i);
     else si.onclick=null;
   }
   if(n===2) renderSales();
   if(n===4) renderProduction();
   if(n===5) renderSmList();
-  if(n===6){ renderComboCfg(); }
 }
 
 function showTab(id, el) {
-  ['tc','tr','trbg','top','ts','tsu','tin','tcat','tzon','tprov','tma','tfa','teq','tus','timp'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const tabBar=el.closest('.tabs');
+  const idsInThisBar=[...tabBar.querySelectorAll('.tab')].map(t=>{
+    const m=(t.getAttribute('onclick')||'').match(/showTab\('(\w+)'/);
+    return m ? m[1] : null;
+  }).filter(Boolean);
+  idsInThisBar.forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  tabBar.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='tc') renderComboCfg();
   if(id==='tr') renderRollCfg();
   if(id==='trbg') renderRolloBlancoGrupoCfg();
   if(id==='top') renderOtroProductoCfg();
   if(id==='ts') renderSemiCfg();
-  if(id==='tsu') renderSmCfg();
   if(id==='tin') renderInsumoCfg();
   if(id==='tcat') renderCategoriaCfg();
   if(id==='tzon') renderZonaCfg();
