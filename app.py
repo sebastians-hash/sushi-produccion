@@ -88,7 +88,12 @@ def init_db():
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             insumos TEXT NOT NULL,
-            piezas_por_rollo INTEGER NOT NULL DEFAULT 14
+            piezas_por_rollo INTEGER NOT NULL DEFAULT 14,
+            rollo_blanco_grupo TEXT
+        );
+        CREATE TABLE IF NOT EXISTS rollo_blanco_grupos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
         );
         CREATE TABLE IF NOT EXISTS combos (
             id SERIAL PRIMARY KEY,
@@ -223,6 +228,8 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
     if 'piezas_por_rollo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
+    if 'rollo_blanco_grupo' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
 
     # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
     insumo_cols = get_columns('insumos')
@@ -453,7 +460,7 @@ def delete_usuario(usuario_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -501,7 +508,7 @@ def restore_data():
         if r.get('piezas_por_rollo') is None:
             r['piezas_por_rollo'] = 14
     counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
-                              ['name', 'insumos', 'marcas', 'piezas_por_rollo'])
+                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo'])
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
@@ -525,6 +532,7 @@ def restore_data():
     counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
+    counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
 
     # Equivalencias: clave compuesta (tipo, nombre_alias), no calza con el helper 'upsert' generico.
     # Reemplazo completo simple: borramos todo y volvemos a insertar lo que venga en el backup.
@@ -879,6 +887,61 @@ def delete_proveedor(prov_id):
     conn.close()
     return jsonify({'ok': True})
 
+# ── Grupos de rollo blanco (rolls que comparten el mismo relleno) ──
+@app.route('/api/rollo-blanco-grupos', methods=['GET'])
+@login_required
+def get_rollo_blanco_grupos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM rollo_blanco_grupos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/rollo-blanco-grupos', methods=['POST'])
+@admin_required
+def create_rollo_blanco_grupo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO rollo_blanco_grupos (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese grupo ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rollo-blanco-grupos/<int:grupo_id>', methods=['PUT'])
+@admin_required
+def update_rollo_blanco_grupo(grupo_id):
+    data = request.json
+    conn = get_db()
+    old = conn.execute('SELECT name FROM rollo_blanco_grupos WHERE id=?', (grupo_id,)).fetchone()
+    new_name = data['name'].strip()
+    try:
+        conn.execute('UPDATE rollo_blanco_grupos SET name=? WHERE id=?', (new_name, grupo_id))
+        if old and old['name'] != new_name:
+            conn.execute('UPDATE rolls SET rollo_blanco_grupo=? WHERE rollo_blanco_grupo=?', (new_name, old['name']))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese grupo ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rollo-blanco-grupos/<int:grupo_id>', methods=['DELETE'])
+@admin_required
+def delete_rollo_blanco_grupo(grupo_id):
+    conn = get_db()
+    row = conn.execute('SELECT name FROM rollo_blanco_grupos WHERE id=?', (grupo_id,)).fetchone()
+    if row:
+        conn.execute('UPDATE rolls SET rollo_blanco_grupo=NULL WHERE rollo_blanco_grupo=?', (row['name'],))
+    conn.execute('DELETE FROM rollo_blanco_grupos WHERE id=?', (grupo_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
 @login_required
@@ -889,7 +952,8 @@ def get_rolls():
     return jsonify([{'id': r['id'], 'name': r['name'],
                      'insumos': json.loads(r['insumos']),
                      'marcas': json.loads(r['marcas'] or '[]'),
-                     'piezas_por_rollo': r['piezas_por_rollo']} for r in rows])
+                     'piezas_por_rollo': r['piezas_por_rollo'],
+                     'rollo_blanco_grupo': r['rollo_blanco_grupo']} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
 @admin_required
@@ -897,9 +961,9 @@ def create_roll():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo) VALUES (?,?,?,?)',
+        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo) VALUES (?,?,?,?,?)',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14)))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -914,9 +978,9 @@ def update_roll(roll_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=? WHERE id=?',
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=? WHERE id=?',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14), roll_id))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None, roll_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1244,6 +1308,8 @@ def calcular():
                  for r in conn.execute('SELECT name, insumos FROM rolls').fetchall()}
     roll_piezas_db = {r['name']: r['piezas_por_rollo']
                  for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
+    roll_grupo_db = {r['name']: r['rollo_blanco_grupo']
+                 for r in conn.execute('SELECT name, rollo_blanco_grupo FROM rolls').fetchall()}
     otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos'])}
                  for r in conn.execute('SELECT name, tipo, insumos FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
@@ -1324,6 +1390,20 @@ def calcular():
           'piezas': v * (roll_piezas_db.get(k, 14) or 14)} for k, v in roll_totals.items() if v > 0],
         key=lambda x: -x['qty']
     )
+
+    # Rollos blancos: agrupa los rolls que comparten el mismo relleno (misma base,
+    # distinta cobertura) para poder armarlos todos juntos y despues diferenciar.
+    grupos_blancos = {}
+    for p in production:
+        grupo = roll_grupo_db.get(p['name'])
+        if grupo:
+            grupos_blancos.setdefault(grupo, []).append({'name': p['name'], 'qty': p['qty']})
+    rollos_blancos_out = sorted(
+        [{'grupo': g, 'rolls': rolls, 'totalQty': sum(r['qty'] for r in rolls)}
+         for g, rolls in grupos_blancos.items()],
+        key=lambda x: -x['totalQty']
+    )
+
     otros_productos_out = sorted(
         [{'name': k, 'tipo': v['tipo'], 'qty': v['qty']} for k, v in otros_totals.items() if v['qty'] > 0],
         key=lambda x: -x['qty']
@@ -1445,7 +1525,8 @@ def calcular():
         'production': production,
         'insumos': insumos_out,
         'semis': semis_out,
-        'otrosProductos': otros_productos_out
+        'otrosProductos': otros_productos_out,
+        'rollosBlancos': rollos_blancos_out
     })
 
 # ── Generar PDF ──
