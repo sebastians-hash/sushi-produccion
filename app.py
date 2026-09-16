@@ -112,7 +112,9 @@ def init_db():
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             productivity INTEGER NOT NULL DEFAULT 10,
-            active INTEGER NOT NULL DEFAULT 1
+            active INTEGER NOT NULL DEFAULT 1,
+            dias_franco TEXT NOT NULL DEFAULT '[]',
+            horario_ingreso TEXT
         );
         CREATE TABLE IF NOT EXISTS insumos (
             id SERIAL PRIMARY KEY,
@@ -230,6 +232,12 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
     if 'rollo_blanco_grupo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
+
+    sm_cols = get_columns('sushimanes')
+    if 'dias_franco' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN dias_franco TEXT NOT NULL DEFAULT '[]'")
+    if 'horario_ingreso' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN horario_ingreso TEXT")
 
     # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
     insumo_cols = get_columns('insumos')
@@ -521,8 +529,13 @@ def restore_data():
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
+    for sm in data.get('sushimanes', []):
+        if sm.get('dias_franco') is None:
+            sm['dias_franco'] = '[]'
+        elif isinstance(sm['dias_franco'], list):
+            sm['dias_franco'] = json.dumps(sm['dias_franco'])
     counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
-                              ['name', 'productivity', 'active'])
+                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso'])
     # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
     for i in data.get('insumos', []):
         if i.get('es_80_20') is None:
@@ -1134,7 +1147,9 @@ def get_sushimanes():
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'],
                      'productivity': r['productivity'],
-                     'active': bool(r['active'])} for r in rows])
+                     'active': bool(r['active']),
+                     'dias_franco': json.loads(r['dias_franco'] or '[]'),
+                     'horario_ingreso': r['horario_ingreso']} for r in rows])
 
 @app.route('/api/sushimanes', methods=['POST'])
 @admin_required
@@ -1142,8 +1157,9 @@ def create_sushiman():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO sushimanes (name, productivity) VALUES (?,?)',
-                     (data['name'], data.get('productivity', 10)))
+        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso) VALUES (?,?,?,?)',
+                     (data['name'], data.get('productivity', 10),
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1158,8 +1174,9 @@ def update_sushiman(sm_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=? WHERE id=?',
-                     (data['name'], data['productivity'], int(data.get('active', True)), sm_id))
+        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=? WHERE id=?',
+                     (data['name'], data['productivity'], int(data.get('active', True)),
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, sm_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
