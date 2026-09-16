@@ -887,6 +887,7 @@ async function doConfirm() {
     const res=await fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
     const data=await res.json();
+    if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
     ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[];
     const totR=ST.production.reduce((s,r)=>s+r.qty,0);
     const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
@@ -901,7 +902,7 @@ async function doConfirm() {
     h+='</tbody></table>';
     document.getElementById('sumRolls').innerHTML=h;
     goStep(3);
-  } catch(e){ alert('Error al calcular.'); }
+  } catch(e){ alert('Error al calcular: ' + e.message); }
   finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
 }
 
