@@ -142,6 +142,14 @@ def init_db():
             insumos TEXT NOT NULL DEFAULT '{}',
             marcas TEXT NOT NULL DEFAULT '[]'
         );
+        CREATE TABLE IF NOT EXISTS equivalencias (
+            id SERIAL PRIMARY KEY,
+            tipo TEXT NOT NULL,
+            nombre_canonico TEXT NOT NULL,
+            nombre_alias TEXT NOT NULL,
+            marca TEXT,
+            UNIQUE(tipo, nombre_alias)
+        );
     ''')
     conn.commit()
 
@@ -582,6 +590,57 @@ def delete_otro_producto(producto_id):
     conn.close()
     return jsonify({'ok': True})
 
+# ── Equivalencias (mismo producto, distinto nombre por marca) ──
+@app.route('/api/equivalencias', methods=['GET'])
+@login_required
+def get_equivalencias():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM equivalencias ORDER BY tipo, nombre_canonico, nombre_alias').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'nombre_canonico': r['nombre_canonico'],
+                     'nombre_alias': r['nombre_alias'], 'marca': r['marca']} for r in rows])
+
+@app.route('/api/equivalencias', methods=['POST'])
+@admin_required
+def create_equivalencia():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', '')))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese alias ya está usado para otro producto de ese tipo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/equivalencias/<int:equiv_id>', methods=['PUT'])
+@admin_required
+def update_equivalencia(equiv_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE equivalencias SET tipo=?, nombre_canonico=?, nombre_alias=?, marca=? WHERE id=?',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''), equiv_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese alias ya está usado para otro producto de ese tipo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/equivalencias/<int:equiv_id>', methods=['DELETE'])
+@admin_required
+def delete_equivalencia(equiv_id):
+    conn = get_db()
+    conn.execute('DELETE FROM equivalencias WHERE id=?', (equiv_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 # ── Rolls ──
 @app.route('/api/rolls', methods=['GET'])
 @login_required
@@ -934,6 +993,15 @@ def calcular():
                  for r in conn.execute('SELECT name, tipo, insumos FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+
+    # Equivalencias: mismo producto, distinto nombre segun la marca que lo vendio
+    def norm(s):
+        return (s or '').lower().replace(' ', '').replace('-', '').replace('_', '')
+
+    equiv_rows = conn.execute('SELECT tipo, nombre_canonico, nombre_alias FROM equivalencias').fetchall()
+    equiv_combo = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'combo'}
+    equiv_otro  = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'otro_producto'}
+    equiv_roll  = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'roll'}
     conn.close()
 
     roll_totals = {}
@@ -954,10 +1022,16 @@ def calcular():
                 if cname.lower().replace(' ', '') == name_lower:
                     combo = crolls
                     break
+        if not combo:
+            # Ver si el nombre/codigo es un alias conocido de otra marca para un combo existente
+            canonico = equiv_combo.get(norm(s['name'])) or equiv_combo.get(norm(s['code']))
+            if canonico:
+                combo = combos_db.get(canonico)
         if combo:
             for roll_name, piezas in combo.items():
                 if not piezas:
                     continue
+                roll_name = equiv_roll.get(norm(roll_name), roll_name)
                 piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
                 rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
                 roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
@@ -971,6 +1045,11 @@ def calcular():
                 if pname.lower().replace(' ', '') == name_lower:
                     otro = pdata
                     break
+        if not otro:
+            # Ver si el nombre/codigo es un alias conocido de otra marca para un producto existente
+            canonico = equiv_otro.get(norm(s['name'])) or equiv_otro.get(norm(s['code']))
+            if canonico:
+                otro = otros_db.get(canonico)
         if otro:
             key = None
             for pname, pdata in otros_db.items():
