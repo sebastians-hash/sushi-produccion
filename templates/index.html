@@ -286,6 +286,22 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div style="margin-top:.75rem">
         <button class="btn btn-sm" onclick="addTempSm()"><i class="ti ti-plus"></i> Agregar temporal</button>
       </div>
+      <div class="sec" style="margin-top:1.25rem"><i class="ti ti-adjustments"></i> Modo de cálculo de la grilla</div>
+      <div class="row" style="gap:16px;margin-bottom:1rem">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="gridMode" value="auto" checked onchange="onGridModeChange()"> Automática
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="gridMode" value="semi" onchange="onGridModeChange()"> Semi automática
+        </label>
+      </div>
+      <div id="manualTandasSection" class="hidden">
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Elegí en cuántas tandas se corta cada roll. "Rolls por tanda" se calcula solo (total ÷ tandas, redondeado para arriba) y así se van a asignar en la grilla.</span>
+        </div>
+        <div id="manualTandasTbl"></div>
+      </div>
     </div>
     <div class="row-between" style="margin-bottom:1rem">
       <div></div>
@@ -1000,6 +1016,47 @@ function renderProduction() {
 // ═══════════════════════════════════════════════════════
 // STEP 5 — Planning
 // ═══════════════════════════════════════════════════════
+function onGridModeChange() {
+  const mode = document.querySelector('input[name="gridMode"]:checked').value;
+  const section = document.getElementById('manualTandasSection');
+  if (mode === 'semi') {
+    section.classList.remove('hidden');
+    renderManualTandasTable();
+  } else {
+    section.classList.add('hidden');
+  }
+}
+function renderManualTandasTable() {
+  let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Total a producir</th><th style="text-align:center;width:110px">Tandas</th><th style="text-align:right">Rolls por tanda</th></tr></thead><tbody>';
+  ST.production.forEach(r=>{
+    const sugerido = r.qty<50 ? 1 : 1+Math.floor(r.qty/50); // sugerencia inicial, editable
+    h+=`<tr data-roll="${r.name}"><td style="font-weight:600">${r.name}</td>
+      <td style="text-align:right">${r.qty}</td>
+      <td style="text-align:center"><input type="number" class="tanda-input" value="${sugerido}" min="1" max="${r.qty}" style="width:70px;text-align:center" data-qty="${r.qty}" oninput="updateTandaCalc(this)"></td>
+      <td style="text-align:right;font-weight:700" class="tanda-result">${Math.ceil(r.qty/sugerido)}</td>
+    </tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.production.length) h='<div class="empty">No hay producción calculada todavía.</div>';
+  document.getElementById('manualTandasTbl').innerHTML=h;
+}
+function updateTandaCalc(input) {
+  const qty=parseInt(input.dataset.qty)||0;
+  let tandas=parseInt(input.value)||1;
+  if(tandas<1) tandas=1;
+  const resultCell=input.closest('tr').querySelector('.tanda-result');
+  resultCell.textContent=Math.ceil(qty/tandas);
+}
+function getManualTandaCounts() {
+  const counts={};
+  document.querySelectorAll('#manualTandasTbl tr[data-roll]').forEach(row=>{
+    const name=row.dataset.roll;
+    const input=row.querySelector('.tanda-input');
+    counts[name]=Math.max(1,parseInt(input.value)||1);
+  });
+  return counts;
+}
+
 function renderSmList() {
   let h='';
   const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -1035,7 +1092,7 @@ function addTempSm() {
 const fmt=m=>`${String(Math.floor(((m%1440)+1440)%1440/60)).padStart(2,'0')}:${String(((m%60)+60)%60).padStart(2,'0')}`;
 const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
 
-function buildHourAssign(avail, startMins, prodH) {
+function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
   const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`, startMins:startMins+i*60}));
 
   // Cuantas horas trabaja cada sushiman (segun su horario de ingreso) y su presupuesto
@@ -1050,13 +1107,13 @@ function buildHourAssign(avail, startMins, prodH) {
     nominalBudget[sm.id]=prod*workedIdx[sm.id].length;
   });
 
-  // Armar las "tandas": cada roll se corta en tandas de hasta 50 unidades
-  // (menos de 50 = una sola tanda, sin dividir; 50 o mas ya suma otra tanda,
-  // y cada 50 adicionales suma una tanda mas). Cada tanda se asigna ENTERA
-  // a un solo sushiman — nunca se reparte una tanda entre dos personas.
+  // Armar las "tandas": si vienen tandas elegidas a mano (modo semi automatico) se
+  // usan tal cual; si no, se calculan automaticamente (menos de 50 = una sola tanda,
+  // 50 o mas suma otra tanda, y cada 50 adicionales suma una tanda mas). Cada tanda
+  // se asigna ENTERA a un solo sushiman — nunca se reparte una tanda entre dos personas.
   let tandas=[];
   ST.production.forEach(r=>{
-    const numTandas=r.qty<50 ? 1 : 1+Math.floor(r.qty/50);
+    const numTandas = manualTandaCounts?.[r.name] || (r.qty<50 ? 1 : 1+Math.floor(r.qty/50));
     const base=Math.floor(r.qty/numTandas);
     let remainder=r.qty-base*numTandas;
     for(let i=0;i<numTandas;i++){
@@ -1100,12 +1157,16 @@ function buildHourAssign(avail, startMins, prodH) {
   // de la MISMA persona si hace falta, pero nunca pasa a otra persona.
   const hourAssign=hours.map(()=>({}));
   avail.forEach(sm=>{
+    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
+    const smallThreshold=Math.max(5,Math.round(prod*0.15)); // resto chico: mejor cerrar la tanda ahora que dejarlo suelto
     const tandaQueue=[...assignedTandas[sm.id]];
-    let currentName=null, currentLeft=0;
+    let currentName=null, currentLeft=0, carryOver=0;
     hours.forEach((hour,hi)=>{
       const ingreso=ST.dailySm[sm.id]?.ingreso;
       if(ingreso && toMins(ingreso)>hour.startMins){ hourAssign[hi][sm.id]=[]; return; }
-      let target=hourlyTarget[sm.id][hi]||0;
+      const nominalTarget=hourlyTarget[sm.id][hi]||0;
+      let target=Math.max(0,nominalTarget-carryOver);
+      let assignedThisHour=0;
       const tasks=[];
       while(target>0){
         if(currentLeft<=0){
@@ -1113,13 +1174,15 @@ function buildHourAssign(avail, startMins, prodH) {
           const next=tandaQueue.shift();
           currentName=next.name; currentLeft=next.qty;
         }
-        const take=Math.min(target,currentLeft);
+        let take=Math.min(target,currentLeft);
         if(take<=0) break;
+        if(currentLeft-take>0 && currentLeft-take<=smallThreshold) take=currentLeft; // cerrar la tanda en vez de dejar un resto chico
         const last=tasks[tasks.length-1];
         if(last && last.name===currentName) last.qty+=take; // fusionar si sigue siendo la misma variedad
         else tasks.push({name:currentName, qty:take});
-        currentLeft-=take; target-=take;
+        currentLeft-=take; target-=take; assignedThisHour+=take;
       }
+      carryOver=Math.max(0, carryOver+assignedThisHour-nominalTarget);
       hourAssign[hi][sm.id]=tasks;
     });
   });
@@ -1141,6 +1204,9 @@ function calcSchedule() {
   const avail=ST.sushimanes.filter(s=>ST.dailySm[s.id]?.avail??s.active);
   if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
 
+  const gridMode=document.querySelector('input[name="gridMode"]:checked')?.value||'auto';
+  const manualTandaCounts=gridMode==='semi' ? getManualTandaCounts() : null;
+
   const totR=ST.production.reduce((s,r)=>s+r.qty,0);
   const endMins=toMins(endT)-cut;
 
@@ -1149,7 +1215,7 @@ function calcSchedule() {
   if(startManual) {
     startMins=toMins(startManual);
     prodH=Math.max(1,Math.ceil((endMins-startMins)/60));
-    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH));
+    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH, manualTandaCounts));
   } else {
     // Como cada sushiman puede tener un horario de ingreso distinto, la capacidad
     // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
@@ -1158,7 +1224,7 @@ function calcSchedule() {
     do {
       prodH++;
       startMins=endMins-prodH*60;
-      const sim=buildHourAssign(avail, startMins, prodH);
+      const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
       hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
     } while(asignado<totR && prodH<maxHoras);
 
