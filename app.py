@@ -300,6 +300,15 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+import traceback
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    if request.path.startswith('/api/'):
+        traceback.print_exc()  # queda en los logs de Railway para diagnostico
+        return jsonify({'error': f'Error interno: {e}'}), 500
+    raise e
+
 # ── Auth routes ──────────────────────────────────────────────────────────
 @app.route('/debug/env')
 def debug_env():
@@ -1418,14 +1427,16 @@ def calcular():
         'okinawa':'Manga okinawa','salmonCrispy':'Salmón crispy'
     }
     insumo_totals = {}
+    semi_keys_set = {s['insumo_key'] for s in semis_db}  # se muestran aparte, en "Semielaborados"
     for r in production:
         recipe = rolls_db.get(r['name'], {})
         for k, v in recipe.items():
-            if v:
+            if v and k not in semi_keys_set:
                 insumo_totals[k] = insumo_totals.get(k, 0) + v * r['qty']
     # Sumar tambien lo que aportan directo los "otros productos"
     for k, v in direct_insumo_totals.items():
-        insumo_totals[k] = insumo_totals.get(k, 0) + v
+        if k not in semi_keys_set:
+            insumo_totals[k] = insumo_totals.get(k, 0) + v
 
     insumos_out = {}
     for k, total in sorted(insumo_totals.items(), key=lambda x: -x[1]):
