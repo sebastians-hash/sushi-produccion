@@ -179,8 +179,39 @@ def init_db():
             marca TEXT,
             UNIQUE(tipo, nombre_alias)
         );
+        CREATE TABLE IF NOT EXISTS locales (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS usuario_locales (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL,
+            local_id INTEGER NOT NULL,
+            UNIQUE(usuario_id, local_id)
+        );
+        CREATE TABLE IF NOT EXISTS planillas (
+            id SERIAL PRIMARY KEY,
+            local_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            data TEXT NOT NULL DEFAULT '{}',
+            created_by TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
     ''')
     conn.commit()
+
+    # Bootstrap: si no hay locales todavia, crear uno por defecto y migrar
+    # a el todo lo que ya existia (para no romper la operacion actual de un
+    # solo local mientras se suman los demas)
+    n_locales = c.execute('SELECT COUNT(*) AS cnt FROM locales').fetchone()['cnt']
+    default_local_id = None
+    if n_locales == 0:
+        c.execute("INSERT INTO locales (name, active) VALUES ('Local Principal', 1)")
+        conn.commit()
+        default_local_id = c.execute("SELECT id FROM locales WHERE name='Local Principal'").fetchone()['id']
 
     # Bootstrap: si no hay usuarios todavía, crear el admin inicial
     # a partir de la variable de entorno ADMIN_EMAIL
@@ -238,6 +269,23 @@ def init_db():
         c.execute("ALTER TABLE sushimanes ADD COLUMN dias_franco TEXT NOT NULL DEFAULT '[]'")
     if 'horario_ingreso' not in sm_cols:
         c.execute("ALTER TABLE sushimanes ADD COLUMN horario_ingreso TEXT")
+    if 'local_id' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN local_id INTEGER")
+        # El nombre de un sushiman ya no tiene que ser unico en toda la empresa,
+        # solo dentro de su propio local. Buscamos y sacamos la restriccion vieja
+        # (unique sobre "name" sola) y ponemos una nueva sobre (name, local_id).
+        old_constraints = c.execute("""
+            SELECT tc.constraint_name FROM information_schema.table_constraints tc
+            JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+            WHERE tc.table_name='sushimanes' AND tc.constraint_type='UNIQUE' AND ccu.column_name='name'
+        """).fetchall()
+        for row in old_constraints:
+            c.execute(f'ALTER TABLE sushimanes DROP CONSTRAINT "{row["constraint_name"]}"')
+        c.execute("ALTER TABLE sushimanes ADD CONSTRAINT sushimanes_name_local_unique UNIQUE (name, local_id)")
+        # Asignar todos los sushimanes existentes al local por defecto (recien creado o el primero que exista)
+        first_local = c.execute('SELECT id FROM locales ORDER BY id LIMIT 1').fetchone()
+        if first_local:
+            c.execute('UPDATE sushimanes SET local_id=? WHERE local_id IS NULL', (first_local['id'],))
 
     # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
     insumo_cols = get_columns('insumos')
@@ -273,9 +321,11 @@ def init_db():
             for semi in seed.get('semielaborados', []):
                 c.execute('INSERT INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?) ON CONFLICT (name) DO NOTHING',
                           (semi['name'], semi['insumo_key'], semi['unit'], json.dumps(semi['rolls'])))
+            seed_local = c.execute('SELECT id FROM locales ORDER BY id LIMIT 1').fetchone()
+            seed_local_id = seed_local['id'] if seed_local else None
             for sm in seed.get('sushimanes', []):
-                c.execute('INSERT INTO sushimanes (name, productivity) VALUES (?,?) ON CONFLICT (name) DO NOTHING',
-                          (sm['name'], sm['productivity']))
+                c.execute('INSERT INTO sushimanes (name, productivity, local_id) VALUES (?,?,?) ON CONFLICT (name, local_id) DO NOTHING',
+                          (sm['name'], sm['productivity'], seed_local_id))
             for ins in seed.get('insumos', []):
                 c.execute('''INSERT INTO insumos
                     (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
@@ -419,9 +469,19 @@ def index():
 def get_usuarios():
     conn = get_db()
     rows = conn.execute('SELECT * FROM usuarios ORDER BY email').fetchall()
+    locales_rows = conn.execute('SELECT usuario_id, local_id FROM usuario_locales').fetchall()
     conn.close()
+    locales_por_usuario = {}
+    for lr in locales_rows:
+        locales_por_usuario.setdefault(lr['usuario_id'], []).append(lr['local_id'])
     return jsonify([{'id': r['id'], 'email': r['email'], 'nombre': r['nombre'],
-                     'role': r['role'], 'active': bool(r['active'])} for r in rows])
+                     'role': r['role'], 'active': bool(r['active']),
+                     'locales': locales_por_usuario.get(r['id'], [])} for r in rows])
+
+def _set_usuario_locales(conn, usuario_id, local_ids):
+    conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
+    for lid in (local_ids or []):
+        conn.execute('INSERT INTO usuario_locales (usuario_id, local_id) VALUES (?,?) ON CONFLICT DO NOTHING', (usuario_id, lid))
 
 @app.route('/api/usuarios', methods=['POST'])
 @admin_required
@@ -430,9 +490,11 @@ def create_usuario():
     email = data['email'].strip().lower()
     conn = get_db()
     try:
-        conn.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,?,?)',
+        cur = conn.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,?,?) RETURNING id',
                      (email, data.get('nombre',''), data.get('role','user'),
                       int(data.get('active', True)), datetime.now().isoformat()))
+        new_id = cur.fetchone()['id']
+        _set_usuario_locales(conn, new_id, data.get('locales', []))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -450,6 +512,7 @@ def update_usuario(usuario_id):
         conn.execute('UPDATE usuarios SET email=?, nombre=?, role=?, active=? WHERE id=?',
                      (data['email'].strip().lower(), data.get('nombre',''), data.get('role','user'),
                       int(data.get('active', True)), usuario_id))
+        _set_usuario_locales(conn, usuario_id, data.get('locales', []))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -467,7 +530,70 @@ def delete_usuario(usuario_id):
     if row and row['email'] == session.get('user_email'):
         conn.close()
         return jsonify({'error': 'No podés eliminar tu propio usuario mientras estás conectado'}), 400
+    conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
     conn.execute('DELETE FROM usuarios WHERE id=?', (usuario_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Locales ──
+@app.route('/api/locales', methods=['GET'])
+@login_required
+def get_locales():
+    allowed = get_user_local_ids()
+    conn = get_db()
+    if allowed is None:
+        rows = conn.execute('SELECT * FROM locales ORDER BY name').fetchall()
+    elif not allowed:
+        rows = []
+    else:
+        placeholders = ','.join('?' * len(allowed))
+        rows = conn.execute(f'SELECT * FROM locales WHERE id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active'])} for r in rows])
+
+@app.route('/api/locales', methods=['POST'])
+@admin_required
+def create_local():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO locales (name, active) VALUES (?,?)', (data['name'].strip(), int(data.get('active', True))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un local con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/locales/<int:local_id>', methods=['PUT'])
+@admin_required
+def update_local(local_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE locales SET name=?, active=? WHERE id=?',
+                     (data['name'].strip(), int(data.get('active', True)), local_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro local con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/locales/<int:local_id>', methods=['DELETE'])
+@admin_required
+def delete_local(local_id):
+    conn = get_db()
+    n_planillas = conn.execute('SELECT COUNT(*) AS cnt FROM planillas WHERE local_id=?', (local_id,)).fetchone()['cnt']
+    if n_planillas > 0:
+        conn.close()
+        return jsonify({'error': f'Este local tiene {n_planillas} planilla(s) guardadas — no se puede eliminar. Podés desactivarlo en cambio.'}), 400
+    conn.execute('DELETE FROM usuario_locales WHERE local_id=?', (local_id,))
+    conn.execute('UPDATE sushimanes SET local_id=NULL WHERE local_id=?', (local_id,))
+    conn.execute('DELETE FROM locales WHERE id=?', (local_id,))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -477,7 +603,7 @@ def delete_usuario(usuario_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -535,7 +661,7 @@ def restore_data():
         elif isinstance(sm['dias_franco'], list):
             sm['dias_franco'] = json.dumps(sm['dias_franco'])
     counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
-                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso'])
+                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'local_id'])
     # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
     for i in data.get('insumos', []):
         if i.get('es_80_20') is None:
@@ -555,6 +681,20 @@ def restore_data():
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
     counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
+    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active'])
+
+    # usuario_locales: clave compuesta, reemplazo completo simple (igual que equivalencias)
+    ul_rows = data.get('usuario_locales', [])
+    conn.execute('DELETE FROM usuario_locales')
+    n_ul = 0
+    for ul in ul_rows:
+        if ul.get('usuario_id') is None or ul.get('local_id') is None:
+            continue
+        conn.execute('INSERT INTO usuario_locales (usuario_id, local_id) VALUES (?,?) ON CONFLICT DO NOTHING',
+                     (ul['usuario_id'], ul['local_id']))
+        n_ul += 1
+    counts['usuario_locales'] = n_ul
+
 
     # Equivalencias: clave compuesta (tipo, nombre_alias), no calza con el helper 'upsert' generico.
     # Reemplazo completo simple: borramos todo y volvemos a insertar lo que venga en el backup.
@@ -1138,41 +1278,76 @@ def delete_semi(semi_id):
     conn.close()
     return jsonify({'ok': True})
 
+# ── Locales: helpers de acceso ──
+def get_user_local_ids():
+    """None = sin restriccion (admin, ve todos). Si no, lista de ids permitidos."""
+    if session.get('user_role') == 'admin':
+        return None
+    conn = get_db()
+    rows = conn.execute('''SELECT ul.local_id FROM usuario_locales ul
+                            JOIN usuarios u ON u.id=ul.usuario_id
+                            WHERE u.email=?''', (session['user_email'],)).fetchall()
+    conn.close()
+    return [r['local_id'] for r in rows]
+
+def user_has_local_access(local_id):
+    if session.get('user_role') == 'admin':
+        return True
+    if local_id is None:
+        return False
+    allowed = get_user_local_ids()
+    return local_id in (allowed or [])
+
 # ── Sushimanes ──
 @app.route('/api/sushimanes', methods=['GET'])
 @login_required
 def get_sushimanes():
+    allowed = get_user_local_ids()
     conn = get_db()
-    rows = conn.execute('SELECT * FROM sushimanes ORDER BY name').fetchall()
+    if allowed is None:
+        rows = conn.execute('SELECT * FROM sushimanes ORDER BY name').fetchall()
+    elif not allowed:
+        rows = []
+    else:
+        placeholders = ','.join('?' * len(allowed))
+        rows = conn.execute(f'SELECT * FROM sushimanes WHERE local_id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'],
                      'productivity': r['productivity'],
                      'active': bool(r['active']),
                      'dias_franco': json.loads(r['dias_franco'] or '[]'),
-                     'horario_ingreso': r['horario_ingreso']} for r in rows])
+                     'horario_ingreso': r['horario_ingreso'],
+                     'local_id': r['local_id']} for r in rows])
 
 @app.route('/api/sushimanes', methods=['POST'])
-@admin_required
+@login_required
 def create_sushiman():
     data = request.json
+    local_id = data.get('local_id')
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn = get_db()
     try:
-        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso) VALUES (?,?,?,?)',
+        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, local_id) VALUES (?,?,?,?,?)',
                      (data['name'], data.get('productivity', 10),
-                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None))
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe un sushiman con ese nombre'}), 400
+        return jsonify({'error': 'Ya existe un sushiman con ese nombre en ese local'}), 400
     conn.close()
     return jsonify({'ok': True})
 
 @app.route('/api/sushimanes/<int:sm_id>', methods=['PUT'])
-@admin_required
+@login_required
 def update_sushiman(sm_id):
     data = request.json
     conn = get_db()
+    existing = conn.execute('SELECT local_id FROM sushimanes WHERE id=?', (sm_id,)).fetchone()
+    if not existing or not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
     try:
         conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=? WHERE id=?',
                      (data['name'], data['productivity'], int(data.get('active', True)),
@@ -1181,14 +1356,18 @@ def update_sushiman(sm_id):
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe otro sushiman con ese nombre'}), 400
+        return jsonify({'error': 'Ya existe otro sushiman con ese nombre en ese local'}), 400
     conn.close()
     return jsonify({'ok': True})
 
 @app.route('/api/sushimanes/<int:sm_id>', methods=['DELETE'])
-@admin_required
+@login_required
 def delete_sushiman(sm_id):
     conn = get_db()
+    existing = conn.execute('SELECT local_id FROM sushimanes WHERE id=?', (sm_id,)).fetchone()
+    if not existing or not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn.execute('DELETE FROM sushimanes WHERE id=?', (sm_id,))
     conn.commit()
     conn.close()
@@ -1558,6 +1737,101 @@ def calcular():
     })
 
 # ── Generar PDF ──
+# ── Planillas (historial de producción por local) ──
+@app.route('/api/planillas', methods=['GET'])
+@login_required
+def get_planillas():
+    allowed = get_user_local_ids()
+    local_filter = request.args.get('local_id')
+    conn = get_db()
+    where = []
+    params = []
+    if allowed is not None:
+        if not allowed:
+            conn.close()
+            return jsonify([])
+        placeholders = ','.join('?' * len(allowed))
+        where.append(f'local_id IN ({placeholders})')
+        params.extend(allowed)
+    if local_filter:
+        where.append('local_id=?')
+        params.append(int(local_filter))
+    where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
+    rows = conn.execute(f'''SELECT id, local_id, fecha, estado, created_by, created_at, updated_at
+                            FROM planillas {where_sql} ORDER BY updated_at DESC LIMIT 200''', tuple(params)).fetchall()
+    locales = {l['id']: l['name'] for l in conn.execute('SELECT id, name FROM locales').fetchall()}
+    conn.close()
+    return jsonify([{'id': r['id'], 'local_id': r['local_id'], 'local_name': locales.get(r['local_id'], '?'),
+                     'fecha': r['fecha'], 'estado': r['estado'], 'created_by': r['created_by'],
+                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['GET'])
+@login_required
+def get_planilla(planilla_id):
+    conn = get_db()
+    row = conn.execute('SELECT * FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(row['local_id']):
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    return jsonify({'id': row['id'], 'local_id': row['local_id'], 'fecha': row['fecha'],
+                     'estado': row['estado'], 'data': json.loads(row['data'] or '{}'),
+                     'created_by': row['created_by'], 'created_at': str(row['created_at']),
+                     'updated_at': str(row['updated_at'])})
+
+@app.route('/api/planillas', methods=['POST'])
+@login_required
+def create_planilla():
+    data = request.json
+    local_id = data.get('local_id')
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    cur = conn.execute('''INSERT INTO planillas (local_id, fecha, estado, data, created_by, updated_at)
+                          VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) RETURNING id''',
+                 (local_id, data.get('fecha', datetime.now().strftime('%Y-%m-%d')),
+                  data.get('estado', 'borrador'), json.dumps(data.get('data', {})),
+                  session.get('user_email')))
+    new_id = cur.fetchone()['id']
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'id': new_id})
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['PUT'])
+@login_required
+def update_planilla(planilla_id):
+    data = request.json
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    conn.execute('''UPDATE planillas SET fecha=?, estado=?, data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 (data.get('fecha'), data.get('estado', 'borrador'), json.dumps(data.get('data', {})), planilla_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['DELETE'])
+@login_required
+def delete_planilla(planilla_id):
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    conn.execute('DELETE FROM planillas WHERE id=?', (planilla_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 @app.route('/api/pdf', methods=['POST'])
 @login_required
 def generar_pdf():
