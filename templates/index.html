@@ -393,7 +393,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div id="mainProductos" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tc',this)">Combos</div>
-      <div class="tab" onclick="showTab('top',this)">Otros productos</div>
+      <div class="tab" onclick="showTab('tpor',this)">Porciones</div>
+      <div class="tab" onclick="showTab('tens',this)">Ensaladas</div>
+      <div class="tab" onclick="showTab('tent',this)">Entradas</div>
+      <div class="tab" onclick="showTab('tplc',this)">Platos Calientes</div>
     </div>
 <div id="tc">
       <div class="card">
@@ -404,17 +407,40 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div id="comboCfg"></div>
       </div>
     </div>
-<div id="top" class="hidden">
+<div id="tpor" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Otros productos</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal()"><i class="ti ti-plus"></i> Nuevo producto</button>
+          <div class="card-title" style="margin:0">Porciones</div>
+          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
         </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Porciones sueltas, ensaladas poke, entradas y platos calientes — cualquier producto que se venda con receta directa de insumos y semielaborados, sin pasar por rolls.</span>
+        <div id="porcionCfg"></div>
+      </div>
+    </div>
+<div id="tens" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Ensaladas</div>
+          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
         </div>
-        <div id="otroProductoCfg"></div>
+        <div id="ensaladaCfg"></div>
+      </div>
+    </div>
+<div id="tent" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Entradas</div>
+          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+        </div>
+        <div id="entradaCfg"></div>
+      </div>
+    </div>
+<div id="tplc" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Platos Calientes</div>
+          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+        </div>
+        <div id="platoCalienteCfg"></div>
       </div>
     </div>
   </div>
@@ -842,7 +868,10 @@ function showTab(id, el) {
   if(id==='tc') renderComboCfg();
   if(id==='tr') renderRollCfg();
   if(id==='trbg') renderRolloBlancoGrupoCfg();
-  if(id==='top') renderOtroProductoCfg();
+  if(id==='tpor') renderPorcionesCfg();
+  if(id==='tens') renderEnsaladasCfg();
+  if(id==='tent') renderEntradasCfg();
+  if(id==='tplc') renderPlatosCalientesCfg();
   if(id==='ts') renderSemiCfg();
   if(id==='tin') renderInsumoCfg();
   if(id==='tcat') renderCategoriaCfg();
@@ -2310,31 +2339,36 @@ async function saveEquivalenciaMatrix() {
 // ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
 const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entrada', plato_caliente:'Plato caliente', otro:'Otro'};
 
-function renderOtroProductoCfg() {
-  let h='<table><thead><tr><th>Producto</th><th>Tipo</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.otrosProductos.forEach(p=>{
+function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
+  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
+  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  lista.forEach(p=>{
     const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
-      <td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td>
       <td>${p.familia||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateOtroProducto(${p.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},renderOtroProductoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},${renderFnName})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.otrosProductos.length) h='<div class="empty">No hay otros productos cargados. Agregá porciones, ensaladas, entradas o platos calientes.</div>';
-  document.getElementById('otroProductoCfg').innerHTML=h;
+  if(!lista.length) h=`<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
+  document.getElementById(containerId).innerHTML=h;
 }
+function renderPorcionesCfg(){ renderOtroProductoCfgTipo('porcion','porcionCfg',renderPorcionesCfg); }
+function renderEnsaladasCfg(){ renderOtroProductoCfgTipo('ensalada','ensaladaCfg',renderEnsaladasCfg); }
+function renderEntradasCfg(){ renderOtroProductoCfgTipo('entrada','entradaCfg',renderEntradasCfg); }
+function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente','platoCalienteCfg',renderPlatosCalientesCfg); }
 
-function openOtroProductoModal(id, dup) {
+function openOtroProductoModal(id, dup, defaultTipo) {
   const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
   const ins = prod?.insumos || {};
-  const tipoOpts = Object.entries(TIPO_OTRO_LABELS).map(([k,label])=>
-    `<option value="${k}" ${prod?.tipo===k?'selected':''}>${label}</option>`).join('');
+  const tipoSeleccionado = prod?.tipo || defaultTipo;
+  const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
+    `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
   openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
@@ -2356,6 +2390,8 @@ function openOtroProductoModal(id, dup) {
   const container = document.getElementById('otroProdIngRows');
   Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
 }
+function renderOtroProductoCfg(){ renderPorcionesCfg(); renderEnsaladasCfg(); renderEntradasCfg(); renderPlatosCalientesCfg(); }
+
 function duplicateOtroProducto(id) {
   const prod = ST.otrosProductos.find(p=>p.id===id);
   if(!prod) return;
