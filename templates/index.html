@@ -181,9 +181,17 @@ input[type=range]{width:100%;accent-color:var(--text)}
   </div>
 
   <div id="mainProduccion">
+    <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+      <div class="row" style="gap:10px;align-items:center">
+        <i class="ti ti-building-store"></i>
+        <label class="form-lbl" style="margin:0">Local</label>
+        <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
+      </div>
+    </div>
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
-      {% if is_admin %}<div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>{% endif %}
+      <div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>
+      <div class="tab" onclick="showProdSubTab('hist',this)"><i class="ti ti-history"></i> Historial</div>
     </div>
     <div id="prodFlowTab">
   <div class="steps">
@@ -368,6 +376,16 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
         </div>
         <div id="smCfg"></div>
+      </div>
+    </div>
+    <div id="prodHistTab" class="hidden">
+      <div class="card">
+        <div class="card-title">Historial de planillas</div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Planillas guardadas de este local. Abrí cualquiera para seguir editándola o volver a imprimirla.</span>
+        </div>
+        <div id="historialCfg"></div>
       </div>
     </div>
   </div>
@@ -568,7 +586,21 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
+      <div class="tab" onclick="showTab('tloc',this)"><i class="ti ti-building-store"></i> Locales</div>
       <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar / Respaldo</div>
+    </div>
+    <div id="tloc" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Locales</div>
+          <button class="btn btn-sm" onclick="openLocalModal()"><i class="ti ti-plus"></i> Nuevo local</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Cada local tiene su propia planilla de producción, sus sushimanes y su historial — pero comparten el mismo catálogo de combos, rolls, recetas e insumos.</span>
+        </div>
+        <div id="localCfg"></div>
+      </div>
     </div>
     <div id="tus">
       <div class="card">
@@ -677,6 +709,7 @@ const ST = {
   production:[], insumos:{}, semis:[], otrosVenta:[],
   schedule:null, editingGrid:false, scheduleBackup:null,
   combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[], categoriasInsumos:[], zonasAlmacenamiento:[], proveedores:[], rolloBlancoGrupos:[], rollosBlancos:[],
+  locales:[], currentLocalId:null, currentPlanillaId:null, historial:[],
   dailySm:{}
 };
 
@@ -699,7 +732,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -713,11 +746,13 @@ async function loadConfig() {
       fetch('/api/zonas-almacenamiento').then(r=>r.json()),
       fetch('/api/proveedores').then(r=>r.json()),
       fetch('/api/rollo-blanco-grupos').then(r=>r.json()),
+      fetch('/api/locales').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
-    ST.rolloBlancoGrupos=rolloBlancoGrupos;
+    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales;
+    setupLocalSelector();
     const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const hoyNombre = DIAS_SEMANA[new Date().getDay()];
     sms.forEach(s=>{
@@ -752,9 +787,31 @@ function goMainSection(name) {
 function showProdSubTab(id, el) {
   document.getElementById('prodFlowTab').classList.toggle('hidden', id!=='flow');
   document.getElementById('prodSmTab').classList.toggle('hidden', id!=='sm');
+  document.getElementById('prodHistTab').classList.toggle('hidden', id!=='hist');
   el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   if(id==='sm') renderSmCfg();
+  if(id==='hist') renderHistorialCfg();
+}
+
+function setupLocalSelector() {
+  const wrap = document.getElementById('localSelectorWrap');
+  const sel = document.getElementById('localSelector');
+  if (ST.locales.length <= 1) {
+    wrap.classList.add('hidden');
+    ST.currentLocalId = ST.locales.length ? ST.locales[0].id : null;
+    return;
+  }
+  wrap.classList.remove('hidden');
+  if (!ST.currentLocalId || !ST.locales.some(l=>l.id===ST.currentLocalId)) {
+    ST.currentLocalId = ST.locales[0].id;
+  }
+  sel.innerHTML = ST.locales.map(l=>`<option value="${l.id}" ${l.id===ST.currentLocalId?'selected':''}>${l.name}</option>`).join('');
+}
+function onLocalChange() {
+  ST.currentLocalId = parseInt(document.getElementById('localSelector').value);
+  renderSmCfg();
+  renderHistorialCfg();
 }
 
 function goStep(n) {
@@ -795,6 +852,7 @@ function showTab(id, el) {
   if(id==='tfa') renderFamiliaCfg();
   if(id==='teq') renderEquivalenciaCfg();
   if(id==='tus') renderUsuarioCfg();
+  if(id==='tloc') renderLocalCfg();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -894,6 +952,8 @@ function processFile(file) {
       let msg=`${file.name} — ${ST.sales.length} productos cargados`;
       if(unm>0) msg+=` (${unm} sin receta, se ignorarán)`;
       showStatus('success',msg);
+      ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
+      guardarProgresoPlanilla('borrador');
       setTimeout(()=>goStep(2),500);
     } catch(err){ showStatus('warn','Error al leer el archivo. Probá exportar como .csv'); }
   };
@@ -946,6 +1006,8 @@ function loadManual() {
   ST.sales = [...comboEntries, ...otroEntries];
   ST.adj = {};
   showStatus('success', `${ST.sales.length} productos listos para completar cantidades`);
+  ST.currentPlanillaId = null; // nueva carga = nueva planilla
+  guardarProgresoPlanilla('borrador');
   setTimeout(() => {
     goStep(2);
     // Default to "cantidad" mode so typing a number directly sets the quantity (base venta is 0)
@@ -1014,6 +1076,7 @@ async function doConfirm() {
     ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
     h+='</tbody></table>';
     document.getElementById('sumRolls').innerHTML=h;
+    guardarProgresoPlanilla('borrador');
     goStep(3);
   } catch(e){ alert('Error al calcular: ' + e.message); }
   finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
@@ -1140,7 +1203,8 @@ function renderSmList() {
   let h='';
   const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const hoyNombre = DIAS_SEMANA[new Date().getDay()];
-  ST.sushimanes.forEach(s=>{
+  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
+  lista.forEach(s=>{
     const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity,ingreso:s.horario_ingreso||''};
     const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
     h+=`<div class="chk-row">
@@ -1156,7 +1220,7 @@ function renderSmList() {
       <span style="font-size:12px;color:var(--text3)">rolls/h</span>
     </div>`;
   });
-  document.getElementById('smList').innerHTML=h||'<div class="empty">No hay sushimanes configurados.</div>';
+  document.getElementById('smList').innerHTML=h||'<div class="empty">No hay sushimanes configurados para este local.</div>';
 }
 
 function addTempSm() {
@@ -1280,7 +1344,7 @@ function calcSchedule() {
   const endT=readTimePair('endTimeH','endTimeM')||'20:00';
   const cut=parseInt(document.getElementById('cutMins').value)||60;
   const startManual=readTimePair('startTimeManualH','startTimeManualM');
-  const avail=ST.sushimanes.filter(s=>ST.dailySm[s.id]?.avail??s.active);
+  const avail=ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId && (ST.dailySm[s.id]?.avail??s.active));
   if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
 
   const gridMode=document.querySelector('input[name="gridMode"]:checked')?.value||'auto';
@@ -1323,6 +1387,7 @@ function calcSchedule() {
   renderScheduleDisplay();
   document.getElementById('schedRes').classList.remove('hidden');
   document.getElementById('schedRes').scrollIntoView({behavior:'smooth',block:'start'});
+  guardarProgresoPlanilla('confirmada');
 }
 
 function getPromedioRollosPorHora(smId) {
@@ -1614,6 +1679,7 @@ function saveGridEdits() {
   if(!validateAndHighlight()){ if(!confirm('Hay rolls con cantidades incorrectas. ¿Guardar igual?')) return; }
   ST.editingGrid=false; ST.scheduleBackup=null;
   renderScheduleDisplay();
+  guardarProgresoPlanilla('confirmada');
 }
 
 function cancelGridEdits() {
@@ -1723,9 +1789,80 @@ function renderSemiCfg() {
   document.getElementById('semiCfg').innerHTML=h;
 }
 
+// ── Historial de planillas ──
+async function renderHistorialCfg() {
+  if (!ST.currentLocalId) { document.getElementById('historialCfg').innerHTML = '<div class="empty">Elegí un local primero.</div>'; return; }
+  const planillas = await fetch(`/api/planillas?local_id=${ST.currentLocalId}`).then(r=>r.json());
+  ST.historial = planillas;
+  let h = '<table><thead><tr><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:100px"></th></tr></thead><tbody>';
+  planillas.forEach(p=>{
+    const estadoBadge = p.estado==='confirmada' ? '<span class="badge b-green">Confirmada</span>' : '<span class="badge b-warn">Borrador</span>';
+    h += `<tr><td style="font-weight:600">${p.fecha}</td><td>${estadoBadge}</td>
+      <td style="font-size:12px;color:var(--text2)">${p.created_by||'—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${new Date(p.updated_at).toLocaleString('es-AR')}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button></td></tr>`;
+  });
+  h += '</tbody></table>';
+  if (!planillas.length) h = '<div class="empty">Todavía no hay planillas guardadas para este local.</div>';
+  document.getElementById('historialCfg').innerHTML = h;
+}
+
+async function abrirPlanilla(id) {
+  const p = await fetch(`/api/planillas/${id}`).then(r=>r.json());
+  if (p.error) { alert(p.error); return; }
+  const d = p.data || {};
+  ST.currentPlanillaId = p.id;
+  ST.currentLocalId = p.local_id;
+  ST.sales = d.sales || [];
+  ST.adj = d.adj || {};
+  ST.globalPct = d.globalPct ?? 100;
+  ST.production = d.production || [];
+  ST.insumos = d.insumos || {};
+  ST.semis = d.semis || [];
+  ST.otrosVenta = d.otrosVenta || [];
+  ST.rollosBlancos = d.rollosBlancos || [];
+  ST.schedule = d.schedule || null;
+  ST.dailySm = d.dailySm || {};
+
+  // Reflejar el local elegido en el selector, por si difiere del que estaba activo
+  const sel = document.getElementById('localSelector');
+  if (sel) sel.value = ST.currentLocalId;
+
+  const flowTab = [...document.querySelectorAll('#mainProduccion > .tabs .tab')].find(t=>t.textContent.includes('Planificar'));
+  showProdSubTab('flow', flowTab);
+
+  const targetStep = d.step && d.step >= 2 ? d.step : 2;
+  goStep(targetStep);
+  if (targetStep >= 3) renderSales();
+  if (targetStep >= 4) renderProduction();
+  if (ST.schedule) { renderScheduleDisplay(); document.getElementById('schedRes').classList.remove('hidden'); }
+  showStatus('success', `Planilla del ${p.fecha} abierta — podés seguir editándola.`);
+}
+
+async function guardarProgresoPlanilla(estado) {
+  if (!ST.currentLocalId) return;
+  const data = {
+    sales: ST.sales, adj: ST.adj, globalPct: ST.globalPct,
+    production: ST.production, insumos: ST.insumos, semis: ST.semis,
+    otrosVenta: ST.otrosVenta, rollosBlancos: ST.rollosBlancos,
+    schedule: ST.schedule, dailySm: ST.dailySm, step: ST.step
+  };
+  const payload = { local_id: ST.currentLocalId, fecha: new Date().toISOString().slice(0,10), estado: estado||'borrador', data };
+  try {
+    if (ST.currentPlanillaId) {
+      await fetch(`/api/planillas/${ST.currentPlanillaId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    } else {
+      const res = await fetch('/api/planillas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      const result = await res.json();
+      if (result.id) ST.currentPlanillaId = result.id;
+    }
+  } catch(e) { console.error('guardarProgresoPlanilla', e); }
+}
+
 function renderSmCfg() {
+  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
   let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.sushimanes.forEach(s=>{
+  lista.forEach(s=>{
     h+=`<tr><td><div class="row" style="gap:8px"><div class="avatar">${s.name.slice(0,2).toUpperCase()}</div><strong>${s.name}</strong></div></td>
       <td style="text-align:right">${s.productivity} rolls/h</td>
       <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
@@ -1735,6 +1872,7 @@ function renderSmCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
+  if(!lista.length) h='<div class="empty">No hay sushimanes cargados para este local. Agregá el primero.</div>';
   document.getElementById('smCfg').innerHTML=h;
 }
 
@@ -2258,12 +2396,15 @@ function readMarcaChecks(containerId) {
 
 // ── Usuarios (admin) ──
 function renderUsuarioCfg() {
-  let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Locales</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.usuarios.forEach(u=>{
     const isMe = u.email === (window.CURRENT_USER_EMAIL||'');
+    const localesTxt = u.role==='admin' ? '<span style="color:var(--text3);font-style:italic">Todos</span>'
+      : (u.locales||[]).map(lid=>ST.locales.find(l=>l.id===lid)?.name).filter(Boolean).join(', ') || '<span style="color:var(--text3);font-style:italic">Sin asignar</span>';
     h+=`<tr><td style="font-weight:600">${u.email}${isMe?' <span class="badge b-blue" style="margin-left:4px">vos</span>':''}</td>
       <td>${u.nombre||'—'}</td>
       <td><span class="badge ${u.role==='admin'?'b-warn':'b-blue'}">${u.role==='admin'?'Admin':'Usuario'}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${localesTxt}</td>
       <td><span class="badge ${u.active?'b-green':'b-red'}">${u.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openUsuarioModal(${u.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2274,22 +2415,34 @@ function renderUsuarioCfg() {
   if(!ST.usuarios.length) h='<div class="empty">No hay usuarios cargados todavía.</div>';
   document.getElementById('usuarioCfg').innerHTML=h;
 }
+function onUsuarioRoleChange() {
+  const isAdmin = document.getElementById('m_role').value === 'admin';
+  document.getElementById('m_localesWrap').classList.toggle('hidden', isAdmin);
+}
 function openUsuarioModal(id) {
   const u = id ? ST.usuarios.find(x=>x.id===id) : null;
+  const userLocales = u?.locales || [];
   openModal(id?'Editar usuario':'Nuevo usuario',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Email de Google</label>
       <input type="email" id="m_email" class="w-full" value="${u?.email||''}" placeholder="persona@gmail.com"></div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional, se completa solo al iniciar sesión)</span></label>
       <input type="text" id="m_nombre" class="w-full" value="${u?.nombre||''}"></div>
-    <div class="form-grid">
-      <div><label class="form-lbl">Rol</label><select id="m_role" class="w-full">
-        <option value="user" ${u?.role==='user'?'selected':''}>Usuario (solo producción)</option>
-        <option value="admin" ${u?.role==='admin'?'selected':''}>Administrador (ve y edita Configuración)</option>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Rol</label><select id="m_role" class="w-full" onchange="onUsuarioRoleChange()">
+        <option value="user" ${u?.role==='user'?'selected':''}>Usuario (solo sus locales)</option>
+        <option value="admin" ${u?.role==='admin'?'selected':''}>Administrador (ve y edita todo)</option>
       </select></div>
       <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
         <option value="1" ${u?.active!==false?'selected':''}>Activo</option>
         <option value="0" ${u?.active===false?'selected':''}>Inactivo (bloqueado)</option>
       </select></div>
+    </div>
+    <div id="m_localesWrap" class="${u?.role==='admin'?'hidden':''}">
+      <div class="form-lbl" style="margin-bottom:8px">Locales a los que tiene acceso</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;max-height:200px;overflow-y:auto">
+        ${ST.locales.map(l=>`<label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+          <input type="checkbox" class="usuario-local-check" value="${l.id}" ${userLocales.includes(l.id)?'checked':''}> ${l.name}</label>`).join('') || '<span style="color:var(--text3);font-size:13px">No hay locales cargados todavía.</span>'}
+      </div>
     </div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUsuario(${id||'null'})">Guardar</button>`
   );
@@ -2297,10 +2450,12 @@ function openUsuarioModal(id) {
 async function saveUsuario(id) {
   const email=document.getElementById('m_email').value.trim().toLowerCase();
   if(!email || !email.includes('@')){alert('Ingresá un email válido');return;}
+  const locales = [...document.querySelectorAll('.usuario-local-check:checked')].map(c=>parseInt(c.value));
   const data={
     email, nombre: document.getElementById('m_nombre').value.trim(),
     role: document.getElementById('m_role').value,
-    active: document.getElementById('m_active').value==='1'
+    active: document.getElementById('m_active').value==='1',
+    locales
   };
   const res = await fetch(id?`/api/usuarios/${id}`:'/api/usuarios',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
@@ -2313,6 +2468,43 @@ async function deleteUsuario(id) {
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   await loadConfig(); renderUsuarioCfg();
+}
+
+// ── Locales ──
+function renderLocalCfg() {
+  let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  ST.locales.forEach(l=>{
+    h+=`<tr><td style="font-weight:600">${l.name}</td>
+      <td><span class="badge ${l.active?'b-green':'b-red'}">${l.active?'Activo':'Inactivo'}</span></td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="openLocalModal(${l.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('locales',${l.id},renderLocalCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!ST.locales.length) h='<div class="empty">No hay locales cargados todavía.</div>';
+  document.getElementById('localCfg').innerHTML=h;
+}
+function openLocalModal(id) {
+  const l = id ? ST.locales.find(x=>x.id===id) : null;
+  openModal(id?'Editar local':'Nuevo local',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del local</label>
+      <input type="text" id="m_name" class="w-full" value="${l?.name||''}" placeholder="Ej: Sucursal Palermo"></div>
+    <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
+      <option value="1" ${l?.active!==false?'selected':''}>Activo</option>
+      <option value="0" ${l?.active===false?'selected':''}>Inactivo</option>
+    </select></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveLocal(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveLocal(id) {
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){alert('Ingresá un nombre');return;}
+  const data={name, active: document.getElementById('m_active').value==='1'};
+  const res = await fetch(id?`/api/locales/${id}`:'/api/locales',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderLocalCfg(); setupLocalSelector();
 }
 
 async function deleteItem(endpoint, id, rerender) {
@@ -2362,9 +2554,12 @@ async function saveSm(id) {
   const data={
     name, productivity:parseInt(document.getElementById('m_prod').value)||10,
     active:document.getElementById('m_active').value==='1',
-    dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null
+    dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null,
+    local_id: ST.currentLocalId
   };
-  await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const res = await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
 }
 
