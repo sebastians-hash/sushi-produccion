@@ -250,6 +250,10 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_unidad TEXT NOT NULL DEFAULT 'g'")
     if 'marcas' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+    if 'tiempo_elaboracion_min' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN tiempo_elaboracion_min INTEGER")
+    if 'vida_util_dias' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN vida_util_dias INTEGER")
 
     # Migration: add 'marcas' column to combos and rolls
     combo_cols = get_columns('combos')
@@ -654,7 +658,8 @@ def restore_data():
                               ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo'])
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
-                               'rendimiento_cantidad', 'rendimiento_unidad', 'marcas'])
+                               'rendimiento_cantidad', 'rendimiento_unidad', 'marcas',
+                               'tiempo_elaboracion_min', 'vida_util_dias'])
     for sm in data.get('sushimanes', []):
         if sm.get('dias_franco') is None:
             sm['dias_franco'] = '[]'
@@ -1224,7 +1229,9 @@ def get_semielaborados():
                      'receta': json.loads(r['receta'] or '[]'),
                      'rendimiento_cantidad': r['rendimiento_cantidad'],
                      'rendimiento_unidad': r['rendimiento_unidad'],
-                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'tiempo_elaboracion_min': r['tiempo_elaboracion_min'],
+                     'vida_util_dias': r['vida_util_dias']} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 @admin_required
@@ -1233,13 +1240,16 @@ def create_semi():
     conn = get_db()
     try:
         conn.execute('''INSERT INTO semielaborados
-                        (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
-                        VALUES (?,?,?,?,?,?,?,?)''',
+                        (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas,
+                         tiempo_elaboracion_min, vida_util_dias)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
                       data.get('rendimiento_unidad', 'g'),
-                      json.dumps(data.get('marcas', []))))
+                      json.dumps(data.get('marcas', [])),
+                      data.get('tiempo_elaboracion_min') or None,
+                      data.get('vida_util_dias') or None))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1255,12 +1265,15 @@ def update_semi(semi_id):
     conn = get_db()
     try:
         conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
-                        receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=? WHERE id=?''',
+                        receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=?,
+                        tiempo_elaboracion_min=?, vida_util_dias=? WHERE id=?''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
                       data.get('rendimiento_unidad', 'g'),
-                      json.dumps(data.get('marcas', [])), semi_id))
+                      json.dumps(data.get('marcas', [])),
+                      data.get('tiempo_elaboracion_min') or None,
+                      data.get('vida_util_dias') or None, semi_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
