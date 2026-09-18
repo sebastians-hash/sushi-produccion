@@ -58,6 +58,8 @@ tbody tr:hover td{background:var(--bg)}
 .fam-row td{background:var(--beige);font-weight:600;font-size:11px;color:var(--text2);padding:5px 10px}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
 .b-blue{background:var(--blue-bg);color:var(--blue)}
+.btn-remove-x{width:22px;height:22px;min-width:22px;border-radius:50%;border:1px solid var(--red-bg);background:var(--red-bg);color:var(--red);font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:background .12s,color .12s}
+.btn-remove-x:hover{background:var(--red);color:#fff;border-color:var(--red)}
 .b-green{background:var(--green-bg);color:var(--green)}
 .b-warn{background:var(--warn-bg);color:var(--warn)}
 .b-red{background:var(--red-bg);color:var(--red)}
@@ -1619,7 +1621,7 @@ function toggleEditGrid() {
           <span style="color:var(--text3);flex-shrink:0"><i class="ti ti-grip-vertical" style="font-size:12px"></i></span>
           <select style="flex:1;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border)" onchange="onGridChange()">${rollOpts.replace(`value="${t.name}"`,`value="${t.name}" selected`)}</select>
           <input type="number" value="${t.qty}" min="0" max="999" style="width:46px;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border);text-align:center" oninput="onGridChange()">
-          <button class="btn btn-sm btn-danger" style="padding:2px 6px;flex-shrink:0" onclick="removeGridTask(${si},${hi},${ti})"><i class="ti ti-x" style="font-size:10px"></i></button>
+          <button class="btn-remove-x" style="width:18px;height:18px;font-size:12px" title="Quitar" onclick="removeGridTask(${si},${hi},${ti})">&times;</button>
         </div>`).join('');
       cellHtml+=`<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-top:2px;width:100%" onclick="addGridTask(${si},${hi})"><i class="ti ti-plus" style="font-size:10px"></i> agregar</button>`;
       g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}"
@@ -1772,7 +1774,7 @@ function renderComboCfg() {
 function renderRollCfg() {
   let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${ingredientTypeDot(k)}${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
       <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
@@ -1796,7 +1798,8 @@ function renderSemiCfg() {
       ? s.receta.map(i=>{
           const nombre = i.key ? getIngredientLabel(i.key) : i.nombre;
           const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          return `${nombre} (${i.cantidad}${unidad})`;
+          const dot = i.key ? ingredientTypeDot(i.key) : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-right:4px" title="Sin vincular"></span>';
+          return `${dot}${nombre} (${i.cantidad}${unidad})`;
         }).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
     const rendDisplay = (s.rendimiento_cantidad > 0)
@@ -2155,7 +2158,7 @@ function contactoRow(c) {
     <input type="email" class="ct-email" placeholder="Email" value="${c?.email||''}">
   `;
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
   div.appendChild(btn);
   return div;
@@ -2228,7 +2231,7 @@ function renderSkuCfg() {
       <td>${e.nombre_canonico}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSkuModal(${e.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('equivalencias',${e.id},renderSkuCfg)" title="Eliminar"><i class="ti ti-trash"></i></button>
+        <button class="btn-remove-x" onclick="deleteItem('equivalencias',${e.id},renderSkuCfg)" title="Eliminar">&times;</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -2347,7 +2350,7 @@ function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
   let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
-    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${ingredientTypeDot(k)}${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
       <td>${p.familia||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
@@ -2609,8 +2612,16 @@ function getIngredientLabel(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
   if (master) return master.label;
   const semi = ST.semielaborados.find(s=>s.insumo_key===key);
-  if (semi) return semi.name + ' (semielaborado)';
+  if (semi) return semi.name;
   return INSUMO_LABELS[key] || key;
+}
+function ingredientTypeDot(key) {
+  const isInsumo = ST.insumosMaster.some(i=>i.key===key);
+  const isSemi = ST.semielaborados.some(s=>s.insumo_key===key);
+  if (!isInsumo && !isSemi) return '';
+  const color = isInsumo ? 'var(--blue)' : 'var(--green)';
+  const title = isInsumo ? 'Insumo' : 'Semielaborado';
+  return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:4px" title="${title}"></span>`;
 }
 function getIngredientUnit(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
@@ -2684,7 +2695,7 @@ function makeIngRow(key, qty) {
   unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
   unit.textContent = getIngredientUnit(key);
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
   div.appendChild(dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
@@ -2726,7 +2737,7 @@ function legacyIngRow(nombre, cantidad, unidad, prefix) {
   vincularBtn.onclick = () => vincularLegacyRow(div, prefix);
 
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
 
   div.appendChild(dragHandle());
@@ -2914,7 +2925,7 @@ function rollRow(name,qty,opts){
     <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
     <input type="number" value="${qty}" min="1" max="100" style="width:65px">
     <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>
+    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
   </div>`;
 }
 function addRollRow(){
@@ -2923,8 +2934,8 @@ function addRollRow(){
   const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
   const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
   const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
-  const btn=document.createElement('button'); btn.className='btn btn-sm btn-danger';
-  btn.innerHTML='<i class="ti ti-x"></i>'; btn.onclick=()=>div.remove();
+  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
+  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
   div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
   document.getElementById('rollRows').appendChild(div);
 }
