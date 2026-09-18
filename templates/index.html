@@ -1798,7 +1798,7 @@ function renderSemiCfg() {
       ? s.receta.map(i=>{
           const nombre = i.key ? getIngredientLabel(i.key) : i.nombre;
           const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          const dot = i.key ? ingredientTypeDot(i.key) : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-right:4px" title="Sin vincular"></span>';
+          const dot = i.key ? ingredientTypeDot(i.key) : '<span class="ing-item-badge" style="margin-right:5px;display:inline-block;background:var(--bg);color:var(--text3)">Sin vincular</span>';
           return `${dot}${nombre} (${i.cantidad}${unidad})`;
         }).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
@@ -2619,9 +2619,9 @@ function ingredientTypeDot(key) {
   const isInsumo = ST.insumosMaster.some(i=>i.key===key);
   const isSemi = ST.semielaborados.some(s=>s.insumo_key===key);
   if (!isInsumo && !isSemi) return '';
-  const color = isInsumo ? 'var(--blue)' : 'var(--green)';
-  const title = isInsumo ? 'Insumo' : 'Semielaborado';
-  return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:4px" title="${title}"></span>`;
+  const cls = isInsumo ? 'insumo' : 'semi';
+  const label = isInsumo ? 'Insumo' : 'Semielaborado';
+  return `<span class="ing-item-badge ${cls}" style="margin-right:5px;display:inline-block">${label}</span>`;
 }
 function getIngredientUnit(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
