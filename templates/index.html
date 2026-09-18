@@ -357,6 +357,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div class="sch-info" id="schedInfo"></div>
         <div class="tbl-wrap" id="schedGrid"></div>
       </div>
+      <div class="card hidden" id="semiHourlyCard">
+        <div class="sec"><i class="ti ti-clipboard-list"></i> Semielaborados por hora</div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Cuánto de cada semielaborado hace falta tener listo para armar los rolls de cada franja horaria.</span>
+        </div>
+        <div class="tbl-wrap" id="semiHourlyGrid"></div>
+      </div>
       <div class="flex-end" style="margin-bottom:1rem">
         <button class="btn btn-primary" id="pdfBtn" onclick="downloadPDF()">
           <i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)
@@ -1461,6 +1469,57 @@ function renderScheduleDisplay() {
   document.getElementById('editGridBtn').classList.remove('hidden');
   document.getElementById('saveGridBtn').classList.add('hidden');
   document.getElementById('cancelGridBtn').classList.add('hidden');
+  renderSemiHourlyGrid();
+}
+
+// ── Semielaborados por hora: cuánto hace falta tener listo para los rolls de cada franja ──
+function computeSemiHourlyGrid() {
+  const hours = ST.schedule.hours;
+  // Para cada hora, sumar las tareas de TODOS los sushimanes juntas, por nombre de roll
+  const rollQtyPerHour = hours.map(h => {
+    const totals = {};
+    Object.values(h.tasks).forEach(tasks => {
+      tasks.forEach(t => { totals[t.name] = (totals[t.name]||0) + t.qty; });
+    });
+    return totals;
+  });
+  const result = [];
+  ST.semielaborados.forEach(semi => {
+    const byHour = hours.map((h, hi) => {
+      let amount = 0;
+      Object.entries(rollQtyPerHour[hi]).forEach(([rollName, rollQty]) => {
+        const roll = ST.rolls.find(r=>r.name===rollName);
+        if (roll && roll.insumos[semi.insumo_key]) {
+          amount += roll.insumos[semi.insumo_key] * rollQty;
+        }
+      });
+      return amount;
+    });
+    const total = byHour.reduce((a,b)=>a+b, 0);
+    if (total > 0) result.push({name: semi.name, unit: semi.unit, byHour, total});
+  });
+  return result;
+}
+function renderSemiHourlyGrid() {
+  const card = document.getElementById('semiHourlyCard');
+  if (!ST.schedule || !ST.schedule.hours) { card.classList.add('hidden'); return; }
+  const data = computeSemiHourlyGrid();
+  if (!data.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const hours = ST.schedule.hours;
+  let h = '<table><thead><tr><th>Semielaborado</th>';
+  hours.forEach(hr => { h += `<th style="text-align:center">${hr.label}</th>`; });
+  h += '<th style="text-align:right">Total</th></tr></thead><tbody>';
+  data.forEach(row => {
+    h += `<tr><td style="font-weight:600">${row.name}</td>`;
+    row.byHour.forEach(amt => {
+      const shown = Math.round(amt*10)/10;
+      h += `<td style="text-align:center">${amt>0 ? shown+' '+row.unit : '<span style="color:var(--text3)">—</span>'}</td>`;
+    });
+    h += `<td style="text-align:right;font-weight:700">${Math.round(row.total*10)/10} ${row.unit}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('semiHourlyGrid').innerHTML = h;
 }
 
 // ── Grid editing with validation ──
@@ -1729,7 +1788,8 @@ async function downloadPDF() {
     date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:ST.semis,
     combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
-    schedule:ST.schedule, rollosBlancos:ST.rollosBlancos
+    schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
+    semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
   try {
     const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
