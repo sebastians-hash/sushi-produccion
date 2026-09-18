@@ -352,6 +352,43 @@ def page3_story(data, cw, start_num=5):
         ('TEXTCOLOR',(-1,1),(-1,-1),colors.HexColor('#856404')), ('SPAN',(-1,1),(-1,-1)),
     ]))
     story.append(gt)
+
+    semi_hourly = data.get('semiHourly', [])
+    if semi_hourly:
+        story.append(Spacer(1, 5*mm))
+        story.append(section_header(f"{start_num+1}  SEMIELABORADOS POR HORA", cw))
+        story.append(Spacer(1, 2*mm))
+
+        sh_hdr = ['Semielaborado'] + hour_labels + ['Total']
+        sh_rows = [sh_hdr]
+        for row in semi_hourly:
+            r = [row['name']]
+            for amt in row['byHour']:
+                r.append(f"{round(amt,1)} {row['unit']}" if amt > 0 else '—')
+            r.append(f"{round(row['total'],1)} {row['unit']}")
+            sh_rows.append(r)
+
+        name_col = 32*mm
+        total_col = 22*mm
+        sh_hour_col_w = (cw - name_col - total_col) / n_hours if n_hours else 30*mm
+        sh_col_widths = [name_col] + [sh_hour_col_w]*n_hours + [total_col]
+
+        sht = Table(sh_rows, colWidths=sh_col_widths, repeatRows=1)
+        sht.setStyle(TableStyle([
+            ('FONTNAME',(0,0),(-1,-1),'Helvetica'), ('FONTSIZE',(0,0),(-1,-1),fs_g),
+            ('LEADING',(0,0),(-1,-1),fs_g+3), ('TOPPADDING',(0,0),(-1,-1),5),
+            ('BOTTOMPADDING',(0,0),(-1,-1),5), ('LEFTPADDING',(0,0),(-1,-1),5),
+            ('RIGHTPADDING',(0,0),(-1,-1),5),
+            ('GRID',(0,0),(-1,-1),0.4,colors.HexColor('#CCCCCC')),
+            ('BACKGROUND',(0,0),(-1,0),ACCENT), ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+            ('TEXTCOLOR',(0,0),(-1,0),WHITE),
+            ('FONTNAME',(0,1),(0,-1),'Helvetica-Bold'),
+            ('ROWBACKGROUNDS',(1,1),(-1,-1),[WHITE,BG_GRAY]),
+            ('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+            ('FONTNAME',(-1,1),(-1,-1),'Helvetica-Bold'),
+        ]))
+        story.append(sht)
+
     return story
 
 # ── BUILD ──
