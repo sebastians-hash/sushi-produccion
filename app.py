@@ -169,7 +169,8 @@ def init_db():
             tipo TEXT NOT NULL DEFAULT 'porcion',
             familia TEXT,
             insumos TEXT NOT NULL DEFAULT '{}',
-            marcas TEXT NOT NULL DEFAULT '[]'
+            marcas TEXT NOT NULL DEFAULT '[]',
+            rolls TEXT NOT NULL DEFAULT '{}'
         );
         CREATE TABLE IF NOT EXISTS equivalencias (
             id SERIAL PRIMARY KEY,
@@ -254,6 +255,10 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN tiempo_elaboracion_min INTEGER")
     if 'vida_util_dias' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN vida_util_dias INTEGER")
+
+    otro_cols = get_columns('otros_productos')
+    if 'rolls' not in otro_cols:
+        c.execute("ALTER TABLE otros_productos ADD COLUMN rolls TEXT NOT NULL DEFAULT '{}'")
 
     # Migration: add 'marcas' column to combos and rolls
     combo_cols = get_columns('combos')
@@ -680,8 +685,11 @@ def restore_data():
     counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
                               ['email', 'nombre', 'role', 'active', 'created_at'])
     counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
+    for p in data.get('otros_productos', []):
+        if p.get('rolls') is None:
+            p['rolls'] = '{}'
     counts['otros_productos'] = upsert('otros_productos', data.get('otros_productos', []), 'name',
-                              ['name', 'tipo', 'familia', 'insumos', 'marcas'])
+                              ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls'])
     counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
@@ -781,7 +789,8 @@ def get_otros_productos():
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'], 'tipo': r['tipo'],
                      'familia': r['familia'], 'insumos': json.loads(r['insumos']),
-                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'rolls': json.loads(r['rolls'] or '{}')} for r in rows])
 
 @app.route('/api/otros-productos', methods=['POST'])
 @admin_required
@@ -789,9 +798,10 @@ def create_otro_producto():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls) VALUES (?,?,?,?,?,?)',
                      (data['name'], data.get('tipo','porcion'), data.get('familia',''),
-                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', []))))
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
+                      json.dumps(data.get('rolls', {}))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -806,9 +816,10 @@ def update_otro_producto(producto_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=? WHERE id=?',
+        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=?, rolls=? WHERE id=?',
                      (data['name'], data.get('tipo','porcion'), data.get('familia',''),
-                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])), producto_id))
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
+                      json.dumps(data.get('rolls', {})), producto_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1528,8 +1539,8 @@ def calcular():
                  for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
     roll_grupo_db = {r['name']: r['rollo_blanco_grupo']
                  for r in conn.execute('SELECT name, rollo_blanco_grupo FROM rolls').fetchall()}
-    otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos'])}
-                 for r in conn.execute('SELECT name, tipo, insumos FROM otros_productos').fetchall()}
+    otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos']), 'rolls': json.loads(r['rolls'] or '{}')}
+                 for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
 
@@ -1602,6 +1613,13 @@ def calcular():
             for k, v in otro['insumos'].items():
                 if v:
                     direct_insumo_totals[k] = direct_insumo_totals.get(k, 0) + v * final_qty
+            for roll_name, piezas in otro.get('rolls', {}).items():
+                if not piezas:
+                    continue
+                roll_name = equiv_roll.get(norm(roll_name), roll_name)
+                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
+                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
+                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
 
     production = sorted(
         [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
