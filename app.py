@@ -1,3554 +1,2140 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kata — Planificador de Producción</title>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180.png">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#f8f8f6;--surface:#fff;--border:#e2e2de;--border-light:#eeeee9;
-  --text:#1a1a18;--text2:#666662;--text3:#99998f;
-  --beige:#f0ebe0;--beige2:#e8e0d0;
-  --green-bg:#f0faf0;--green:#2a7a2a;
-  --blue-bg:#f0f4ff;--blue:#2d4da0;
-  --warn-bg:#fffbf0;--warn:#a07020;
-  --red-bg:#fff0f0;--red:#a02020;
-  --r:8px;--rsm:5px;
-}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
-.app{max-width:980px;margin:0 auto;padding:1.5rem 1rem}
-.hdr{display:flex;align-items:center;gap:12px;margin-bottom:1.75rem;padding:12px 16px;background:#5F5E5A;border-radius:var(--r);color:#fff}
-.hdr .hdr-title{color:#fff;font-size:18px;font-weight:700}
-.hdr .hdr-sub{color:rgba(255,255,255,.65);font-size:12px}
-.steps{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.75rem}
-.main-nav{display:flex;align-items:center;gap:4px;margin-bottom:1.25rem;border-bottom:2px solid var(--border);padding-bottom:0}
-.main-nav-item{padding:10px 16px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;transition:color .12s,border-color .12s;user-select:none}
-.main-nav-item:hover{color:var(--text2)}
-.main-nav-item.active{color:var(--text);border-bottom-color:var(--text)}
-.main-nav-admin{margin-left:auto;margin-bottom:0;padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:20px;background:var(--surface);color:var(--text2)!important}
-.main-nav-admin:hover{background:var(--bg);border-color:var(--text3)}
-.main-nav-admin.active{background:var(--text);color:#fff!important;border-color:var(--text)}
-.step{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:default;border-right:1px solid var(--border);background:var(--bg);transition:background .12s;user-select:none}
-.step:last-child{border-right:none}
-.step-n{display:block;font-size:15px;font-weight:700;margin-bottom:1px}
-.step.active{background:var(--surface);color:var(--text)}
-.step.active .step-n{color:var(--text)}
-.step.done{background:var(--surface);color:var(--green);cursor:pointer}
-.step.done .step-n{color:var(--green)}
-.step.nav{cursor:pointer}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:1rem}
-.card-title{font-size:15px;font-weight:600;margin-bottom:1rem}
-.sec{background:var(--text);color:#fff;padding:6px 12px;border-radius:var(--rsm);font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;text-transform:uppercase}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
-.metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:.75rem 1rem}
-.metric-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-.metric-val{font-size:24px;font-weight:700}
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;padding:7px 10px;font-size:11px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);background:var(--bg);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid var(--border-light);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tbody tr:hover td{background:var(--bg)}
-.fam-row td{background:var(--beige);font-weight:600;font-size:11px;color:var(--text2);padding:5px 10px}
-.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.b-blue{background:var(--blue-bg);color:var(--blue)}
-.btn-remove-x{width:22px;height:22px;min-width:22px;border-radius:50%;border:1px solid var(--red-bg);background:var(--red-bg);color:var(--red);font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:background .12s,color .12s}
-.btn-remove-x:hover{background:var(--red);color:#fff;border-color:var(--red)}
-.b-green{background:var(--green-bg);color:var(--green)}
-.b-warn{background:var(--warn-bg);color:var(--warn)}
-.b-red{background:var(--red-bg);color:var(--red)}
-input[type=number],input[type=text],input[type=time],select,textarea{
-  padding:6px 10px;border:1px solid var(--border);border-radius:var(--rsm);
-  font-size:13px;background:var(--surface);color:var(--text);outline:none;font-family:inherit}
-input:focus,select:focus,textarea:focus{border-color:#666}
-input[type=range]{width:100%;accent-color:var(--text)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:1px solid var(--border);
-  border-radius:var(--rsm);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;
-  white-space:nowrap;font-family:inherit;transition:background .1s}
-.btn:hover{background:var(--bg)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn-primary{background:var(--text);color:#fff;border-color:var(--text)}
-.btn-primary:hover{opacity:.85;background:var(--text)}
-.btn-sm{padding:4px 9px;font-size:12px}
-.btn-danger{color:var(--red)}
-.btn-danger:hover{background:var(--red-bg)}
-.row{display:flex;gap:8px;align-items:center}
-.row-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.flex-end{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.form-lbl{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-.w-full{width:100%}
-.drop{border:2px dashed var(--border);border-radius:var(--r);padding:2.5rem;text-align:center;
-  cursor:pointer;color:var(--text3);transition:all .12s}
-.drop:hover,.drop.over{border-color:var(--text);color:var(--text);background:var(--bg)}
-.drop i{font-size:40px;margin-bottom:.75rem;display:block}
-.range-row{display:flex;align-items:center;gap:12px}
-.range-row label{min-width:200px;font-size:13px;color:var(--text2)}
-.range-val{font-weight:700;min-width:50px;text-align:right}
-.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1rem;gap:0;flex-wrap:wrap}
-.tab{padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text2);
-  border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.tab.active{color:var(--text);border-bottom-color:var(--text);font-weight:500}
-.chk-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)}
-.chk-row:last-child{border-bottom:none}
-.avatar{width:32px;height:32px;border-radius:50%;background:var(--blue-bg);color:var(--blue);
-  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
-.alert{padding:10px 14px;border-radius:var(--rsm);font-size:13px;display:flex;align-items:flex-start;gap:8px}
-.alert-success{background:var(--green-bg);color:var(--green);border:1px solid #c3e6c3}
-.alert-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #e6d5a0}
-.alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #c3d0f0}
-.sch-info{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
-.sch-cell-info{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 12px;text-align:center;font-size:12px;color:var(--text2)}
-.sch-cell-info strong{display:block;font-size:16px;color:var(--text);margin-top:2px}
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
-  align-items:center;justify-content:center;z-index:1000;padding:1rem}
-.modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:560px;
-  max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
-.modal-hdr{display:flex;justify-content:space-between;align-items:center;
-  padding:1rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
-.modal-title{font-size:15px;font-weight:700}
-.modal-close-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
-  background:var(--bg);color:var(--text);font-size:22px;line-height:1;font-weight:400;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
-  transition:background .12s,border-color .12s}
-.modal-close-btn:hover{background:var(--border);border-color:var(--text3)}
-.modal-body{padding:1.25rem}
-.modal-foot{padding:.75rem 1.25rem;border-top:1px solid var(--border);
-  display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface)}
-.loader{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);
-  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-.hidden{display:none!important}
-.empty{text-align:center;padding:2rem;color:var(--text3);font-size:13px}
+from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
+import json, os, tempfile, functools
+import psycopg2
+import psycopg2.extras
+from datetime import datetime
+from gen_pdf import build_pdf
+from authlib.integrations.flask_client import OAuth
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-/* Custom ingredient search dropdown */
-.ing-search-wrap{position:relative;flex:1}
-.ing-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);
-  border:1px solid var(--border);border-radius:var(--rsm);box-shadow:0 6px 20px rgba(0,0,0,.12);
-  max-height:240px;overflow-y:auto;z-index:50}
-.ing-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px}
-.ing-item:hover,.ing-item.active{background:var(--bg)}
-.ing-item-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
-.ing-item-badge.insumo{background:var(--blue-bg);color:var(--blue)}
-.ing-item-badge.semi{background:var(--green-bg);color:var(--green)}
-.roll-ing-row.dragging{opacity:.4}
-.grid-task-row.dragging{opacity:.4}
-.grid-drop-target{outline:2px dashed var(--blue);outline-offset:-2px;background:var(--blue-bg) !important}
-.sm-row-highlight{background:var(--warn-bg) !important;transition:background .3s}
-.grid-task-highlight{outline:2px solid var(--warn);outline-offset:-1px;transition:outline .3s}
-.roll-ing-row.legacy-row{background:var(--warn-bg);border-radius:var(--rsm);padding:4px 6px}
-.ing-item-empty{padding:12px;font-size:12px;color:var(--text3);text-align:center}
-@media(max-width:600px){
-  .metrics{grid-template-columns:repeat(2,1fr)}
-  .form-grid{grid-template-columns:1fr}
-  .step{font-size:10px}
-  .step-n{font-size:13px}
-}
-</style>
-</head>
-<body>
-<div class="app">
+app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODUCCION')
+# Railway (y la mayoria de plataformas cloud) terminan el HTTPS en su proxy y
+# reenvian a la app como HTTP interno. Sin esto, url_for(..., _external=True)
+# generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-  <header class="hdr">
-    <img src="/static/kata_logo_square.png" alt="Kata" style="height:44px;width:44px;object-fit:contain;border-radius:8px;flex-shrink:0">
-    <div>
-      <div class="hdr-title">Kata, planificador de producción</div>
-      <div class="hdr-sub" id="todayDate"></div>
-    </div>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
-      <div style="text-align:right;line-height:1.3">
-        <div style="font-size:12px;font-weight:600;color:#fff">{{ user_name }}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
-      </div>
-      {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
-      <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i></a>
-    </div>
-  </header>
+# DATABASE_URL la provee Railway automaticamente al agregar un servicio de PostgreSQL
+# y vincularlo a esta app. Es una base de datos administrada: los datos NO se pierden
+# con cada deploy, a diferencia de un archivo SQLite en el filesystem del contenedor.
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-  <div class="main-nav">
-    <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
-    {% if is_admin %}
-    <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
-    <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
-    <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
-    <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
-    <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
-    {% endif %}
-  </div>
+# ── Postgres IntegrityError, expuesto con el mismo nombre que usa el resto del codigo ──
+IntegrityError = psycopg2.IntegrityError
 
-  <div id="mainProduccion">
-    <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
-      <div class="row" style="gap:10px;align-items:center">
-        <i class="ti ti-building-store"></i>
-        <label class="form-lbl" style="margin:0">Local</label>
-        <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
-      </div>
-    </div>
-    <div class="tabs" style="margin-bottom:1rem">
-      <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
-      <div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>
-      <div class="tab" onclick="showProdSubTab('hist',this)"><i class="ti ti-history"></i> Historial</div>
-    </div>
-    <div id="prodFlowTab">
-  <div class="steps">
-    <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
-    <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
-    <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
-    <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
-    <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
-  </div>
+# ── DB ────────────────────────────────────────────────────────────────────
+class _PGCursorWrapper:
+    """Envuelve un cursor de psycopg2 para que .execute() acepte '?' como
+    placeholder (estilo sqlite3) y devuelva filas con acceso tipo diccionario,
+    manteniendo compatible el resto del codigo sin reescribir cada consulta."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+    def execute(self, sql, params=()):
+        sql_pg = sql.replace('?', '%s')
+        self._cursor.execute(sql_pg, params)
+        return self
+    def executescript(self, script):
+        self._cursor.execute(script)
+        return self
+    def fetchone(self):
+        return self._cursor.fetchone()
+    def fetchall(self):
+        return self._cursor.fetchall()
+    @property
+    def lastrowid(self):
+        return None  # no usado; los INSERT que necesitan el id usan RETURNING
 
-  <!-- ── STEP 1 ── -->
-  <div id="s1">
-    <div class="card">
-      <div class="card-title">Carga de venta del día</div>
-      <div class="drop" id="dropZone" onclick="document.getElementById('fi').click()"
-        ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('over')"
-        ondragleave="this.classList.remove('over')">
-        <i class="ti ti-file-spreadsheet"></i>
-        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí el Excel de ventas</div>
-        <div>Arrastrá el archivo acá o hacé click para seleccionar</div>
-        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad</div>
-      </div>
-      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(event)">
-      <div id="fStatus" class="hidden" style="margin-top:1rem"></div>
-    </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:.5rem">Cargar información manualmente</div>
-      <div style="color:var(--text2);font-size:13px;margin-bottom:1rem">Se muestran todos los combos agrupados por familia para que ingreses la cantidad vendida de cada uno.</div>
-      <button class="btn" onclick="loadManual()"><i class="ti ti-table-import"></i> Cargar información manualmente</button>
-    </div>
-  </div>
+class _PGConnWrapper:
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=()):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        sql_pg = sql.replace('?', '%s')
+        cur.execute(sql_pg, params)
+        return _PGCursorWrapper(cur)
+    def executescript(self, script):
+        cur = self._conn.cursor()
+        cur.execute(script)
+        return _PGCursorWrapper(cur)
+    def cursor(self):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return _PGCursorWrapper(cur)
+    def commit(self):
+        self._conn.commit()
+    def rollback(self):
+        self._conn.rollback()
+    def close(self):
+        self._conn.close()
 
+def get_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    return _PGConnWrapper(conn)
 
-  <!-- ── STEP 2 ── -->
-  <div id="s2" class="hidden">
-    <div class="card">
-      <div class="row-between" style="margin-bottom:1rem">
-        <div class="card-title" style="margin:0">Ventas por producto</div>
-        <select id="adjMode" onchange="renderSales()">
-          <option value="pct">Ajuste en %</option>
-          <option value="qty">Ajuste en cantidad</option>
-        </select>
-      </div>
-      <div id="salesTbl"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">Porcentaje de producción global</div>
-      <div class="range-row">
-        <label>¿Qué % de la venta producís?</label>
-        <input type="range" min="30" max="200" step="5" value="100" id="gPct"
-          oninput="document.getElementById('gPctV').textContent=this.value+'%'; onGPctChange()">
-        <span class="range-val" id="gPctV">100%</span>
-      </div>
-      <div class="alert alert-info" style="margin-top:.75rem">
-        <i class="ti ti-info-circle"></i>
-        <span>100% = producís exactamente lo vendido. Más del 100% para incluir stock de seguridad.</span>
-      </div>
-      <label id="dividirPlanillaWrap" class="hidden" style="display:flex;align-items:center;gap:8px;margin-top:.75rem;cursor:pointer">
-        <input type="checkbox" id="dividirPlanilla" style="width:18px;height:18px">
-        <span>Dividir en 2 planillas <span style="font-weight:400;color:var(--text3)">(esta planilla hace el <span id="dividirPctChosen">70</span>%, y se muestra aparte el <span id="dividirPctResto">30</span>% restante para producir más tarde)</span></span>
-      </label>
-    </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Ver resumen <i class="ti ti-arrow-right"></i></button>
-    </div>
-  </div>
+# ── Google OAuth setup ──────────────────────────────────────────────────────
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
 
-  <!-- ── STEP 3 ── -->
-  <div id="s3" class="hidden">
-    <div class="card">
-      <div class="card-title">Resumen de producción</div>
-      <div class="metrics" id="sumMetrics"></div>
-      <div class="sec"><i class="ti ti-list"></i> Rollos a producir</div>
-      <div id="sumRolls"></div>
-    </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Ajustar</button>
-      <button class="btn btn-primary" onclick="goStep(4)">Avanzar a producción <i class="ti ti-arrow-right"></i></button>
-    </div>
-  </div>
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.executescript('''
+        CREATE TABLE IF NOT EXISTS rolls (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            insumos TEXT NOT NULL,
+            piezas_por_rollo INTEGER NOT NULL DEFAULT 14,
+            rollo_blanco_grupo TEXT
+        );
+        CREATE TABLE IF NOT EXISTS rollo_blanco_grupos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS combos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            family TEXT NOT NULL,
+            rolls TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS semielaborados (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            insumo_key TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            rolls TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sushimanes (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            productivity INTEGER NOT NULL DEFAULT 10,
+            active INTEGER NOT NULL DEFAULT 1,
+            dias_franco TEXT NOT NULL DEFAULT '[]',
+            horario_ingreso TEXT
+        );
+        CREATE TABLE IF NOT EXISTS insumos (
+            id SERIAL PRIMARY KEY,
+            key TEXT UNIQUE NOT NULL,
+            label TEXT NOT NULL,
+            unidad_receta TEXT NOT NULL DEFAULT 'g',
+            unidad_resumen TEXT NOT NULL DEFAULT 'kg',
+            factor_conversion REAL NOT NULL DEFAULT 0.001,
+            precio_unidad REAL,
+            categoria TEXT,
+            es_80_20 INTEGER NOT NULL DEFAULT 0,
+            comentario TEXT,
+            marca_producto TEXT,
+            marca_tipo TEXT,
+            zona_almacenamiento TEXT,
+            proveedor_principal_id INTEGER,
+            proveedor_alt1_id INTEGER,
+            proveedor_alt2_id INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS categorias_insumos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS zonas_almacenamiento (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS proveedores (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            contactos TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE TABLE IF NOT EXISTS marcas (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            nombre TEXT,
+            role TEXT NOT NULL DEFAULT 'user',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS familias (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS otros_productos (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'porcion',
+            familia TEXT,
+            insumos TEXT NOT NULL DEFAULT '{}',
+            marcas TEXT NOT NULL DEFAULT '[]',
+            rolls TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE TABLE IF NOT EXISTS equivalencias (
+            id SERIAL PRIMARY KEY,
+            tipo TEXT NOT NULL,
+            nombre_canonico TEXT NOT NULL,
+            nombre_alias TEXT NOT NULL,
+            marca TEXT,
+            factor REAL NOT NULL DEFAULT 1.0,
+            UNIQUE(tipo, nombre_alias)
+        );
+        CREATE TABLE IF NOT EXISTS locales (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS usuario_locales (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL,
+            local_id INTEGER NOT NULL,
+            UNIQUE(usuario_id, local_id)
+        );
+        CREATE TABLE IF NOT EXISTS planillas (
+            id SERIAL PRIMARY KEY,
+            local_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            data TEXT NOT NULL DEFAULT '{}',
+            created_by TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+    conn.commit()
 
-  <!-- ── STEP 4 ── -->
-  <div id="s4" class="hidden">
-    <div class="tabs hidden" id="vistaProdSwitch" style="margin-bottom:1rem">
-      <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')">Separado</div>
-      <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
-    </div>
-    <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
-    <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
-    <div class="card hidden" id="remainingProdCard">
-      <div class="sec"><i class="ti ti-clock-hour-4"></i> Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
-      <div class="alert alert-info" style="margin-bottom:1rem">
-        <i class="ti ti-info-circle"></i>
-        <span>Referencia de lo que falta producir del resto de la venta — no pasa por la grilla de horarios.</span>
-      </div>
-      <div class="form-lbl" style="margin-bottom:8px">Rolls</div>
-      <div id="remainingRollsTbl" style="margin-bottom:1.25rem"></div>
-      <div class="form-lbl" style="margin-bottom:8px">Insumos necesarios</div>
-      <div id="remainingInsumosTbl" style="margin-bottom:1.25rem"></div>
-      <div class="form-lbl" style="margin-bottom:8px">Semielaborados</div>
-      <div id="remainingSemiTbl" style="margin-bottom:1.25rem"></div>
-      <div class="form-lbl" style="margin-bottom:8px">Otros productos</div>
-      <div id="remainingOtrosTbl" style="margin-bottom:1.25rem"></div>
-      <div class="form-lbl" style="margin-bottom:8px">Combos</div>
-      <div id="remainingCombosTbl"></div>
-    </div>
-    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
-    </div>
-  </div>
+    # Bootstrap: si no hay locales todavia, crear uno por defecto y migrar
+    # a el todo lo que ya existia (para no romper la operacion actual de un
+    # solo local mientras se suman los demas)
+    n_locales = c.execute('SELECT COUNT(*) AS cnt FROM locales').fetchone()['cnt']
+    default_local_id = None
+    if n_locales == 0:
+        c.execute("INSERT INTO locales (name, active) VALUES ('Local Principal', 1)")
+        conn.commit()
+        default_local_id = c.execute("SELECT id FROM locales WHERE name='Local Principal'").fetchone()['id']
 
-  <!-- ── STEP 5 ── -->
-  <div id="s5" class="hidden">
-    <div class="card">
-      <div class="card-title">Configuración del turno</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
-        <div>
-          <label class="form-lbl">Hora de inicio <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
-          <div class="row" style="gap:4px">
-            <select id="startTimeManualH" style="flex:1"><option value="">--</option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
-            <span>:</span>
-            <select id="startTimeManualM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
-          </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">Vacío = automático</div>
-        </div>
-        <div>
-          <label class="form-lbl">Hora de fin de producción</label>
-          <div class="row" style="gap:4px">
-            <select id="endTimeH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20" selected>20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
-            <span>:</span>
-            <select id="endTimeM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
-          </div>
-        </div>
-        <div>
-          <label class="form-lbl">Corte y armado</label>
-          <div class="row">
-            <input type="number" id="cutMins" value="60" min="0" max="240" style="width:80px">
-            <span style="font-size:13px;color:var(--text2)">min</span>
-          </div>
-        </div>
-      </div>
-      <div class="sec"><i class="ti ti-users"></i> Sushimanes disponibles hoy</div>
-      <div id="smList"></div>
-      <div style="margin-top:.75rem">
-        <button class="btn btn-sm" onclick="addTempSm()"><i class="ti ti-plus"></i> Agregar temporal</button>
-      </div>
-      <div class="sec" style="margin-top:1.25rem"><i class="ti ti-adjustments"></i> Modo de cálculo de la grilla</div>
-      <div class="row" style="gap:16px;margin-bottom:1rem">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="radio" name="gridMode" value="auto" checked onchange="onGridModeChange()"> Automática
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="radio" name="gridMode" value="semi" onchange="onGridModeChange()"> Semi automática
-        </label>
-      </div>
-      <div id="manualTandasSection" class="hidden">
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Elegí en cuántas tandas se corta cada roll. "Rolls por tanda" se calcula solo (total ÷ tandas, redondeado para arriba) y así se van a asignar en la grilla.</span>
-        </div>
-        <div id="manualTandasTbl"></div>
-      </div>
-    </div>
-    <div class="row-between" style="margin-bottom:1rem">
-      <div></div>
-      <button class="btn btn-primary" onclick="calcSchedule()"><i class="ti ti-calendar"></i> Calcular grilla</button>
-    </div>
-    <div id="schedRes" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:.75rem">
-          <div class="sec" style="margin:0"><i class="ti ti-clock"></i> Grilla de producción por hora</div>
-          <div class="row" style="gap:6px">
-            <span id="schedValidation" style="font-size:12px"></span>
-            <button class="btn btn-sm hidden" id="addHourBtn" onclick="openAddHourModal()"><i class="ti ti-clock-plus"></i> Agregar franja horaria</button>
-            <button class="btn btn-sm" id="editGridBtn" onclick="toggleEditGrid()"><i class="ti ti-edit"></i> Editar grilla</button>
-            <button class="btn btn-sm btn-primary hidden" id="saveGridBtn" onclick="saveGridEdits()"><i class="ti ti-check"></i> Confirmar cambios</button>
-            <button class="btn btn-sm hidden" id="cancelGridBtn" onclick="cancelGridEdits()"><i class="ti ti-x"></i> Cancelar</button>
-          </div>
-        </div>
-        <div class="sch-info" id="schedInfo"></div>
-        <div class="tbl-wrap" id="schedGrid"></div>
-      </div>
-      <div class="card hidden" id="semiHourlyCard">
-        <div class="sec"><i class="ti ti-clipboard-list"></i> Semielaborados por hora</div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Cuánto de cada semielaborado hace falta tener listo para armar los rolls de cada franja horaria.</span>
-        </div>
-        <div class="tbl-wrap" id="semiHourlyGrid"></div>
-      </div>
-      <div class="flex-end" style="margin-bottom:1rem">
-        <button class="btn btn-primary" id="pdfBtn" onclick="downloadPDF()">
-          <i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)
-        </button>
-      </div>
-    </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(4)"><i class="ti ti-arrow-left"></i> Atrás</button>
-    </div>
-  </div>
+    # Bootstrap: si no hay usuarios todavía, crear el admin inicial
+    # a partir de la variable de entorno ADMIN_EMAIL
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    n_users = c.execute('SELECT COUNT(*) AS cnt FROM usuarios').fetchone()['cnt']
+    if n_users == 0 and admin_email:
+        c.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,1,?) ON CONFLICT (email) DO NOTHING',
+                   (admin_email.strip().lower(), 'Administrador', 'admin', datetime.now().isoformat()))
+        conn.commit()
 
-  <!-- ── STEP 6 ── -->
+    # Sembrar familias a partir de las que ya usan los combos existentes
+    # (para no romper nada) mas categorias sugeridas para los productos nuevos
+    n_familias = c.execute('SELECT COUNT(*) AS cnt FROM familias').fetchone()['cnt']
+    if n_familias == 0:
+        existing_families = [r['family'] for r in c.execute(
+            "SELECT DISTINCT family FROM combos WHERE family IS NOT NULL AND family != ''").fetchall()]
+        suggested = ['Porciones', 'Ensaladas', 'Entradas', 'Platos Calientes', 'Otros']
+        all_families = list(dict.fromkeys(existing_families + suggested))  # dedup preservando orden
+        for fam in all_families:
+            c.execute('INSERT INTO familias (name) VALUES (?) ON CONFLICT (name) DO NOTHING', (fam,))
+        conn.commit()
 
-    </div>
-    <div id="prodSmTab" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Equipo de sushimanes</div>
-          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
-        </div>
-        <div id="smCfg"></div>
-      </div>
-    </div>
-    <div id="prodHistTab" class="hidden">
-      <div class="card">
-        <div class="card-title">Historial de planillas</div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Planillas guardadas de este local. Abrí cualquiera para seguir editándola o volver a imprimirla.</span>
-        </div>
-        <div id="historialCfg"></div>
-      </div>
-    </div>
-  </div>
+    # Migration: add recipe columns to semielaborados if they don't exist yet
+    def get_columns(table):
+        rows = c.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+            (table,)).fetchall()
+        return [r['column_name'] for r in rows]
 
-    <div id="mainProductos" class="hidden">
-    <div class="tabs" style="margin-bottom:1rem">
-      <div class="tab active" onclick="showTab('tc',this)">Combos</div>
-      <div class="tab" onclick="showTab('tpor',this)">Porciones</div>
-      <div class="tab" onclick="showTab('tens',this)">Ensaladas</div>
-      <div class="tab" onclick="showTab('tent',this)">Entradas</div>
-      <div class="tab" onclick="showTab('tplc',this)">Platos Calientes</div>
-    </div>
-<div id="tc">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Combos configurados</div>
-          <button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>
-        </div>
-        <div id="comboCfg"></div>
-      </div>
-    </div>
-<div id="tpor" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Porciones</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
-        </div>
-        <div id="porcionCfg"></div>
-      </div>
-    </div>
-<div id="tens" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Ensaladas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
-        </div>
-        <div id="ensaladaCfg"></div>
-      </div>
-    </div>
-<div id="tent" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Entradas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
-        </div>
-        <div id="entradaCfg"></div>
-      </div>
-    </div>
-<div id="tplc" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Platos Calientes</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
-        </div>
-        <div id="platoCalienteCfg"></div>
-      </div>
-    </div>
-  </div>
+    existing_cols = get_columns('semielaborados')
+    if 'receta' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN receta TEXT NOT NULL DEFAULT '[]'")
+    if 'rendimiento_cantidad' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_cantidad REAL NOT NULL DEFAULT 0")
+    if 'rendimiento_unidad' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN rendimiento_unidad TEXT NOT NULL DEFAULT 'g'")
+    if 'marcas' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+    if 'tiempo_elaboracion_min' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN tiempo_elaboracion_min INTEGER")
+    if 'vida_util_dias' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN vida_util_dias INTEGER")
 
-    <div id="mainRecetas" class="hidden">
-    <div class="tabs" style="margin-bottom:1rem">
-      <div class="tab active" onclick="showTab('tr',this)">Rolls</div>
-      <div class="tab" onclick="showTab('trbg',this)">Grupos de rollo blanco</div>
-      <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
-      <div class="tab" onclick="showTab('tma',this)">Marcas</div>
-      <div class="tab" onclick="showTab('tfa',this)">Familias</div>
-    </div>
-<div id="tr">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Rolls</div>
-          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
-        </div>
-        <div id="rollCfg"></div>
-      </div>
-    </div><div id="trbg" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Grupos de rollo blanco</div>
-          <button class="btn btn-sm" onclick="openRolloBlancoGrupoModal()"><i class="ti ti-plus"></i> Nuevo grupo</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Agrupá los rolls que llevan el mismo relleno y solo cambian de cobertura (ej: Apaltado, Napoli, Buenos Aires, Lango Mex). En la producción del día vas a ver estos rolls sumados como uno solo antes de diferenciarlos.</span>
-        </div>
-        <div id="rolloBlancoGrupoCfg"></div>
-      </div>
-    </div><div id="ts" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Semielaborados</div>
-          <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
-        </div>
-        <div id="semiCfg"></div>
-      </div>
-    </div><div id="tma" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Marcas</div>
-          <button class="btn btn-sm" onclick="openMarcaModal()"><i class="ti ti-plus"></i> Nueva marca</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
-        </div>
-        <div id="marcaCfg"></div>
-      </div>
-    </div><div id="tfa" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Familias</div>
-          <button class="btn btn-sm" onclick="openFamiliaModal()"><i class="ti ti-plus"></i> Nueva familia</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Las familias agrupan combos y otros productos (ej: Alaska, Tokyo, Porciones, Ensaladas). Se usan en el paso de ajuste de venta para organizar todo por categoría.</span>
-        </div>
-        <div id="familiaCfg"></div>
-      </div>
-    </div>
-  </div>
+    otro_cols = get_columns('otros_productos')
+    if 'rolls' not in otro_cols:
+        c.execute("ALTER TABLE otros_productos ADD COLUMN rolls TEXT NOT NULL DEFAULT '{}'")
 
-  <div id="mainInsumos" class="hidden">
-    <div class="tabs" style="margin-bottom:1rem">
-      <div class="tab active" onclick="showTab('tin',this)">Insumos</div>
-      <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
-      <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
-      <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
-    </div>
-    <div id="tin">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Tabla maestra de insumos</div>
-          <button class="btn btn-sm" onclick="openInsumoModal()"><i class="ti ti-plus"></i> Nuevo insumo</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Configurá cómo se mide cada insumo en la receta (ej: gramos) y cómo querés verlo sumado en el resumen (ej: kilogramos).</span>
-        </div>
-        <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:1rem">
-          <select id="filtroCategoria" onchange="renderInsumoCfg()" style="min-width:160px">
-            <option value="">Todas las categorías</option>
-          </select>
-          <select id="filtroProveedor" onchange="renderInsumoCfg()" style="min-width:160px">
-            <option value="">Todos los proveedores</option>
-          </select>
-          <select id="filtro8020" onchange="renderInsumoCfg()" style="min-width:140px">
-            <option value="">80/20: Todos</option>
-            <option value="si">Solo 80/20</option>
-            <option value="no">Solo el resto</option>
-          </select>
-          <button class="btn btn-sm" onclick="limpiarFiltrosInsumo()" title="Limpiar filtros"><i class="ti ti-filter-x"></i> Limpiar</button>
-        </div>
-        <div id="insumoCfg"></div>
-      </div>
-    </div>
-    <div id="tcat" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Categorías de insumos</div>
-          <button class="btn btn-sm" onclick="openCategoriaModal()"><i class="ti ti-plus"></i> Nueva categoría</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Agrupá los insumos por categoría (ej: Verduras, Proteínas, Secos) para organizarlos en la tabla maestra.</span>
-        </div>
-        <div id="categoriaCfg"></div>
-      </div>
-    </div>
-    <div id="tzon" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Zonas de almacenamiento</div>
-          <button class="btn btn-sm" onclick="openZonaModal()"><i class="ti ti-plus"></i> Nueva zona</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Dónde se guarda cada insumo (ej: Cámara de frío, Depósito secos, Heladera). Se asigna al editar cada insumo.</span>
-        </div>
-        <div id="zonaCfg"></div>
-      </div>
-    </div>
-    <div id="tprov" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Proveedores</div>
-          <button class="btn btn-sm" onclick="openProveedorModal()"><i class="ti ti-plus"></i> Nuevo proveedor</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Cargá tus proveedores y sus contactos. Después podés asignarle a cada insumo un proveedor principal y hasta dos alternativos, para más adelante calcular compras por proveedor.</span>
-        </div>
-        <div id="proveedorCfg"></div>
-      </div>
-    </div>
+    equiv_cols = get_columns('equivalencias')
+    if 'factor' not in equiv_cols:
+        c.execute("ALTER TABLE equivalencias ADD COLUMN factor REAL NOT NULL DEFAULT 1.0")
 
-  </div>
+    # Migration: add 'marcas' column to combos and rolls
+    combo_cols = get_columns('combos')
+    if 'marcas' not in combo_cols:
+        c.execute("ALTER TABLE combos ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
 
-  <div id="mainEquivalencias" class="hidden">
-    <div id="teq">
-      <div class="card">
-        <div class="card-title">Equivalencias entre marcas</div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Elegí una marca. Cada fila es un producto — completá el nombre con el que esa marca lo vende. Dejalo vacío si esa marca no lo vende. La app suma todo bajo el producto real al calcular producción.</span>
-        </div>
-        <div id="equivalenciaCfg"></div>
-      </div>
-    </div>
+    roll_cols = get_columns('rolls')
+    if 'marcas' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+    if 'piezas_por_rollo' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
+    if 'rollo_blanco_grupo' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
 
-  </div>
+    sm_cols = get_columns('sushimanes')
+    if 'dias_franco' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN dias_franco TEXT NOT NULL DEFAULT '[]'")
+    if 'horario_ingreso' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN horario_ingreso TEXT")
+    if 'local_id' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN local_id INTEGER")
+        # El nombre de un sushiman ya no tiene que ser unico en toda la empresa,
+        # solo dentro de su propio local. Buscamos y sacamos la restriccion vieja
+        # (unique sobre "name" sola) y ponemos una nueva sobre (name, local_id).
+        old_constraints = c.execute("""
+            SELECT tc.constraint_name FROM information_schema.table_constraints tc
+            JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+            WHERE tc.table_name='sushimanes' AND tc.constraint_type='UNIQUE' AND ccu.column_name='name'
+        """).fetchall()
+        for row in old_constraints:
+            c.execute(f'ALTER TABLE sushimanes DROP CONSTRAINT "{row["constraint_name"]}"')
+        c.execute("ALTER TABLE sushimanes ADD CONSTRAINT sushimanes_name_local_unique UNIQUE (name, local_id)")
+        # Asignar todos los sushimanes existentes al local por defecto (recien creado o el primero que exista)
+        first_local = c.execute('SELECT id FROM locales ORDER BY id LIMIT 1').fetchone()
+        if first_local:
+            c.execute('UPDATE sushimanes SET local_id=? WHERE local_id IS NULL', (first_local['id'],))
 
-  <div id="mainAdmin" class="hidden">
-    <div class="tabs" style="margin-bottom:1rem">
-      <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
-      <div class="tab" onclick="showTab('tloc',this)"><i class="ti ti-building-store"></i> Locales</div>
-      <div class="tab" onclick="showTab('timp',this)"><i class="ti ti-file-upload"></i> Importar / Respaldo</div>
-    </div>
-    <div id="tloc" class="hidden">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Locales</div>
-          <button class="btn btn-sm" onclick="openLocalModal()"><i class="ti ti-plus"></i> Nuevo local</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Cada local tiene su propia planilla de producción, sus sushimanes y su historial — pero comparten el mismo catálogo de combos, rolls, recetas e insumos.</span>
-        </div>
-        <div id="localCfg"></div>
-      </div>
-    </div>
-    <div id="tus">
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Usuarios con acceso</div>
-          <button class="btn btn-sm" onclick="openUsuarioModal()"><i class="ti ti-plus"></i> Nuevo usuario</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Solo las cuentas de Google registradas acá pueden entrar a la app. <strong>Admin</strong> ve y edita Configuración; <strong>Usuario</strong> solo usa el flujo de producción.</span>
-        </div>
-        <div id="usuarioCfg"></div>
-      </div>
-    </div>
-    <div id="timp" class="hidden">
-      <div class="card">
-        <div class="card-title">Respaldo completo de la app</div>
-        <div class="alert alert-info" style="margin-bottom:1.25rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Descargá un archivo con <strong>todo</strong> lo cargado (combos, rolls, semielaborados, sushimanes, insumos, marcas y usuarios) para guardarlo como respaldo o restaurarlo más adelante.</span>
-        </div>
-        <div class="row" style="gap:10px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="downloadBackup()" id="backupBtn">
-            <i class="ti ti-download"></i> Descargar respaldo completo
-          </button>
-          <button class="btn" onclick="document.getElementById('fileRestore').click()">
-            <i class="ti ti-upload"></i> Restaurar desde un respaldo
-          </button>
-          <input type="file" id="fileRestore" class="hidden" accept=".json" onchange="restoreBackup(event)">
-        </div>
-        <div id="restoreResult" class="hidden" style="margin-top:1rem"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Importar recetas desde Excel</div>
-        <div class="alert alert-info" style="margin-bottom:1.25rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Usá los templates oficiales. Si el nombre ya existe se <strong>actualiza</strong>, si es nuevo se <strong>agrega</strong>.</span>
-        </div>
-        <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;align-items:start">
-          <div>
-            <div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Subí <strong>recetas_rolls.xlsx</strong></div>
-            <div class="drop" id="dropRolls" style="padding:1.5rem"
-              onclick="document.getElementById('fileRolls').click()"
-              ondrop="handleImportDrop(event,'rolls')"
-              ondragover="event.preventDefault();this.classList.add('over')"
-              ondragleave="this.classList.remove('over')">
-              <i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
-              <div style="font-size:13px;font-weight:500">recetas_rolls.xlsx</div>
-              <div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>
-            </div>
-            <input type="file" id="fileRolls" class="hidden" accept=".xlsx,.xls" onchange="importFile(event,'rolls')">
-          </div>
-          <div id="resultRolls" class="hidden">
-            <div style="font-size:13px;font-weight:600;margin-bottom:.5rem">Resultado</div>
-            <div id="resultRollsBody"></div>
-          </div>
-        </div>
-        <div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
-          <div>
-            <div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Subí <strong>recetas_semielaborados.xlsx</strong></div>
-            <div class="drop" id="dropSemi" style="padding:1.5rem"
-              onclick="document.getElementById('fileSemi').click()"
-              ondrop="handleImportDrop(event,'semielaborados')"
-              ondragover="event.preventDefault();this.classList.add('over')"
-              ondragleave="this.classList.remove('over')">
-              <i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
-              <div style="font-size:13px;font-weight:500">recetas_semielaborados.xlsx</div>
-              <div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>
-            </div>
-            <input type="file" id="fileSemi" class="hidden" accept=".xlsx,.xls" onchange="importFile(event,'semielaborados')">
-          </div>
-          <div id="resultSemi" class="hidden">
-            <div style="font-size:13px;font-weight:600;margin-bottom:.5rem">Resultado</div>
-            <div id="resultSemiBody"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<div class="modal-bg hidden" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-hdr">
-      <div class="modal-title" id="modalTitle"></div>
-      <button class="modal-close-btn" onclick="closeModal()" title="Cerrar" aria-label="Cerrar">&times;</button>
-    </div>
-    <div class="modal-body" id="modalBody"></div>
-    <div class="modal-foot" id="modalFoot"></div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
-const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
-window.CURRENT_USER_EMAIL = {{ user_email|tojson }};
-// ═══════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════
-const ST = {
-  step:1, prevStep:1,
-  sales:[], adj:{}, globalPct:100,
-  production:[], insumos:{}, semis:[], otrosVenta:[],
-  schedule:null, editingGrid:false, scheduleBackup:null,
-  combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[], categoriasInsumos:[], zonasAlmacenamiento:[], proveedores:[], rolloBlancoGrupos:[], rollosBlancos:[],
-  locales:[], currentLocalId:null, currentPlanillaId:null, historial:[],
-  dividirPlanilla:false, remainingProduction:null, combinedProduction:null, viewMode:'separado',
-  dailySm:{}
-};
-
-const INSUMO_LABELS = {
-  salmon:'Salmón',queso:'Queso crema',palta:'Palta',langos:'Langostinos rebozados',
-  algas:'Algas',arroz:'Arroz',grill:'Grill',tartar:'Tartar de salmón',
-  kanikama:'Kanikama',batata:'Hilos de batata',guac:'Guacamole',
-  spicy:'Salsa spicy',okinawa:'Manga okinawa',salmonCrispy:'Salmón crispy'
-};
-const INSUMO_KEYS = Object.keys(INSUMO_LABELS);
-
-// ═══════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
-  document.getElementById('todayDate').textContent =
-    new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  await loadConfig();
-});
-
-async function loadConfig() {
-  try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales] = await Promise.all([
-      fetch('/api/combos').then(r=>r.json()),
-      fetch('/api/rolls').then(r=>r.json()),
-      fetch('/api/semielaborados').then(r=>r.json()),
-      fetch('/api/sushimanes').then(r=>r.json()),
-      fetch('/api/insumos').then(r=>r.json()),
-      fetch('/api/marcas').then(r=>r.json()),
-      fetch('/api/familias').then(r=>r.json()),
-      fetch('/api/otros-productos').then(r=>r.json()),
-      fetch('/api/equivalencias').then(r=>r.json()),
-      fetch('/api/categorias-insumos').then(r=>r.json()),
-      fetch('/api/zonas-almacenamiento').then(r=>r.json()),
-      fetch('/api/proveedores').then(r=>r.json()),
-      fetch('/api/rollo-blanco-grupos').then(r=>r.json()),
-      fetch('/api/locales').then(r=>r.json()),
-    ]);
-    ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
-    ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
-    ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
-    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales;
-    setupLocalSelector();
-    const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-    const hoyNombre = DIAS_SEMANA[new Date().getDay()];
-    sms.forEach(s=>{
-      if(!ST.dailySm[s.id]) {
-        const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
-        ST.dailySm[s.id]={avail: s.active && !esFrancoHoy, prod:s.productivity, ingreso: s.horario_ingreso||''};
-      }
-    });
-    if (IS_ADMIN) {
-      ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
+    # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
+    insumo_cols = get_columns('insumos')
+    insumo_new_cols = {
+        'categoria': "ALTER TABLE insumos ADD COLUMN categoria TEXT",
+        'es_80_20': "ALTER TABLE insumos ADD COLUMN es_80_20 INTEGER NOT NULL DEFAULT 0",
+        'comentario': "ALTER TABLE insumos ADD COLUMN comentario TEXT",
+        'marca_producto': "ALTER TABLE insumos ADD COLUMN marca_producto TEXT",
+        'marca_tipo': "ALTER TABLE insumos ADD COLUMN marca_tipo TEXT",
+        'zona_almacenamiento': "ALTER TABLE insumos ADD COLUMN zona_almacenamiento TEXT",
+        'proveedor_principal_id': "ALTER TABLE insumos ADD COLUMN proveedor_principal_id INTEGER",
+        'proveedor_alt1_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt1_id INTEGER",
+        'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
     }
-  } catch(e){ console.error('loadConfig',e); }
-}
+    for col, stmt in insumo_new_cols.items():
+        if col not in insumo_cols:
+            c.execute(stmt)
 
-// ═══════════════════════════════════════════════════════
-// NAVIGATION
-// ═══════════════════════════════════════════════════════
-function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',admin:'mainAdmin'};
-  Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
-  document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
-  const navEl=document.getElementById('mni-'+name);
-  if(navEl) navEl.classList.add('active');
-  ST.mainSection=name;
-  if(name==='productos') renderComboCfg();
-  if(name==='recetas') renderRollCfg();
-  if(name==='insumos') renderInsumoCfg();
-  if(name==='equivalencias'){ renderEquivalenciaCfg(); }
-  if(name==='admin') renderUsuarioCfg();
-}
+    conn.commit()
 
-function showProdSubTab(id, el) {
-  document.getElementById('prodFlowTab').classList.toggle('hidden', id!=='flow');
-  document.getElementById('prodSmTab').classList.toggle('hidden', id!=='sm');
-  document.getElementById('prodHistTab').classList.toggle('hidden', id!=='hist');
-  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  if(id==='sm') renderSmCfg();
-  if(id==='hist') renderHistorialCfg();
-}
+    # Seed if empty
+    if c.execute('SELECT COUNT(*) AS cnt FROM rolls').fetchone()['cnt'] == 0:
+        seed_path = os.path.join(os.path.dirname(__file__), 'data', 'seed.json')
+        if os.path.exists(seed_path):
+            with open(seed_path) as f:
+                seed = json.load(f)
+            for roll in seed.get('rolls', []):
+                c.execute('INSERT INTO rolls (name, insumos) VALUES (?,?) ON CONFLICT (name) DO NOTHING',
+                          (roll['name'], json.dumps(roll['insumos'])))
+            for combo in seed.get('combos', []):
+                c.execute('INSERT INTO combos (name, family, rolls) VALUES (?,?,?) ON CONFLICT (name) DO NOTHING',
+                          (combo['name'], combo['family'], json.dumps(combo['rolls'])))
+            for semi in seed.get('semielaborados', []):
+                c.execute('INSERT INTO semielaborados (name, insumo_key, unit, rolls) VALUES (?,?,?,?) ON CONFLICT (name) DO NOTHING',
+                          (semi['name'], semi['insumo_key'], semi['unit'], json.dumps(semi['rolls'])))
+            seed_local = c.execute('SELECT id FROM locales ORDER BY id LIMIT 1').fetchone()
+            seed_local_id = seed_local['id'] if seed_local else None
+            for sm in seed.get('sushimanes', []):
+                c.execute('INSERT INTO sushimanes (name, productivity, local_id) VALUES (?,?,?) ON CONFLICT (name, local_id) DO NOTHING',
+                          (sm['name'], sm['productivity'], seed_local_id))
+            for ins in seed.get('insumos', []):
+                c.execute('''INSERT INTO insumos
+                    (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad)
+                    VALUES (?,?,?,?,?,?) ON CONFLICT (key) DO NOTHING''',
+                    (ins['key'], ins['label'], ins['unidad_receta'],
+                     ins['unidad_resumen'], ins['factor_conversion'], ins.get('precio_unidad')))
+            conn.commit()
+    conn.close()
 
-function setupLocalSelector() {
-  const wrap = document.getElementById('localSelectorWrap');
-  const sel = document.getElementById('localSelector');
-  if (ST.locales.length <= 1) {
-    wrap.classList.add('hidden');
-    ST.currentLocalId = ST.locales.length ? ST.locales[0].id : null;
-    return;
-  }
-  wrap.classList.remove('hidden');
-  if (!ST.currentLocalId || !ST.locales.some(l=>l.id===ST.currentLocalId)) {
-    ST.currentLocalId = ST.locales[0].id;
-  }
-  sel.innerHTML = ST.locales.map(l=>`<option value="${l.id}" ${l.id===ST.currentLocalId?'selected':''}>${l.name}</option>`).join('');
-}
-function onLocalChange() {
-  ST.currentLocalId = parseInt(document.getElementById('localSelector').value);
-  renderSmCfg();
-  renderHistorialCfg();
-}
+# ── Auth helpers ─────────────────────────────────────────────────────────
+def login_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_email' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'No autenticado'}), 401
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated
 
-function goStep(n) {
-  if(n>1&&n<6&&!ST.sales.length) return;
-  ST.prevStep=ST.step; ST.step=n;
-  for(let i=1;i<=5;i++){
-    document.getElementById('s'+i).classList.toggle('hidden',i!==n);
-    const si=document.getElementById('si'+i);
-    if(!si) continue;
-    si.className='step'+(i===n?' active':i<n?' done nav':'');
-    if(i<n) si.onclick=()=>goStep(i);
-    else si.onclick=null;
-  }
-  if(n===2) renderSales();
-  if(n===4) renderProduction();
-  if(n===5) renderSmList();
-}
+def admin_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_email' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'No autenticado'}), 401
+            return redirect('/login')
+        if session.get('user_role') != 'admin':
+            return jsonify({'error': 'Requiere permisos de administrador'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
-function showTab(id, el) {
-  const tabBar=el.closest('.tabs');
-  const idsInThisBar=[...tabBar.querySelectorAll('.tab')].map(t=>{
-    const m=(t.getAttribute('onclick')||'').match(/showTab\('(\w+)'/);
-    return m ? m[1] : null;
-  }).filter(Boolean);
-  idsInThisBar.forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
-  tabBar.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  if(id==='tc') renderComboCfg();
-  if(id==='tr') renderRollCfg();
-  if(id==='trbg') renderRolloBlancoGrupoCfg();
-  if(id==='tpor') renderPorcionesCfg();
-  if(id==='tens') renderEnsaladasCfg();
-  if(id==='tent') renderEntradasCfg();
-  if(id==='tplc') renderPlatosCalientesCfg();
-  if(id==='ts') renderSemiCfg();
-  if(id==='tin') renderInsumoCfg();
-  if(id==='tcat') renderCategoriaCfg();
-  if(id==='tzon') renderZonaCfg();
-  if(id==='tprov') renderProveedorCfg();
-  if(id==='tma') renderMarcaCfg();
-  if(id==='tfa') renderFamiliaCfg();
-  if(id==='teq') renderEquivalenciaCfg();
-  if(id==='tus') renderUsuarioCfg();
-  if(id==='tloc') renderLocalCfg();
-}
+import traceback
 
-// ═══════════════════════════════════════════════════════
-// FILE LOADING (sales)
-// ═══════════════════════════════════════════════════════
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('dropZone').classList.remove('over');
-  if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
-}
-function loadFile(e){ if(e.target.files[0]) processFile(e.target.files[0]); }
+@app.errorhandler(Exception)
+def handle_error(e):
+    if request.path.startswith('/api/'):
+        traceback.print_exc()  # queda en los logs de Railway para diagnostico
+        return jsonify({'error': f'Error interno: {e}'}), 500
+    raise e
 
-function processFile(file) {
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try {
-      const wb=XLSX.read(ev.target.result,{type:'binary'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const data=XLSX.utils.sheet_to_json(ws,{header:1});
-      const rows=data.filter(r=>r.length>=2);
-      const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+# ── Auth routes ──────────────────────────────────────────────────────────
+@app.route('/debug/env')
+def debug_env():
+    """Ruta temporal de diagnostico. Borrar despues de resolver el problema de login."""
+    def mask(val, keep_start=12, keep_end=8):
+        if not val:
+            return 'NO CONFIGURADA (vacia o None)'
+        val = str(val)
+        if len(val) <= keep_start + keep_end:
+            return f'(muy corta, {len(val)} caracteres) {val[:3]}...'
+        return f'{val[:keep_start]}...{val[-keep_end:]}  (longitud total: {len(val)})'
 
-      // Código: primera columna que contenga "cod"
-      const ci=hdr.findIndex(h=>h.includes('cod'));
+    client_id = os.environ.get('GOOGLE_CLIENT_ID')
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    secret_key = os.environ.get('FLASK_SECRET_KEY')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    db_url = os.environ.get('DATABASE_URL')
 
-      // Producto: preferir coincidencia EXACTA con "producto" (evita confundir con "producto id")
-      let ni=hdr.findIndex(h=>h==='producto');
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+    db_status = 'NO CONFIGURADA — la app no puede guardar datos de forma persistente sin esto'
+    db_conn_test = 'N/A'
+    if db_url:
+        db_status = mask(db_url, keep_start=15, keep_end=10)
+        try:
+            test_conn = get_db()
+            test_conn.execute('SELECT 1')
+            test_conn.close()
+            db_conn_test = 'OK — se pudo conectar y ejecutar una consulta de prueba'
+        except Exception as e:
+            db_conn_test = f'ERROR al conectar: {e}'
 
-      // Cantidad: preferir "1/2 porciones" o "porciones" exacto (formato habitual del sistema de ventas),
-      // y solo si no aparece, caer a la búsqueda genérica anterior (cant/qty/venta/total)
-      let qi=hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('total'));
+    lines = [
+        f"DATABASE_URL: {db_status}",
+        f"  -> prueba de conexion: {db_conn_test}",
+        "",
+        f"GOOGLE_CLIENT_ID: {mask(client_id)}",
+        f"  -> termina en .apps.googleusercontent.com: {str(client_id).strip().endswith('.apps.googleusercontent.com') if client_id else 'N/A'}",
+        f"  -> tiene espacios al inicio/final sin recortar: {(client_id != client_id.strip()) if client_id else 'N/A'}",
+        "",
+        f"GOOGLE_CLIENT_SECRET: {'CONFIGURADA (longitud ' + str(len(client_secret)) + ')' if client_secret else 'NO CONFIGURADA'}",
+        "",
+        f"FLASK_SECRET_KEY: {'CONFIGURADA' if secret_key else 'NO CONFIGURADA (usando valor por defecto, inseguro)'}",
+        "",
+        f"ADMIN_EMAIL: {admin_email if admin_email else 'NO CONFIGURADA'}",
+        "",
+        f"URL de callback que la app va a pedirle a Google: {url_for('auth_callback', _external=True)}",
+    ]
+    return "<pre style='font-family:monospace;font-size:14px;padding:20px'>" + "\n".join(lines) + "</pre>"
 
-      if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
-      const grp={};
-      let ignoradas=0;
+@app.route('/login')
+def login_page():
+    if 'user_email' in session:
+        return redirect('/')
+    return render_template('login.html')
 
-      function addToGroup(key, name, family, matched, qty) {
-        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
-        // Si el mismo código viene con nombres distintos entre filas (típico de datos
-        // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
-        // (el más largo) en vez de congelarnos con el primero que aparezca.
-        else if(!matched && name && name.length>grp[key].name.length) grp[key].name=name;
-        grp[key].qty+=qty;
-      }
+@app.route('/auth/google')
+def auth_google():
+    redirect_uri = url_for('auth_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
 
-      rows.slice(1).forEach(r=>{
-        const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
-        const rawName=ni>=0?(r[ni]||'').toString().trim():code;
-        const qtyRaw=parseFloat(r[qi])||0;
-        if(!qtyRaw) return;
+@app.route('/auth/callback')
+def auth_callback():
+    token = google.authorize_access_token()
+    user_info = token.get('userinfo')
+    if not user_info or not user_info.get('email'):
+        return render_template('login.html', error='No se pudo verificar tu cuenta de Google. Intentá de nuevo.')
 
-        const foundCombo=findCombo(code,rawName);
-        if(foundCombo){
-          // Coincidencia directa (o por código de venta) con un combo existente
-          const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-          addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
-          return;
+    email = user_info['email'].strip().lower()
+    conn = get_db()
+    user = conn.execute('SELECT * FROM usuarios WHERE email=?', (email,)).fetchone()
+    conn.close()
+
+    if not user or not user['active']:
+        return render_template('login.html',
+            error=f'La cuenta {email} no tiene acceso autorizado. Pedile a un administrador que te agregue.')
+
+    session['user_email'] = email
+    session['user_name'] = user_info.get('name', email)
+    session['user_picture'] = user_info.get('picture', '')
+    session['user_role'] = user['role']
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+# ── Routes ────────────────────────────────────────────────────────────────
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html',
+        is_admin=(session.get('user_role')=='admin'),
+        user_name=session.get('user_name',''),
+        user_email=session.get('user_email',''),
+        user_picture=session.get('user_picture',''))
+
+# ── Usuarios (solo admin) ──
+@app.route('/api/usuarios', methods=['GET'])
+@admin_required
+def get_usuarios():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM usuarios ORDER BY email').fetchall()
+    locales_rows = conn.execute('SELECT usuario_id, local_id FROM usuario_locales').fetchall()
+    conn.close()
+    locales_por_usuario = {}
+    for lr in locales_rows:
+        locales_por_usuario.setdefault(lr['usuario_id'], []).append(lr['local_id'])
+    return jsonify([{'id': r['id'], 'email': r['email'], 'nombre': r['nombre'],
+                     'role': r['role'], 'active': bool(r['active']),
+                     'locales': locales_por_usuario.get(r['id'], [])} for r in rows])
+
+def _set_usuario_locales(conn, usuario_id, local_ids):
+    conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
+    for lid in (local_ids or []):
+        conn.execute('INSERT INTO usuario_locales (usuario_id, local_id) VALUES (?,?) ON CONFLICT DO NOTHING', (usuario_id, lid))
+
+@app.route('/api/usuarios', methods=['POST'])
+@admin_required
+def create_usuario():
+    data = request.json
+    email = data['email'].strip().lower()
+    conn = get_db()
+    try:
+        cur = conn.execute('INSERT INTO usuarios (email, nombre, role, active, created_at) VALUES (?,?,?,?,?) RETURNING id',
+                     (email, data.get('nombre',''), data.get('role','user'),
+                      int(data.get('active', True)), datetime.now().isoformat()))
+        new_id = cur.fetchone()['id']
+        _set_usuario_locales(conn, new_id, data.get('locales', []))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese email ya está registrado'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
+@admin_required
+def update_usuario(usuario_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE usuarios SET email=?, nombre=?, role=?, active=? WHERE id=?',
+                     (data['email'].strip().lower(), data.get('nombre',''), data.get('role','user'),
+                      int(data.get('active', True)), usuario_id))
+        _set_usuario_locales(conn, usuario_id, data.get('locales', []))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese email ya está registrado en otro usuario'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['DELETE'])
+@admin_required
+def delete_usuario(usuario_id):
+    conn = get_db()
+    # Evitar que el admin se borre a si mismo y se quede afuera
+    row = conn.execute('SELECT email FROM usuarios WHERE id=?', (usuario_id,)).fetchone()
+    if row and row['email'] == session.get('user_email'):
+        conn.close()
+        return jsonify({'error': 'No podés eliminar tu propio usuario mientras estás conectado'}), 400
+    conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
+    conn.execute('DELETE FROM usuarios WHERE id=?', (usuario_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Locales ──
+@app.route('/api/locales', methods=['GET'])
+@login_required
+def get_locales():
+    allowed = get_user_local_ids()
+    conn = get_db()
+    if allowed is None:
+        rows = conn.execute('SELECT * FROM locales ORDER BY name').fetchall()
+    elif not allowed:
+        rows = []
+    else:
+        placeholders = ','.join('?' * len(allowed))
+        rows = conn.execute(f'SELECT * FROM locales WHERE id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active'])} for r in rows])
+
+@app.route('/api/locales', methods=['POST'])
+@admin_required
+def create_local():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO locales (name, active) VALUES (?,?)', (data['name'].strip(), int(data.get('active', True))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un local con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/locales/<int:local_id>', methods=['PUT'])
+@admin_required
+def update_local(local_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE locales SET name=?, active=? WHERE id=?',
+                     (data['name'].strip(), int(data.get('active', True)), local_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro local con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/locales/<int:local_id>', methods=['DELETE'])
+@admin_required
+def delete_local(local_id):
+    conn = get_db()
+    n_planillas = conn.execute('SELECT COUNT(*) AS cnt FROM planillas WHERE local_id=?', (local_id,)).fetchone()['cnt']
+    if n_planillas > 0:
+        conn.close()
+        return jsonify({'error': f'Este local tiene {n_planillas} planilla(s) guardadas — no se puede eliminar. Podés desactivarlo en cambio.'}), 400
+    conn.execute('DELETE FROM usuario_locales WHERE local_id=?', (local_id,))
+    conn.execute('UPDATE sushimanes SET local_id=NULL WHERE local_id=?', (local_id,))
+    conn.execute('DELETE FROM locales WHERE id=?', (local_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Respaldo completo (backup / restore) — solo admin ──────────────────────
+@app.route('/api/backup', methods=['GET'])
+@admin_required
+def backup_data():
+    conn = get_db()
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales']
+    data = {'version': 1, 'exported_at': datetime.now().isoformat()}
+    for table in TABLES:
+        rows = conn.execute(f'SELECT * FROM {table}').fetchall()
+        data[table] = [dict(r) for r in rows]
+    conn.close()
+
+    resp = jsonify(data)
+    filename = f'backup_sushi_{datetime.now().strftime("%Y%m%d_%H%M")}.json'
+    resp.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    return resp
+
+@app.route('/api/restore', methods=['POST'])
+@admin_required
+def restore_data():
+    data = request.json
+    if not data or 'version' not in data:
+        return jsonify({'error': 'El archivo no parece ser un respaldo válido'}), 400
+
+    conn = get_db()
+    counts = {}
+
+    def upsert(table, rows, unique_col, insert_cols):
+        n = 0
+        for row in rows:
+            key_val = row.get(unique_col)
+            if key_val is None:
+                continue
+            existing = conn.execute(f'SELECT id FROM {table} WHERE {unique_col}=?', (key_val,)).fetchone()
+            values = [row.get(c) for c in insert_cols]
+            if existing:
+                set_clause = ', '.join(f'{c}=?' for c in insert_cols)
+                conn.execute(f'UPDATE {table} SET {set_clause} WHERE id=?', values + [existing['id']])
+            else:
+                cols_clause = ', '.join(insert_cols)
+                placeholders = ', '.join('?' for _ in insert_cols)
+                conn.execute(f'INSERT INTO {table} ({cols_clause}) VALUES ({placeholders})', values)
+            n += 1
+        return n
+
+    counts['combos'] = upsert('combos', data.get('combos', []), 'name',
+                               ['name', 'family', 'rolls', 'marcas'])
+    # Backups viejos (de antes de agregar "piezas por rollo") no tienen este campo;
+    # les asignamos 14 por defecto para no romper la restauracion.
+    for r in data.get('rolls', []):
+        if r.get('piezas_por_rollo') is None:
+            r['piezas_por_rollo'] = 14
+    counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
+                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo'])
+    counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
+                              ['name', 'insumo_key', 'unit', 'rolls', 'receta',
+                               'rendimiento_cantidad', 'rendimiento_unidad', 'marcas',
+                               'tiempo_elaboracion_min', 'vida_util_dias'])
+    for sm in data.get('sushimanes', []):
+        if sm.get('dias_franco') is None:
+            sm['dias_franco'] = '[]'
+        elif isinstance(sm['dias_franco'], list):
+            sm['dias_franco'] = json.dumps(sm['dias_franco'])
+    counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
+                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'local_id'])
+    # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
+    for i in data.get('insumos', []):
+        if i.get('es_80_20') is None:
+            i['es_80_20'] = False
+    counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
+                              ['key', 'label', 'unidad_receta', 'unidad_resumen',
+                               'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
+                               'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
+                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id'])
+    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
+    counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
+                              ['email', 'nombre', 'role', 'active', 'created_at'])
+    counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
+    for p in data.get('otros_productos', []):
+        if p.get('rolls') is None:
+            p['rolls'] = '{}'
+    counts['otros_productos'] = upsert('otros_productos', data.get('otros_productos', []), 'name',
+                              ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls'])
+    counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
+    counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
+    counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
+    counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
+    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active'])
+
+    # usuario_locales: clave compuesta, reemplazo completo simple (igual que equivalencias)
+    ul_rows = data.get('usuario_locales', [])
+    conn.execute('DELETE FROM usuario_locales')
+    n_ul = 0
+    for ul in ul_rows:
+        if ul.get('usuario_id') is None or ul.get('local_id') is None:
+            continue
+        conn.execute('INSERT INTO usuario_locales (usuario_id, local_id) VALUES (?,?) ON CONFLICT DO NOTHING',
+                     (ul['usuario_id'], ul['local_id']))
+        n_ul += 1
+    counts['usuario_locales'] = n_ul
+
+
+    # Equivalencias: clave compuesta (tipo, nombre_alias), no calza con el helper 'upsert' generico.
+    # Reemplazo completo simple: borramos todo y volvemos a insertar lo que venga en el backup.
+    equiv_rows = data.get('equivalencias', [])
+    conn.execute('DELETE FROM equivalencias')
+    n_equiv = 0
+    for e in equiv_rows:
+        if not e.get('nombre_alias'):
+            continue
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (e['tipo'], e['nombre_canonico'], e['nombre_alias'], e.get('marca', ''), e.get('factor') or 1.0))
+        n_equiv += 1
+    counts['equivalencias'] = n_equiv
+
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'counts': counts})
+
+# ── Familias ──
+@app.route('/api/familias', methods=['GET'])
+@login_required
+def get_familias():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM familias ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/familias', methods=['POST'])
+@admin_required
+def create_familia():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO familias (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa familia ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/familias/<int:familia_id>', methods=['PUT'])
+@admin_required
+def update_familia(familia_id):
+    data = request.json
+    conn = get_db()
+    old = conn.execute('SELECT name FROM familias WHERE id=?', (familia_id,)).fetchone()
+    new_name = data['name'].strip()
+    try:
+        conn.execute('UPDATE familias SET name=? WHERE id=?', (new_name, familia_id))
+        # Si se renombra, actualizamos las referencias existentes en combos y otros_productos
+        if old and old['name'] != new_name:
+            conn.execute('UPDATE combos SET family=? WHERE family=?', (new_name, old['name']))
+            conn.execute('UPDATE otros_productos SET familia=? WHERE familia=?', (new_name, old['name']))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra familia con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/familias/<int:familia_id>', methods=['DELETE'])
+@admin_required
+def delete_familia(familia_id):
+    conn = get_db()
+    conn.execute('DELETE FROM familias WHERE id=?', (familia_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
+@app.route('/api/otros-productos', methods=['GET'])
+@login_required
+def get_otros_productos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM otros_productos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'tipo': r['tipo'],
+                     'familia': r['familia'], 'insumos': json.loads(r['insumos']),
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'rolls': json.loads(r['rolls'] or '{}')} for r in rows])
+
+@app.route('/api/otros-productos', methods=['POST'])
+@admin_required
+def create_otro_producto():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls) VALUES (?,?,?,?,?,?)',
+                     (data['name'], data.get('tipo','porcion'), data.get('familia',''),
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
+                      json.dumps(data.get('rolls', {}))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un producto con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/otros-productos/<int:producto_id>', methods=['PUT'])
+@admin_required
+def update_otro_producto(producto_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=?, rolls=? WHERE id=?',
+                     (data['name'], data.get('tipo','porcion'), data.get('familia',''),
+                      json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
+                      json.dumps(data.get('rolls', {})), producto_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro producto con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/otros-productos/<int:producto_id>', methods=['DELETE'])
+@admin_required
+def delete_otro_producto(producto_id):
+    conn = get_db()
+    conn.execute('DELETE FROM otros_productos WHERE id=?', (producto_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Equivalencias (mismo producto, distinto nombre por marca) ──
+@app.route('/api/equivalencias', methods=['GET'])
+@login_required
+def get_equivalencias():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM equivalencias ORDER BY tipo, nombre_canonico, nombre_alias').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'nombre_canonico': r['nombre_canonico'],
+                     'nombre_alias': r['nombre_alias'], 'marca': r['marca'],
+                     'factor': r['factor'] if r['factor'] is not None else 1.0} for r in rows])
+
+@app.route('/api/equivalencias', methods=['POST'])
+@admin_required
+def create_equivalencia():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''),
+                      data.get('factor', 1.0) or 1.0))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese alias ya está usado para otro producto de ese tipo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/equivalencias/<int:equiv_id>', methods=['PUT'])
+@admin_required
+def update_equivalencia(equiv_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE equivalencias SET tipo=?, nombre_canonico=?, nombre_alias=?, marca=?, factor=? WHERE id=?',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''),
+                      data.get('factor', 1.0) or 1.0, equiv_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese alias ya está usado para otro producto de ese tipo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/equivalencias/<int:equiv_id>', methods=['DELETE'])
+@admin_required
+def delete_equivalencia(equiv_id):
+    conn = get_db()
+    conn.execute('DELETE FROM equivalencias WHERE id=?', (equiv_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/equivalencias/sync-producto', methods=['POST'])
+@admin_required
+def sync_equivalencias_producto():
+    """Reemplaza los códigos (sin marca, con factor) de UN producto puntual,
+    sin tocar los códigos de ningún otro producto ni los de la matriz por marca."""
+    data = request.json
+    tipo = data.get('tipo')
+    nombre_canonico = data.get('nombre_canonico')
+    codigos = data.get('codigos', [])  # [{codigo, factor}]
+    if tipo not in ('combo', 'roll', 'otro_producto') or not nombre_canonico:
+        return jsonify({'error': 'Datos inválidos'}), 400
+
+    conn = get_db()
+    conn.execute("""DELETE FROM equivalencias WHERE tipo=? AND nombre_canonico=?
+                    AND (marca IS NULL OR marca='')""", (tipo, nombre_canonico))
+    count = 0
+    for c in codigos:
+        codigo = (c.get('codigo') or '').strip()
+        if not codigo:
+            continue
+        factor = c.get('factor')
+        try:
+            factor = float(factor) if factor not in (None, '') else 1.0
+        except (TypeError, ValueError):
+            factor = 1.0
+        try:
+            conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                         (tipo, nombre_canonico, codigo, '', factor))
+            count += 1
+        except IntegrityError:
+            conn.rollback()
+            conn.close()
+            return jsonify({'error': f'El código "{codigo}" ya está usado en otro producto de ese tipo'}), 400
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'count': count})
+
+@app.route('/api/equivalencias/sync', methods=['POST'])
+@admin_required
+def sync_equivalencias():
+    """Reemplaza TODAS las equivalencias de un tipo (combo/roll/otro_producto)
+    con el estado actual de la matriz producto x marca que manda el frontend.
+    Las celdas vacias simplemente no generan fila."""
+    data = request.json
+    tipo = data.get('tipo')
+    entries = data.get('entries', [])  # [{nombre_canonico, marca, nombre_alias}]
+    if tipo not in ('combo', 'roll', 'otro_producto'):
+        return jsonify({'error': 'Tipo inválido'}), 400
+
+    conn = get_db()
+    # Solo tocamos las filas CON marca (las de esta matriz) — las que no tienen marca
+    # son códigos propios de cada producto (con o sin factor) y no se deben borrar acá.
+    conn.execute("DELETE FROM equivalencias WHERE tipo=? AND marca IS NOT NULL AND marca != ''", (tipo,))
+    count = 0
+    for e in entries:
+        alias = (e.get('nombre_alias') or '').strip()
+        if not alias:
+            continue
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (tipo, e['nombre_canonico'], alias, e.get('marca', ''), 1.0))
+        count += 1
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'count': count})
+
+# ── Categorías de insumos ──
+@app.route('/api/categorias-insumos', methods=['GET'])
+@login_required
+def get_categorias_insumos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM categorias_insumos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/categorias-insumos', methods=['POST'])
+@admin_required
+def create_categoria_insumo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO categorias_insumos (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa categoría ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/categorias-insumos/<int:cat_id>', methods=['PUT'])
+@admin_required
+def update_categoria_insumo(cat_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE categorias_insumos SET name=? WHERE id=?', (data['name'].strip(), cat_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa categoría ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/categorias-insumos/<int:cat_id>', methods=['DELETE'])
+@admin_required
+def delete_categoria_insumo(cat_id):
+    conn = get_db()
+    conn.execute('DELETE FROM categorias_insumos WHERE id=?', (cat_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Zonas de almacenamiento ──
+@app.route('/api/zonas-almacenamiento', methods=['GET'])
+@login_required
+def get_zonas_almacenamiento():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM zonas_almacenamiento ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/zonas-almacenamiento', methods=['POST'])
+@admin_required
+def create_zona_almacenamiento():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO zonas_almacenamiento (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa zona ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/zonas-almacenamiento/<int:zona_id>', methods=['PUT'])
+@admin_required
+def update_zona_almacenamiento(zona_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE zonas_almacenamiento SET name=? WHERE id=?', (data['name'].strip(), zona_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa zona ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/zonas-almacenamiento/<int:zona_id>', methods=['DELETE'])
+@admin_required
+def delete_zona_almacenamiento(zona_id):
+    conn = get_db()
+    conn.execute('DELETE FROM zonas_almacenamiento WHERE id=?', (zona_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Proveedores (con contactos) ──
+@app.route('/api/proveedores', methods=['GET'])
+@login_required
+def get_proveedores():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM proveedores ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'],
+                     'contactos': json.loads(r['contactos'] or '[]')} for r in rows])
+
+@app.route('/api/proveedores', methods=['POST'])
+@admin_required
+def create_proveedor():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO proveedores (name, contactos) VALUES (?,?)',
+                     (data['name'].strip(), json.dumps(data.get('contactos', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese proveedor ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/proveedores/<int:prov_id>', methods=['PUT'])
+@admin_required
+def update_proveedor(prov_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE proveedores SET name=?, contactos=? WHERE id=?',
+                     (data['name'].strip(), json.dumps(data.get('contactos', [])), prov_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese proveedor ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/proveedores/<int:prov_id>', methods=['DELETE'])
+@admin_required
+def delete_proveedor(prov_id):
+    conn = get_db()
+    # Desvincular este proveedor de cualquier insumo que lo tenga asignado, para no dejar referencias rotas
+    conn.execute('UPDATE insumos SET proveedor_principal_id=NULL WHERE proveedor_principal_id=?', (prov_id,))
+    conn.execute('UPDATE insumos SET proveedor_alt1_id=NULL WHERE proveedor_alt1_id=?', (prov_id,))
+    conn.execute('UPDATE insumos SET proveedor_alt2_id=NULL WHERE proveedor_alt2_id=?', (prov_id,))
+    conn.execute('DELETE FROM proveedores WHERE id=?', (prov_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Grupos de rollo blanco (rolls que comparten el mismo relleno) ──
+@app.route('/api/rollo-blanco-grupos', methods=['GET'])
+@login_required
+def get_rollo_blanco_grupos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM rollo_blanco_grupos ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/rollo-blanco-grupos', methods=['POST'])
+@admin_required
+def create_rollo_blanco_grupo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO rollo_blanco_grupos (name) VALUES (?)', (data['name'].strip(),))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese grupo ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rollo-blanco-grupos/<int:grupo_id>', methods=['PUT'])
+@admin_required
+def update_rollo_blanco_grupo(grupo_id):
+    data = request.json
+    conn = get_db()
+    old = conn.execute('SELECT name FROM rollo_blanco_grupos WHERE id=?', (grupo_id,)).fetchone()
+    new_name = data['name'].strip()
+    try:
+        conn.execute('UPDATE rollo_blanco_grupos SET name=? WHERE id=?', (new_name, grupo_id))
+        if old and old['name'] != new_name:
+            conn.execute('UPDATE rolls SET rollo_blanco_grupo=? WHERE rollo_blanco_grupo=?', (new_name, old['name']))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ese grupo ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rollo-blanco-grupos/<int:grupo_id>', methods=['DELETE'])
+@admin_required
+def delete_rollo_blanco_grupo(grupo_id):
+    conn = get_db()
+    row = conn.execute('SELECT name FROM rollo_blanco_grupos WHERE id=?', (grupo_id,)).fetchone()
+    if row:
+        conn.execute('UPDATE rolls SET rollo_blanco_grupo=NULL WHERE rollo_blanco_grupo=?', (row['name'],))
+    conn.execute('DELETE FROM rollo_blanco_grupos WHERE id=?', (grupo_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Rolls ──
+@app.route('/api/rolls', methods=['GET'])
+@login_required
+def get_rolls():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM rolls ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'],
+                     'insumos': json.loads(r['insumos']),
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'piezas_por_rollo': r['piezas_por_rollo'],
+                     'rollo_blanco_grupo': r['rollo_blanco_grupo']} for r in rows])
+
+@app.route('/api/rolls', methods=['POST'])
+@admin_required
+def create_roll():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo) VALUES (?,?,?,?,?)',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un roll con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rolls/<int:roll_id>', methods=['PUT'])
+@admin_required
+def update_roll(roll_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=? WHERE id=?',
+                     (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None, roll_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro roll con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/rolls/<int:roll_id>', methods=['DELETE'])
+@admin_required
+def delete_roll(roll_id):
+    conn = get_db()
+    conn.execute('DELETE FROM rolls WHERE id=?', (roll_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Combos ──
+@app.route('/api/combos', methods=['GET'])
+@login_required
+def get_combos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM combos ORDER BY family, name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'family': r['family'],
+                     'rolls': json.loads(r['rolls']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+
+@app.route('/api/combos', methods=['POST'])
+@admin_required
+def create_combo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO combos (name, family, rolls, marcas) VALUES (?,?,?,?)',
+                     (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', []))))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un combo con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/combos/<int:combo_id>', methods=['PUT'])
+@admin_required
+def update_combo(combo_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE combos SET name=?, family=?, rolls=?, marcas=? WHERE id=?',
+                     (data['name'], data['family'], json.dumps(data['rolls']), json.dumps(data.get('marcas', [])), combo_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro combo con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/combos/<int:combo_id>', methods=['DELETE'])
+@admin_required
+def delete_combo(combo_id):
+    conn = get_db()
+    conn.execute('DELETE FROM combos WHERE id=?', (combo_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Semielaborados ──
+@app.route('/api/semielaborados', methods=['GET'])
+@login_required
+def get_semielaborados():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM semielaborados ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'insumo_key': r['insumo_key'],
+                     'unit': r['unit'], 'rolls': json.loads(r['rolls']),
+                     'receta': json.loads(r['receta'] or '[]'),
+                     'rendimiento_cantidad': r['rendimiento_cantidad'],
+                     'rendimiento_unidad': r['rendimiento_unidad'],
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'tiempo_elaboracion_min': r['tiempo_elaboracion_min'],
+                     'vida_util_dias': r['vida_util_dias']} for r in rows])
+
+@app.route('/api/semielaborados', methods=['POST'])
+@admin_required
+def create_semi():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('''INSERT INTO semielaborados
+                        (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas,
+                         tiempo_elaboracion_min, vida_util_dias)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)''',
+                     (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                      json.dumps(data.get('receta', [])),
+                      data.get('rendimiento_cantidad', 0),
+                      data.get('rendimiento_unidad', 'g'),
+                      json.dumps(data.get('marcas', [])),
+                      data.get('tiempo_elaboracion_min') or None,
+                      data.get('vida_util_dias') or None))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un semielaborado con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/semielaborados/<int:semi_id>', methods=['PUT'])
+@admin_required
+def update_semi(semi_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
+                        receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=?,
+                        tiempo_elaboracion_min=?, vida_util_dias=? WHERE id=?''',
+                     (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
+                      json.dumps(data.get('receta', [])),
+                      data.get('rendimiento_cantidad', 0),
+                      data.get('rendimiento_unidad', 'g'),
+                      json.dumps(data.get('marcas', [])),
+                      data.get('tiempo_elaboracion_min') or None,
+                      data.get('vida_util_dias') or None, semi_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro semielaborado con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/semielaborados/<int:semi_id>', methods=['DELETE'])
+@admin_required
+def delete_semi(semi_id):
+    conn = get_db()
+    conn.execute('DELETE FROM semielaborados WHERE id=?', (semi_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Locales: helpers de acceso ──
+def get_user_local_ids():
+    """None = sin restriccion (admin, ve todos). Si no, lista de ids permitidos."""
+    if session.get('user_role') == 'admin':
+        return None
+    conn = get_db()
+    rows = conn.execute('''SELECT ul.local_id FROM usuario_locales ul
+                            JOIN usuarios u ON u.id=ul.usuario_id
+                            WHERE u.email=?''', (session['user_email'],)).fetchall()
+    conn.close()
+    return [r['local_id'] for r in rows]
+
+def user_has_local_access(local_id):
+    if session.get('user_role') == 'admin':
+        return True
+    if local_id is None:
+        return False
+    allowed = get_user_local_ids()
+    return local_id in (allowed or [])
+
+# ── Sushimanes ──
+@app.route('/api/sushimanes', methods=['GET'])
+@login_required
+def get_sushimanes():
+    allowed = get_user_local_ids()
+    conn = get_db()
+    if allowed is None:
+        rows = conn.execute('SELECT * FROM sushimanes ORDER BY name').fetchall()
+    elif not allowed:
+        rows = []
+    else:
+        placeholders = ','.join('?' * len(allowed))
+        rows = conn.execute(f'SELECT * FROM sushimanes WHERE local_id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'],
+                     'productivity': r['productivity'],
+                     'active': bool(r['active']),
+                     'dias_franco': json.loads(r['dias_franco'] or '[]'),
+                     'horario_ingreso': r['horario_ingreso'],
+                     'local_id': r['local_id']} for r in rows])
+
+@app.route('/api/sushimanes', methods=['POST'])
+@login_required
+def create_sushiman():
+    data = request.json
+    local_id = data.get('local_id')
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, local_id) VALUES (?,?,?,?,?)',
+                     (data['name'], data.get('productivity', 10),
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, local_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un sushiman con ese nombre en ese local'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sushimanes/<int:sm_id>', methods=['PUT'])
+@login_required
+def update_sushiman(sm_id):
+    data = request.json
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM sushimanes WHERE id=?', (sm_id,)).fetchone()
+    if not existing or not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    try:
+        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=? WHERE id=?',
+                     (data['name'], data['productivity'], int(data.get('active', True)),
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, sm_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro sushiman con ese nombre en ese local'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sushimanes/<int:sm_id>', methods=['DELETE'])
+@login_required
+def delete_sushiman(sm_id):
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM sushimanes WHERE id=?', (sm_id,)).fetchone()
+    if not existing or not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn.execute('DELETE FROM sushimanes WHERE id=?', (sm_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Marcas ──
+@app.route('/api/marcas', methods=['GET'])
+@login_required
+def get_marcas():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM marcas ORDER BY name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+
+@app.route('/api/marcas', methods=['POST'])
+@admin_required
+def create_marca():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Esa marca ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/<int:marca_id>', methods=['PUT'])
+@admin_required
+def update_marca(marca_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE marcas SET name=? WHERE id=?', (data['name'], marca_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra marca con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/<int:marca_id>', methods=['DELETE'])
+@admin_required
+def delete_marca(marca_id):
+    conn = get_db()
+    conn.execute('DELETE FROM marcas WHERE id=?', (marca_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Insumos (tabla maestra de unidades) ──
+@app.route('/api/insumos', methods=['GET'])
+@login_required
+def get_insumos():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM insumos ORDER BY label').fetchall()
+    conn.close()
+    return jsonify([{
+        'id': r['id'], 'key': r['key'], 'label': r['label'],
+        'unidad_receta': r['unidad_receta'], 'unidad_resumen': r['unidad_resumen'],
+        'factor_conversion': r['factor_conversion'], 'precio_unidad': r['precio_unidad'],
+        'categoria': r['categoria'], 'es_80_20': bool(r['es_80_20']), 'comentario': r['comentario'],
+        'marca_producto': r['marca_producto'], 'marca_tipo': r['marca_tipo'],
+        'zona_almacenamiento': r['zona_almacenamiento'],
+        'proveedor_principal_id': r['proveedor_principal_id'],
+        'proveedor_alt1_id': r['proveedor_alt1_id'],
+        'proveedor_alt2_id': r['proveedor_alt2_id'],
+    } for r in rows])
+
+@app.route('/api/insumos', methods=['POST'])
+@admin_required
+def create_insumo():
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
+                        categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                     (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
+                      data['factor_conversion'], data.get('precio_unidad'),
+                      data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
+                      data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id')))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un insumo con esa clave'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/insumos/<int:ins_id>', methods=['PUT'])
+@admin_required
+def update_insumo(ins_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
+                        factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
+                        marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
+                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=? WHERE id=?''',
+                     (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
+                      data['factor_conversion'], data.get('precio_unidad'),
+                      data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
+                      data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      ins_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro insumo con esa clave'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/insumos/<int:ins_id>', methods=['DELETE'])
+@admin_required
+def delete_insumo(ins_id):
+    conn = get_db()
+    conn.execute('DELETE FROM insumos WHERE id=?', (ins_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Calcular producción ──
+@app.route('/api/calcular', methods=['POST'])
+@login_required
+def calcular():
+    body       = request.json
+    sales      = body.get('sales', [])
+    adj        = body.get('adjustments', {})
+    adj_mode   = body.get('adjMode', 'pct')
+    global_pct = body.get('globalPct', 100)
+
+    conn = get_db()
+    combos_db = {r['name']: json.loads(r['rolls'])
+                 for r in conn.execute('SELECT name, rolls FROM combos').fetchall()}
+    rolls_db  = {r['name']: json.loads(r['insumos'])
+                 for r in conn.execute('SELECT name, insumos FROM rolls').fetchall()}
+    roll_piezas_db = {r['name']: r['piezas_por_rollo']
+                 for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
+    roll_grupo_db = {r['name']: r['rollo_blanco_grupo']
+                 for r in conn.execute('SELECT name, rollo_blanco_grupo FROM rolls').fetchall()}
+    otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos']), 'rolls': json.loads(r['rolls'] or '{}')}
+                 for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
+    semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
+    insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+
+    # Equivalencias: mismo producto, distinto nombre segun la marca que lo vendio
+    def norm(s):
+        return (s or '').lower().replace(' ', '').replace('-', '').replace('_', '')
+
+    equiv_rows = conn.execute('SELECT tipo, nombre_canonico, nombre_alias, factor FROM equivalencias').fetchall()
+    equiv_combo = {norm(r['nombre_alias']): (r['nombre_canonico'], r['factor'] or 1.0) for r in equiv_rows if r['tipo'] == 'combo'}
+    equiv_otro  = {norm(r['nombre_alias']): (r['nombre_canonico'], r['factor'] or 1.0) for r in equiv_rows if r['tipo'] == 'otro_producto'}
+    equiv_roll  = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'roll'}
+    conn.close()
+
+    roll_totals = {}
+    otros_totals = {}  # nombre -> {tipo, qty}
+    direct_insumo_totals = {}  # insumos que vienen DIRECTO de "otros productos" (no de rolls)
+
+    for s in sales:
+        factor = 1.0
+        combo = combos_db.get(s['name']) or combos_db.get(s['code'])
+        if not combo:
+            name_lower = s['name'].lower().replace(' ', '')
+            for cname, crolls in combos_db.items():
+                if cname.lower().replace(' ', '') == name_lower:
+                    combo = crolls
+                    break
+        if not combo:
+            # Ver si el nombre/codigo es un codigo/alias conocido para un combo existente
+            equiv_match = equiv_combo.get(norm(s['name'])) or equiv_combo.get(norm(s['code']))
+            if equiv_match:
+                canonico, factor = equiv_match
+                combo = combos_db.get(canonico)
+
+        otro = None
+        if not combo:
+            # No es combo: ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+            otro = otros_db.get(s['name']) or otros_db.get(s['code'])
+            if not otro:
+                name_lower = s['name'].lower().replace(' ', '')
+                for pname, pdata in otros_db.items():
+                    if pname.lower().replace(' ', '') == name_lower:
+                        otro = pdata
+                        break
+            if not otro:
+                # Ver si el nombre/codigo es un codigo/alias conocido para un producto existente
+                equiv_match = equiv_otro.get(norm(s['name'])) or equiv_otro.get(norm(s['code']))
+                if equiv_match:
+                    canonico, factor = equiv_match
+                    otro = otros_db.get(canonico)
+
+        if not combo and not otro:
+            # No matchea ningun combo ni otro producto por ningun medio: se ignora por completo
+            continue
+
+        # El factor (si vino de un codigo con equivalencia, ej "UPS"=0.5) se aplica sobre
+        # la cantidad base, ANTES de los ajustes por porcentaje/valor fijo y el % global.
+        effective_qty = s['qty'] * factor
+        a = adj.get(s['code'], 0)
+        adj_qty = max(0, round(effective_qty + (effective_qty * a / 100 if adj_mode == 'pct' else a)))
+        final_qty = round(adj_qty * global_pct / 100)
+        if final_qty <= 0:
+            continue
+
+        if combo:
+            for roll_name, piezas in combo.items():
+                if not piezas:
+                    continue
+                roll_name = equiv_roll.get(norm(roll_name), roll_name)
+                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
+                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
+                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
+            continue
+
+        if otro:
+            key = None
+            for pname, pdata in otros_db.items():
+                if pdata is otro:
+                    key = pname
+                    break
+            if key:
+                if key not in otros_totals:
+                    otros_totals[key] = {'tipo': otro['tipo'], 'qty': 0}
+                otros_totals[key]['qty'] += final_qty
+            for k, v in otro['insumos'].items():
+                if v:
+                    direct_insumo_totals[k] = direct_insumo_totals.get(k, 0) + v * final_qty
+            for roll_name, piezas in otro.get('rolls', {}).items():
+                if not piezas:
+                    continue
+                roll_name = equiv_roll.get(norm(roll_name), roll_name)
+                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
+                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
+                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
+
+    production = sorted(
+        [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
+          'piezas': v * (roll_piezas_db.get(k, 14) or 14)} for k, v in roll_totals.items() if v > 0],
+        key=lambda x: -x['qty']
+    )
+
+    # Rollos blancos: agrupa los rolls que comparten el mismo relleno (misma base,
+    # distinta cobertura) para poder armarlos todos juntos y despues diferenciar.
+    grupos_blancos = {}
+    for p in production:
+        grupo = roll_grupo_db.get(p['name'])
+        if grupo:
+            grupos_blancos.setdefault(grupo, []).append({'name': p['name'], 'qty': p['qty']})
+    rollos_blancos_out = sorted(
+        [{'grupo': g, 'rolls': rolls, 'totalQty': sum(r['qty'] for r in rolls)}
+         for g, rolls in grupos_blancos.items()],
+        key=lambda x: -x['totalQty']
+    )
+
+    otros_productos_out = sorted(
+        [{'name': k, 'tipo': v['tipo'], 'qty': v['qty']} for k, v in otros_totals.items() if v['qty'] > 0],
+        key=lambda x: -x['qty']
+    )
+
+    # Insumos — usar tabla maestra para labels/unidades si existe
+    FALLBACK_LABELS = {
+        'salmon':'Salmón','queso':'Queso crema','palta':'Palta',
+        'langos':'Langostinos rebozados','algas':'Algas','arroz':'Arroz',
+        'grill':'Grill','tartar':'Tartar de salmón','kanikama':'Kanikama',
+        'batata':'Hilos de batata','guac':'Guacamole','spicy':'Salsa spicy',
+        'okinawa':'Manga okinawa','salmonCrispy':'Salmón crispy'
+    }
+    insumo_totals = {}
+    semi_keys_set = {s['insumo_key'] for s in semis_db}  # se muestran aparte, en "Semielaborados"
+    for r in production:
+        recipe = rolls_db.get(r['name'], {})
+        for k, v in recipe.items():
+            if v and k not in semi_keys_set:
+                insumo_totals[k] = insumo_totals.get(k, 0) + v * r['qty']
+    # Sumar tambien lo que aportan directo los "otros productos"
+    for k, v in direct_insumo_totals.items():
+        if k not in semi_keys_set:
+            insumo_totals[k] = insumo_totals.get(k, 0) + v
+
+    insumos_out = {}
+    for k, total in sorted(insumo_totals.items(), key=lambda x: -x[1]):
+        master = insumos_master.get(k)
+        if master:
+            label = master['label']
+            factor = master['factor_conversion']
+            unidad_resumen = master['unidad_resumen']
+            converted = total * factor
+            display = f"{round(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
+        else:
+            label = FALLBACK_LABELS.get(k, k)
+            unit = 'hojas' if k == 'algas' else ('u' if k == 'langos' else 'g')
+            if unit == 'g':
+                display = f"{round(total)} g / {total/1000:.2f} kg"
+            elif unit == 'hojas':
+                display = f"{total:.1f} hojas"
+            else:
+                display = f"{round(total)} u"
+        insumos_out[k] = {
+            'label': label,
+            'total': round(total, 1) if total < 100 else round(total),
+            'display': display
         }
 
-        // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-        const foundOtro=findOtroProducto(code,rawName);
-        if(foundOtro){
-          const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
-          addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
-          return;
-        }
+    # Semielaborados — se detectan automáticamente según qué rolls producidos
+    # (o "otros productos": porciones, ensaladas, entradas, platos calientes)
+    # incluyen su insumo_key en su receta (no depende de una lista manual)
+    semis_by_key = {s['insumo_key']: s['name'] for s in semis_db}
 
-        // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
-        // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
-        // Separamos por "+" y tratamos de matchear cada parte por separado.
-        if(rawName.includes('+')){
-          const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
-          if(parts.length > 1){
-            const matchedParts = parts.map(p=>findCombo('', p));
-            if(matchedParts.every(m=>m)){
-              // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
-              matchedParts.forEach(m=>{
-                const key = m.match.name.toLowerCase().replace(/\s+/g,'');
-                addToGroup(key, m.match.name, m.match.family, true, qtyRaw*m.factor);
-              });
-              return;
+    def resolve_ing(ing):
+        """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
+        el formato: nuevo (con 'key' hacia insumos/semielaborados) o viejo (texto libre)."""
+        if ing.get('key'):
+            k = ing['key']
+            master = insumos_master.get(k)
+            if master:
+                return {'nombre': master['label'], 'unidad': master['unidad_receta'], 'cantidad': ing['cantidad']}
+            semi_name = semis_by_key.get(k)
+            if semi_name:
+                return {'nombre': semi_name + ' (elaborado)', 'unidad': 'g', 'cantidad': ing['cantidad']}
+            return {'nombre': k, 'unidad': ing.get('unidad', 'g'), 'cantidad': ing['cantidad']}
+        return {'nombre': ing.get('nombre', '?'), 'unidad': ing.get('unidad', 'g'), 'cantidad': ing['cantidad']}
+
+    semis_out = []
+    for semi in semis_db:
+        total = 0
+        used_in = []
+        for prod in production:
+            recipe = rolls_db.get(prod['name'], {})
+            amt = recipe.get(semi['insumo_key'], 0)
+            if amt:
+                total += amt * prod['qty']
+                used_in.append(prod['name'])
+        for otro in otros_productos_out:
+            recipe = otros_db.get(otro['name'], {}).get('insumos', {})
+            amt = recipe.get(semi['insumo_key'], 0)
+            if amt:
+                total += amt * otro['qty']
+                used_in.append(otro['name'])
+        if total > 0:
+            unit = semi['unit']
+            display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
+                       else f"{round(total)} u")
+
+            semi_out = {
+                'name': semi['name'],
+                'usedIn': ', '.join(used_in),
+                'display': display,
+                'total': round(total)
             }
-          }
+
+            # Si tiene receta cargada, calcular lotes e ingredientes crudos
+            receta = json.loads(semi['receta'] or '[]')
+            rend_cant = semi['rendimiento_cantidad'] or 0
+            rend_unid = semi['rendimiento_unidad'] or unit
+            if receta and rend_cant > 0:
+                scale = total / rend_cant
+                batches = -(-scale // 1)  # ceil
+                semi_out['receta'] = {
+                    'rendimiento_cantidad': rend_cant,
+                    'rendimiento_unidad': rend_unid,
+                    'lotes_necesarios': int(batches),
+                    'escala_exacta': round(scale, 2),
+                    'ingredientes': [
+                        {
+                            'nombre': resolve_ing(ing)['nombre'],
+                            'cantidad_receta': ing['cantidad'],
+                            'unidad': resolve_ing(ing)['unidad'],
+                            'cantidad_total': round(ing['cantidad'] * scale, 1)
+                        } for ing in receta
+                    ]
+                }
+            semis_out.append(semi_out)
+
+    return jsonify({
+        'production': production,
+        'insumos': insumos_out,
+        'semis': semis_out,
+        'otrosProductos': otros_productos_out,
+        'rollosBlancos': rollos_blancos_out
+    })
+
+# ── Generar PDF ──
+# ── Planillas (historial de producción por local) ──
+@app.route('/api/planillas', methods=['GET'])
+@login_required
+def get_planillas():
+    allowed = get_user_local_ids()
+    local_filter = request.args.get('local_id')
+    conn = get_db()
+    where = []
+    params = []
+    if allowed is not None:
+        if not allowed:
+            conn.close()
+            return jsonify([])
+        placeholders = ','.join('?' * len(allowed))
+        where.append(f'local_id IN ({placeholders})')
+        params.extend(allowed)
+    if local_filter:
+        where.append('local_id=?')
+        params.append(int(local_filter))
+    where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
+    rows = conn.execute(f'''SELECT id, local_id, fecha, estado, created_by, created_at, updated_at
+                            FROM planillas {where_sql} ORDER BY updated_at DESC LIMIT 200''', tuple(params)).fetchall()
+    locales = {l['id']: l['name'] for l in conn.execute('SELECT id, name FROM locales').fetchall()}
+    conn.close()
+    return jsonify([{'id': r['id'], 'local_id': r['local_id'], 'local_name': locales.get(r['local_id'], '?'),
+                     'fecha': r['fecha'], 'estado': r['estado'], 'created_by': r['created_by'],
+                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['GET'])
+@login_required
+def get_planilla(planilla_id):
+    conn = get_db()
+    row = conn.execute('SELECT * FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(row['local_id']):
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    return jsonify({'id': row['id'], 'local_id': row['local_id'], 'fecha': row['fecha'],
+                     'estado': row['estado'], 'data': json.loads(row['data'] or '{}'),
+                     'created_by': row['created_by'], 'created_at': str(row['created_at']),
+                     'updated_at': str(row['updated_at'])})
+
+@app.route('/api/planillas', methods=['POST'])
+@login_required
+def create_planilla():
+    data = request.json
+    local_id = data.get('local_id')
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    cur = conn.execute('''INSERT INTO planillas (local_id, fecha, estado, data, created_by, updated_at)
+                          VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) RETURNING id''',
+                 (local_id, data.get('fecha', datetime.now().strftime('%Y-%m-%d')),
+                  data.get('estado', 'borrador'), json.dumps(data.get('data', {})),
+                  session.get('user_email')))
+    new_id = cur.fetchone()['id']
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'id': new_id})
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['PUT'])
+@login_required
+def update_planilla(planilla_id):
+    data = request.json
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    conn.execute('''UPDATE planillas SET fecha=?, estado=?, data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 (data.get('fecha'), data.get('estado', 'borrador'), json.dumps(data.get('data', {})), planilla_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/planillas/<int:planilla_id>', methods=['DELETE'])
+@login_required
+def delete_planilla(planilla_id):
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM planillas WHERE id=?', (planilla_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso a esa planilla'}), 403
+    conn.execute('DELETE FROM planillas WHERE id=?', (planilla_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/pdf', methods=['POST'])
+@login_required
+def generar_pdf():
+    body = request.json
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp.close()
+    build_pdf(body, tmp.name)
+    date_str = body.get('date', datetime.now().strftime('%d-%m-%Y'))
+    return send_file(tmp.name, as_attachment=True,
+                     download_name=f'produccion_{date_str}.pdf',
+                     mimetype='application/pdf')
+
+# ── Importar recetas desde Excel ──────────────────────────────────────────
+@app.route('/api/importar/rolls', methods=['POST'])
+@admin_required
+def importar_rolls():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    file = request.files['file']
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx o .xls'}), 400
+
+    try:
+        from openpyxl import load_workbook
+        tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+        file.save(tmp.name)
+        tmp.close()
+
+        wb = load_workbook(tmp.name, data_only=True)
+        os.unlink(tmp.name)
+
+        ws = None
+        for name in wb.sheetnames:
+            if 'ROLL' in name.upper():
+                ws = wb[name]
+                break
+        if not ws:
+            return jsonify({'error': 'No se encontró la solapa ROLLS en el archivo'}), 400
+
+        headers = []
+        for cell in ws[3]:
+            v = cell.value
+            headers.append(str(v).strip() if v else '')
+
+        HEADER_MAP = {
+            'salmón (g)':'salmon','salmon (g)':'salmon',
+            'queso crema (g)':'queso','queso (g)':'queso',
+            'palta (g)':'palta',
+            'langostinos (u)':'langos','langostinos rebozados (u)':'langos',
+            'algas (hojas)':'algas',
+            'arroz (g)':'arroz',
+            'grill (g)':'grill',
+            'tartar salmón (g)':'tartar','tartar salmon (g)':'tartar','tartar (g)':'tartar',
+            'kanikama (g)':'kanikama',
+            'batata (g)':'batata','hilos de batata (g)':'batata',
+            'guacamole (g)':'guac','guac (g)':'guac',
+            'salsa spicy (g)':'spicy','spicy (g)':'spicy',
+            'manga okinawa (g)':'okinawa','okinawa (g)':'okinawa',
+            'atún (g)':'atun','atun (g)':'atun',
+            'camarón (g)':'camaron','camaron (g)':'camaron',
+            'mayonesa (g)':'mayonesa','ciboulette (g)':'ciboulette',
+            'pepino (g)':'pepino','zanahoria (g)':'zanahoria',
+            'pimiento (g)':'pimiento','cream cheese (g)':'cream_cheese',
+            'nori extra (hojas)':'nori','sésamo (g)':'sesamo','sesamo (g)':'sesamo',
         }
 
-        // No matcheó ningún producto por ningún medio (ni directo, ni código de venta,
-        // ni combinación de combos): se ignora por completo, no se muestra ni se cuenta.
-        ignoradas++;
-      });
-      ST.sales=Object.values(grp).filter(s=>s.qty>0);
-      let msg=`${file.name} — ${ST.sales.length} productos cargados`;
-      if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
-      showStatus('success',msg);
-      ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
-      guardarProgresoPlanilla('borrador');
-      setTimeout(()=>goStep(2),500);
-    } catch(err){ showStatus('warn','Error al leer el archivo. Probá exportar como .csv'); }
-  };
-  reader.readAsBinaryString(file);
-}
-
-function findCombo(code, name) {
-  const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
-  let match = ST.combos.find(c=>n(c.name)===n(code)||n(c.name)===n(name));
-  if (match) return {match, factor:1};
-  const equiv = ST.equivalencias.find(e=>e.tipo==='combo' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-  if (equiv) {
-    match = ST.combos.find(c=>n(c.name)===n(equiv.nombre_canonico));
-    if (match) return {match, factor: equiv.factor||1};
-  }
-  return null;
-}
-function findOtroProducto(code, name) {
-  const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
-  let match = ST.otrosProductos.find(p=>n(p.name)===n(code)||n(p.name)===n(name));
-  if (match) return {match, factor:1};
-  const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-  if (equiv) {
-    match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
-    if (match) return {match, factor: equiv.factor||1};
-  }
-  return null;
-}
-
-function showStatus(type,msg) {
-  const el=document.getElementById('fStatus');
-  el.className=`alert alert-${type==='success'?'success':'warn'}`;
-  el.innerHTML=`<i class="ti ti-${type==='success'?'circle-check':'alert-triangle'}"></i><span>${msg}</span>`;
-  el.classList.remove('hidden');
-}
-
-// ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
-function loadManual() {
-  if (!ST.combos.length && !ST.otrosProductos.length) { alert('No hay combos ni otros productos configurados todavía. Cargalos en Configuración.'); return; }
-  const comboEntries = ST.combos.map(c => ({
-    code: c.name.toLowerCase().replace(/\s+/g,''),
-    name: c.name,
-    qty: 0,
-    family: c.family,
-    matched: true
-  }));
-  const otroEntries = ST.otrosProductos.map(p => ({
-    code: 'op_'+p.name.toLowerCase().replace(/\s+/g,''),
-    name: p.name,
-    qty: 0,
-    family: p.familia || 'Otros',
-    matched: true
-  }));
-  ST.sales = [...comboEntries, ...otroEntries];
-  ST.adj = {};
-  showStatus('success', `${ST.sales.length} productos listos para completar cantidades`);
-  ST.currentPlanillaId = null; // nueva carga = nueva planilla
-  guardarProgresoPlanilla('borrador');
-  setTimeout(() => {
-    goStep(2);
-    // Default to "cantidad" mode so typing a number directly sets the quantity (base venta is 0)
-    const modeSel = document.getElementById('adjMode');
-    if (modeSel) { modeSel.value = 'qty'; renderSales(); }
-  }, 300);
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 2
-// ═══════════════════════════════════════════════════════
-function renderSales() {
-  const mode=document.getElementById('adjMode').value;
-  const byFam={};
-  ST.sales.forEach(s=>(byFam[s.family]||(byFam[s.family]=[])).push(s));
-  let h=`<table><thead><tr><th>Producto</th><th style="text-align:right">Venta</th><th style="width:140px">Ajuste</th><th style="text-align:right">Resultado</th></tr></thead><tbody>`;
-  for(const [fam,items] of Object.entries(byFam)){
-    h+=`<tr class="fam-row"><td colspan="4"><span class="badge b-blue">${fam}</span></td></tr>`;
-    items.forEach(s=>{
-      const adj=ST.adj[s.code]||0;
-      const res=Math.max(0,Math.round(s.qty+(mode==='pct'?s.qty*adj/100:adj)));
-      h+=`<tr>
-        <td>${s.name}${!s.matched?'<span class="badge b-warn" style="margin-left:6px">sin receta</span>':''}</td>
-        <td style="text-align:right">${s.qty}</td>
-        <td><div class="row">
-          <input type="number" value="${adj}" style="width:65px" onchange="ST.adj['${s.code}']=parseFloat(this.value)||0;renderSales()">
-          <span style="font-size:12px;color:var(--text3)">${mode==='pct'?'%':'und'}</span>
-        </div></td>
-        <td style="text-align:right;font-weight:700">${res}</td>
-      </tr>`;
-    });
-  }
-  h+='</tbody></table>';
-  document.getElementById('salesTbl').innerHTML=h;
-}
-
-function getAdjQty(s) {
-  const mode=document.getElementById('adjMode')?.value||'pct';
-  const adj=ST.adj[s.code]||0;
-  return Math.max(0, Math.round(s.qty+(mode==='pct'?s.qty*adj/100:adj)));
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 3
-// ═══════════════════════════════════════════════════════
-function onGPctChange() {
-  const gPct = parseInt(document.getElementById('gPct').value);
-  const wrap = document.getElementById('dividirPlanillaWrap');
-  if (gPct < 100) {
-    wrap.classList.remove('hidden');
-    document.getElementById('dividirPctChosen').textContent = gPct;
-    document.getElementById('dividirPctResto').textContent = 100 - gPct;
-  } else {
-    wrap.classList.add('hidden');
-    document.getElementById('dividirPlanilla').checked = false;
-  }
-}
-
-async function doConfirm() {
-  const btn=document.getElementById('btnConfirm');
-  btn.innerHTML='<span class="loader" style="border-top-color:#fff"></span> Calculando...'; btn.disabled=true;
-  const gPct=parseInt(document.getElementById('gPct').value);
-  ST.globalPct=gPct;
-  try {
-    const res=await fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
-    const data=await res.json();
-    if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
-    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[];
-
-    // Si eligió dividir en 2 planillas, calculamos aparte la produccion del % restante
-    // (solo para MOSTRAR como referencia — no pasa por el resto del flujo)
-    ST.dividirPlanilla = document.getElementById('dividirPlanilla').checked && gPct < 100;
-    ST.remainingProduction = null;
-    ST.combinedProduction = null;
-    ST.viewMode = 'separado';
-    if (ST.dividirPlanilla) {
-      const restoPct = 100 - gPct;
-      const adjModeVal = document.getElementById('adjMode').value;
-      const [resRestante, resJunto] = await Promise.all([
-        fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:adjModeVal,globalPct:restoPct})}),
-        fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:adjModeVal,globalPct:100})})
-      ]);
-      const dataRestante = await resRestante.json();
-      const dataJunto = await resJunto.json();
-      if (resRestante.ok) {
-        ST.remainingProduction = {
-          pct: restoPct,
-          production: dataRestante.production, insumos: dataRestante.insumos, semis: dataRestante.semis,
-          otrosVenta: dataRestante.otrosProductos||[], rollosBlancos: dataRestante.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
-        };
-      }
-      if (resJunto.ok) {
-        ST.combinedProduction = {
-          production: dataJunto.production, insumos: dataJunto.insumos, semis: dataJunto.semis,
-          otrosVenta: dataJunto.otrosProductos||[], rollosBlancos: dataJunto.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
-        };
-      }
-    }
-    const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-    const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
-    const tiempoEstimado = Math.ceil(totR / 35);
-    document.getElementById('sumMetrics').innerHTML=`
-      <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
-      <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
-      <div class="metric"><div class="metric-lbl">Tiempo estimado de producción</div><div class="metric-val">${tiempoEstimado} hs</div></div>
-      <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
-    let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
-    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
-    h+='</tbody></table>';
-    document.getElementById('sumRolls').innerHTML=h;
-    guardarProgresoPlanilla('borrador');
-    goStep(3);
-  } catch(e){ alert('Error al calcular: ' + e.message); }
-  finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 4
-// ═══════════════════════════════════════════════════════
-// Arma el HTML de rolls/insumos/semis/otros/combos a partir de un dataset de produccion
-// (se reutiliza tanto para la vista principal como para "produccion restante" y "todo junto")
-function buildProductionTablesHtml(prod) {
-  const totR=prod.production.reduce((s,r)=>s+r.qty,0);
-  const totPiezas=prod.production.reduce((s,r)=>s+r.piezas,0);
-  let rh='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th><th style="text-align:right">Corte</th></tr></thead><tbody>';
-  prod.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td><td style="text-align:right;color:var(--text3);font-size:11px">${r.piezasPorRollo}/rollo</td></tr>`);
-  rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totPiezas}</td><td></td></tr></tbody></table>`;
-
-  let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">Total</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
-  Object.entries(prod.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.total}</td><td style="text-align:right;color:var(--text2)">${v.display}</td></tr>`);
-  ih+='</tbody></table>';
-
-  let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad necesaria</th></tr></thead><tbody>';
-  if(prod.semis.length) {
-    prod.semis.forEach(s=>{
-      sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
-      if(s.receta) {
-        sh+=`<tr><td colspan="3" style="padding:0;border-bottom:none">
-          <div style="background:var(--warn-bg);margin:4px 0 8px;padding:10px 14px;border-radius:var(--rsm);border:1px solid #e6d5a0">
-            <div style="font-size:12px;font-weight:700;color:#7a5500;margin-bottom:6px">
-              <i class="ti ti-clipboard-list"></i> Preparar ${s.receta.lotes_necesarios} lote(s) de receta
-              <span style="font-weight:400;font-size:11px">(escala exacta: ${s.receta.escala_exacta}× — rendimiento base: ${s.receta.rendimiento_cantidad} ${s.receta.rendimiento_unidad})</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${s.receta.ingredientes.map(i=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px">
-                <strong>${i.nombre}</strong>: ${i.cantidad_total} ${i.unidad}
-              </div>`).join('')}
-            </div>
-          </div>
-        </td></tr>`;
-      }
-    });
-  }
-  else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
-  sh+='</tbody></table>';
-
-  let oh='<table><thead><tr><th>Producto</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  if(prod.otrosVenta.length) {
-    prod.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
-  } else {
-    oh+='<tr><td colspan="3" class="empty">No hay otros productos en esta producción</td></tr>';
-  }
-  oh+='</tbody></table>';
-
-  let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  (prod.combos||[]).forEach(c=>{ if(c.qty>0) ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`; });
-  ch+='</tbody></table>';
-
-  let bh='';
-  if (prod.rollosBlancos && prod.rollosBlancos.length) {
-    prod.rollosBlancos.forEach(g=>{
-      const detalle = g.rolls.map(r=>`${r.name} (${r.qty})`).join(' + ');
-      bh += `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-        <div style="font-weight:700;margin-bottom:4px">${g.grupo}</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">${detalle}</div>
-        <div style="font-size:14px"><span style="color:var(--text3)">Total:</span> <span style="font-weight:700;font-size:16px">${g.totalQty} rollos blancos</span></div>
-      </div>`;
-    });
-  }
-  return {rollsHtml:rh, insumosHtml:ih, semisHtml:sh, otrosHtml:oh, combosHtml:ch, rollosBlancosHtml:bh, hasRollosBlancos: !!(prod.rollosBlancos && prod.rollosBlancos.length)};
-}
-
-function setVistaProduccion(modo) {
-  ST.viewMode = modo;
-  document.querySelectorAll('.vista-prod-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('vistaProd_'+modo).classList.add('active');
-  renderProduction();
-}
-
-function renderProduction() {
-  const combosPrincipal = ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
-  const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
-  const mainData = usarJunto
-    ? ST.combinedProduction
-    : {production:ST.production, insumos:ST.insumos, semis:ST.semis, otrosVenta:ST.otrosVenta, rollosBlancos:ST.rollosBlancos, combos:combosPrincipal};
-
-  const built = buildProductionTablesHtml(mainData);
-  document.getElementById('rollsTbl').innerHTML=built.rollsHtml;
-  document.getElementById('insumosTbl').innerHTML=built.insumosHtml;
-  document.getElementById('semiTbl').innerHTML=built.semisHtml;
-  document.getElementById('otrosTbl').innerHTML=built.otrosHtml;
-  document.getElementById('combosTbl').innerHTML=built.combosHtml;
-  const rbCard = document.getElementById('rollosBlancosCard');
-  if (built.hasRollosBlancos) { rbCard.classList.remove('hidden'); document.getElementById('rollosBlancosTbl').innerHTML = built.rollosBlancosHtml; }
-  else rbCard.classList.add('hidden');
-
-  const vistaSwitch = document.getElementById('vistaProdSwitch');
-  const remCard = document.getElementById('remainingProdCard');
-  if (ST.dividirPlanilla && ST.remainingProduction) {
-    vistaSwitch.classList.remove('hidden');
-    document.getElementById('vistaProd_separado').textContent = `Separado (${ST.globalPct}% / ${ST.remainingProduction.pct}%)`;
-    if (ST.viewMode === 'separado') {
-      remCard.classList.remove('hidden');
-      document.getElementById('remainingProdPct').textContent = `(${ST.remainingProduction.pct}%)`;
-      const builtRem = buildProductionTablesHtml(ST.remainingProduction);
-      document.getElementById('remainingRollsTbl').innerHTML = builtRem.rollsHtml;
-      document.getElementById('remainingInsumosTbl').innerHTML = builtRem.insumosHtml;
-      document.getElementById('remainingSemiTbl').innerHTML = builtRem.semisHtml;
-      document.getElementById('remainingOtrosTbl').innerHTML = builtRem.otrosHtml;
-      document.getElementById('remainingCombosTbl').innerHTML = builtRem.combosHtml;
-    } else {
-      remCard.classList.add('hidden');
-    }
-  } else {
-    vistaSwitch.classList.add('hidden');
-    remCard.classList.add('hidden');
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 5 — Planning
-// ═══════════════════════════════════════════════════════
-function onGridModeChange() {
-  const mode = document.querySelector('input[name="gridMode"]:checked').value;
-  const section = document.getElementById('manualTandasSection');
-  if (mode === 'semi') {
-    section.classList.remove('hidden');
-    renderManualTandasTable();
-  } else {
-    section.classList.add('hidden');
-  }
-}
-function renderManualTandasTable() {
-  let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Total a producir</th><th style="text-align:center;width:110px">Tandas</th><th style="text-align:right">Rolls por tanda</th></tr></thead><tbody>';
-  ST.production.forEach(r=>{
-    const sugerido = r.qty<50 ? 1 : 1+Math.floor(r.qty/50); // sugerencia inicial, editable
-    h+=`<tr data-roll="${r.name}"><td style="font-weight:600">${r.name}</td>
-      <td style="text-align:right">${r.qty}</td>
-      <td style="text-align:center"><input type="number" class="tanda-input" value="${sugerido}" min="1" max="${r.qty}" style="width:70px;text-align:center" data-qty="${r.qty}" oninput="updateTandaCalc(this)"></td>
-      <td style="text-align:right;font-weight:700" class="tanda-result">${Math.ceil(r.qty/sugerido)}</td>
-    </tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.production.length) h='<div class="empty">No hay producción calculada todavía.</div>';
-  document.getElementById('manualTandasTbl').innerHTML=h;
-}
-function updateTandaCalc(input) {
-  const qty=parseInt(input.dataset.qty)||0;
-  let tandas=parseInt(input.value)||1;
-  if(tandas<1) tandas=1;
-  const resultCell=input.closest('tr').querySelector('.tanda-result');
-  resultCell.textContent=Math.ceil(qty/tandas);
-}
-function getManualTandaCounts() {
-  const counts={};
-  document.querySelectorAll('#manualTandasTbl tr[data-roll]').forEach(row=>{
-    const name=row.dataset.roll;
-    const input=row.querySelector('.tanda-input');
-    counts[name]=Math.max(1,parseInt(input.value)||1);
-  });
-  return counts;
-}
-
-function renderSmList() {
-  let h='';
-  const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const hoyNombre = DIAS_SEMANA[new Date().getDay()];
-  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
-  lista.forEach(s=>{
-    const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity,ingreso:s.horario_ingreso||''};
-    const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
-    h+=`<div class="chk-row">
-      <input type="checkbox" id="sm${s.id}" ${d.avail?'checked':''}
-        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},avail:this.checked}">
-      <div class="avatar">${s.name.slice(0,2).toUpperCase()}</div>
-      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}${esFrancoHoy?' <span class="badge b-warn" style="font-size:10px">Franco hoy</span>':''}</label>
-      <span style="font-size:12px;color:var(--text3)">Ingreso</span>
-      <input type="time" value="${d.ingreso||''}" style="width:110px" step="1800"
-        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},ingreso:this.value}">
-      <input type="number" value="${d.prod}" style="width:60px" min="1" max="50"
-        onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},prod:parseInt(this.value)||8}">
-      <span style="font-size:12px;color:var(--text3)">rolls/h</span>
-    </div>`;
-  });
-  document.getElementById('smList').innerHTML=h||'<div class="empty">No hay sushimanes configurados para este local.</div>';
-}
-
-function addTempSm() {
-  const name=prompt('Nombre del sushiman:');
-  if(!name) return;
-  const id='tmp_'+Date.now();
-  ST.sushimanes.push({id,name,productivity:8,active:true});
-  ST.dailySm[id]={avail:true,prod:8};
-  renderSmList();
-}
-
-const fmt=m=>`${String(Math.floor(((m%1440)+1440)%1440/60)).padStart(2,'0')}:${String(((m%60)+60)%60).padStart(2,'0')}`;
-const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
-
-function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
-  const hours=Array.from({length:prodH},(_,i)=>({label:`${fmt(startMins+i*60)}-${fmt(startMins+(i+1)*60)}`, startMins:startMins+i*60}));
-
-  // Cuantas horas trabaja cada sushiman (segun su horario de ingreso) y su presupuesto
-  // NOMINAL (promedio x horas) — se usa solo para decidir a quien darle cada tanda,
-  // no como techo final (ver mas abajo).
-  const workedIdx={}, nominalBudget={};
-  avail.forEach(sm=>{
-    const ingreso=ST.dailySm[sm.id]?.ingreso;
-    const ingresoMins=ingreso?toMins(ingreso):null;
-    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
-    workedIdx[sm.id]=hours.map((h,i)=>i).filter(i=>!ingresoMins||hours[i].startMins>=ingresoMins);
-    nominalBudget[sm.id]=prod*workedIdx[sm.id].length;
-  });
-
-  // Armar las "tandas": si vienen tandas elegidas a mano (modo semi automatico) se
-  // usan tal cual; si no, se calculan automaticamente (menos de 50 = una sola tanda,
-  // 50 o mas suma otra tanda, y cada 50 adicionales suma una tanda mas). Cada tanda
-  // se asigna ENTERA a un solo sushiman — nunca se reparte una tanda entre dos personas.
-  let tandas=[];
-  ST.production.forEach(r=>{
-    const numTandas = manualTandaCounts?.[r.name] || (r.qty<50 ? 1 : 1+Math.floor(r.qty/50));
-    const base=Math.floor(r.qty/numTandas);
-    let remainder=r.qty-base*numTandas;
-    for(let i=0;i<numTandas;i++){
-      const size=base+(i<remainder?1:0);
-      if(size>0) tandas.push({name:r.name, qty:size});
-    }
-  });
-  tandas.sort((a,b)=>b.qty-a.qty); // las tandas mas grandes se reparten primero (balanceo tipo "greedy")
-
-  // Repartir cada tanda completa al sushiman que en ese momento tenga mas presupuesto libre
-  const remainingBudget={...nominalBudget};
-  const assignedTandas={};
-  avail.forEach(sm=>{ assignedTandas[sm.id]=[]; });
-  tandas.forEach(tanda=>{
-    let bestSm=null, bestBudget=-Infinity;
-    avail.forEach(sm=>{ if(remainingBudget[sm.id]>bestBudget){ bestBudget=remainingBudget[sm.id]; bestSm=sm; } });
-    if(!bestSm) return;
-    assignedTandas[bestSm.id].push(tanda);
-    remainingBudget[bestSm.id]-=tanda.qty;
-  });
-
-  // El objetivo por hora se recalcula en base a lo que CADA UNO realmente tiene
-  // asignado (no el presupuesto nominal), para que nunca se pierdan unidades si
-  // a alguien le toco una tanda mas grande que su promedio habitual.
-  const hourlyTarget={};
-  avail.forEach(sm=>{
-    const actualTotal=assignedTandas[sm.id].reduce((s,t)=>s+t.qty,0);
-    const idxs=workedIdx[sm.id];
-    const n=idxs.length;
-    const targets=new Array(hours.length).fill(0);
-    if(n>0 && actualTotal>0){
-      const base=Math.floor(actualTotal/n);
-      let remainder=actualTotal-base*n;
-      idxs.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
-    }
-    hourlyTarget[sm.id]=targets;
-  });
-
-  // Distribuir las tandas de cada sushiman a lo largo de sus horas de trabajo,
-  // respetando su objetivo por hora. Una tanda puede ocupar mas de una hora
-  // de la MISMA persona si hace falta, pero nunca pasa a otra persona.
-  const hourAssign=hours.map(()=>({}));
-  avail.forEach(sm=>{
-    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
-    const smallThreshold=Math.max(5,Math.round(prod*0.15)); // resto chico: mejor cerrar la tanda ahora que dejarlo suelto
-    const tandaQueue=[...assignedTandas[sm.id]];
-    let currentName=null, currentLeft=0, carryOver=0;
-    hours.forEach((hour,hi)=>{
-      const ingreso=ST.dailySm[sm.id]?.ingreso;
-      if(ingreso && toMins(ingreso)>hour.startMins){ hourAssign[hi][sm.id]=[]; return; }
-      const nominalTarget=hourlyTarget[sm.id][hi]||0;
-      let target=Math.max(0,nominalTarget-carryOver);
-      let assignedThisHour=0;
-      const tasks=[];
-      while(target>0){
-        if(currentLeft<=0){
-          if(!tandaQueue.length) break;
-          const next=tandaQueue.shift();
-          currentName=next.name; currentLeft=next.qty;
-        }
-        let take=Math.min(target,currentLeft);
-        if(take<=0) break;
-        if(currentLeft-take>0 && currentLeft-take<=smallThreshold) take=currentLeft; // cerrar la tanda en vez de dejar un resto chico
-        const last=tasks[tasks.length-1];
-        if(last && last.name===currentName) last.qty+=take; // fusionar si sigue siendo la misma variedad
-        else tasks.push({name:currentName, qty:take});
-        currentLeft-=take; target-=take; assignedThisHour+=take;
-      }
-      carryOver=Math.max(0, carryOver+assignedThisHour-nominalTarget);
-      hourAssign[hi][sm.id]=tasks;
-    });
-  });
-
-  let totalAsignado=0;
-  hourAssign.forEach(row=>Object.values(row).forEach(tasks=>tasks.forEach(t=>{totalAsignado+=t.qty;})));
-  return {hours, hourAssign, totalAsignado};
-}
-
-function readTimePair(idH, idM) {
-  const h = document.getElementById(idH).value;
-  const m = document.getElementById(idM).value;
-  return h ? `${h}:${m}` : '';
-}
-function calcSchedule() {
-  const endT=readTimePair('endTimeH','endTimeM')||'20:00';
-  const cut=parseInt(document.getElementById('cutMins').value)||60;
-  const startManual=readTimePair('startTimeManualH','startTimeManualM');
-  const avail=ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId && (ST.dailySm[s.id]?.avail??s.active));
-  if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
-
-  const gridMode=document.querySelector('input[name="gridMode"]:checked')?.value||'auto';
-  const manualTandaCounts=gridMode==='semi' ? getManualTandaCounts() : null;
-
-  const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-  const endMins=toMins(endT)-cut;
-
-  let startMins, prodH, hours, hourAssign;
-
-  if(startManual) {
-    startMins=toMins(startManual);
-    prodH=Math.max(1,Math.ceil((endMins-startMins)/60));
-    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH, manualTandaCounts));
-  } else {
-    // Como cada sushiman puede tener un horario de ingreso distinto, la capacidad
-    // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
-    let asignado=0; prodH=0;
-    const maxHoras=20;
-    do {
-      prodH++;
-      startMins=endMins-prodH*60;
-      const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
-      hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
-    } while(asignado<totR && prodH<maxHoras);
-
-    if(asignado<totR){
-      alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
-      return;
-    }
-  }
-
-  ST.schedule={
-    startTime:fmt(startMins), rollsEndTime:fmt(endMins),
-    cutMins:cut, endTime:endT,
-    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
-    hours:hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
-  };
-  ST.editingGrid=false;
-  renderScheduleDisplay();
-  document.getElementById('schedRes').classList.remove('hidden');
-  document.getElementById('schedRes').scrollIntoView({behavior:'smooth',block:'start'});
-  guardarProgresoPlanilla('confirmada');
-}
-
-function getPromedioRollosPorHora(smId) {
-  const hours = ST.schedule.hours;
-  let total = 0, workedHours = 0;
-  hours.forEach(h => {
-    const tasks = h.tasks[smId] || [];
-    const sum = tasks.reduce((s,t)=>s+t.qty,0);
-    if (sum > 0) { total += sum; workedHours++; }
-  });
-  if (workedHours === 0) return 0;
-  return Math.round((total/workedHours)*10)/10;
-}
-
-function renderScheduleDisplay() {
-  const {startTime,rollsEndTime,cutMins,endTime,sushimanes,hours}=ST.schedule;
-  document.getElementById('schedInfo').innerHTML=`
-    <div class="sch-cell-info">Inicio de producción<strong>${startTime}</strong></div>
-    <div class="sch-cell-info">Fin de rolls<strong>${rollsEndTime}</strong></div>
-    <div class="sch-cell-info">Corte y armado<strong>${cutMins} min</strong></div>
-    <div class="sch-cell-info">Fin total<strong>${endTime}</strong></div>`;
-
-  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
-  hours.forEach(h=>g+=`<th style="text-align:center;min-width:130px">${h.label}</th>`);
-  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
-  sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige)">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
-    hours.forEach((h)=>{
-      const tasks=h.tasks[sm.id]||[];
-      if(!tasks.length){g+='<td style="text-align:center;color:var(--text3)">—</td>';return;}
-      g+=`<td style="background:var(--blue-bg);color:var(--blue);font-size:12px">${tasks.map(t=>`<strong>${t.name}</strong> ×${t.qty}`).join('<br>')}</td>`;
-    });
-    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${cutMins} min</td>`;
-    g+='</tr>';
-  });
-  g+='</tbody></table>';
-  document.getElementById('schedGrid').innerHTML=g;
-  document.getElementById('schedValidation').textContent='';
-  document.getElementById('addHourBtn').classList.add('hidden');
-  document.getElementById('editGridBtn').classList.remove('hidden');
-  document.getElementById('saveGridBtn').classList.add('hidden');
-  document.getElementById('cancelGridBtn').classList.add('hidden');
-  renderSemiHourlyGrid();
-}
-
-// ── Semielaborados por hora: cuánto hace falta tener listo para los rolls de cada franja ──
-function computeSemiHourlyGrid() {
-  const hours = ST.schedule.hours;
-  // Para cada hora, sumar las tareas de TODOS los sushimanes juntas, por nombre de roll
-  const rollQtyPerHour = hours.map(h => {
-    const totals = {};
-    Object.values(h.tasks).forEach(tasks => {
-      tasks.forEach(t => { totals[t.name] = (totals[t.name]||0) + t.qty; });
-    });
-    return totals;
-  });
-  const result = [];
-  ST.semielaborados.forEach(semi => {
-    const byHour = hours.map((h, hi) => {
-      let amount = 0;
-      Object.entries(rollQtyPerHour[hi]).forEach(([rollName, rollQty]) => {
-        const roll = ST.rolls.find(r=>r.name===rollName);
-        if (roll && roll.insumos[semi.insumo_key]) {
-          amount += roll.insumos[semi.insumo_key] * rollQty;
-        }
-      });
-      return amount;
-    });
-    const total = byHour.reduce((a,b)=>a+b, 0);
-    if (total > 0) result.push({name: semi.name, unit: semi.unit, byHour, total});
-  });
-  return result;
-}
-function renderSemiHourlyGrid() {
-  const card = document.getElementById('semiHourlyCard');
-  if (!ST.schedule || !ST.schedule.hours) { card.classList.add('hidden'); return; }
-  const data = computeSemiHourlyGrid();
-  if (!data.length) { card.classList.add('hidden'); return; }
-  card.classList.remove('hidden');
-  const hours = ST.schedule.hours;
-  let h = '<table><thead><tr><th>Semielaborado</th>';
-  hours.forEach(hr => { h += `<th style="text-align:center">${hr.label}</th>`; });
-  h += '<th style="text-align:right">Total</th></tr></thead><tbody>';
-  data.forEach(row => {
-    h += `<tr><td style="font-weight:600">${row.name}</td>`;
-    row.byHour.forEach(amt => {
-      const shown = Math.round(amt*10)/10;
-      h += `<td style="text-align:center">${amt>0 ? shown+' '+row.unit : '<span style="color:var(--text3)">—</span>'}</td>`;
-    });
-    h += `<td style="text-align:right;font-weight:700">${Math.round(row.total*10)/10} ${row.unit}</td></tr>`;
-  });
-  h += '</tbody></table>';
-  document.getElementById('semiHourlyGrid').innerHTML = h;
-}
-
-// ── Grid editing with validation ──
-function readGridTotalsFromDOM() {
-  const totals={};
-  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
-    cell.querySelectorAll('.grid-task-row').forEach(row=>{
-      const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
-      if(sel&&inp&&sel.value){ const qty=parseInt(inp.value)||0; totals[sel.value]=(totals[sel.value]||0)+qty; }
-    });
-  });
-  return totals;
-}
-
-function highlightErrors(errorRolls) {
-  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
-    cell.querySelectorAll('.grid-task-row').forEach(row=>{
-      const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
-      if(!sel||!inp) return;
-      const hasError=errorRolls.has(sel.value);
-      const bg=hasError?'#fff0f0':'#ffffff';
-      sel.style.background=bg; sel.style.borderColor=hasError?'var(--red)':'';
-      inp.style.background=bg; inp.style.border=hasError?'1.5px solid var(--red)':'1px solid var(--border)';
-      row.style.background=hasError?'#fff5f5':'';
-    });
-  });
-}
-
-function renderValidationPanel(totals, required) {
-  const errorRolls=new Set();
-  let panelHtml='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
-  const sortedEntries=Object.entries(required).sort((a,b)=>a[0].localeCompare(b[0],'es'));
-  sortedEntries.forEach(([name,qty])=>{
-    const got=totals[name]||0;
-    const ok=got===qty;
-    if(!ok) errorRolls.add(name);
-    const diff=got-qty; const diffStr=diff>0?`+${diff}`:String(diff);
-    panelHtml+=`<div onclick="highlightRollInGrid('${name.replace(/'/g,"\\'")}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;
-      background:${ok?'var(--green-bg)':'var(--red-bg)'};color:${ok?'var(--green)':'var(--red)'};border:1px solid ${ok?'#c3e6c3':'#f5c6c6'}">
-      <i class="ti ti-${ok?'circle-check':'alert-triangle'}" style="font-size:11px"></i>
-      ${name}: ${got}/${qty}${!ok?` <strong>(${diffStr})</strong>`:''}</div>`;
-  });
-  panelHtml+='</div>';
-  return {panelHtml, errorRolls};
-}
-
-function highlightRollInGrid(rollName) {
-  document.querySelectorAll('.sm-row-highlight').forEach(el=>el.classList.remove('sm-row-highlight'));
-  document.querySelectorAll('.grid-task-highlight').forEach(el=>el.classList.remove('grid-task-highlight'));
-
-  const matchedRows=new Set();
-  let firstMatch=null;
-  document.querySelectorAll('[id^="cell_"]').forEach(cell=>{
-    cell.querySelectorAll('.grid-task-row').forEach(row=>{
-      const sel=row.querySelector('select');
-      if(sel && sel.value===rollName){
-        row.classList.add('grid-task-highlight');
-        if(!firstMatch) firstMatch=row;
-        const m=cell.id.match(/^cell_(\d+)_/);
-        if(m) matchedRows.add(parseInt(m[1]));
-      }
-    });
-  });
-
-  const tbodyRows=document.querySelectorAll('#schedGrid table tbody tr');
-  matchedRows.forEach(si=>{
-    const row=tbodyRows[si];
-    if(row){ const nameCell=row.querySelector('td'); if(nameCell) nameCell.classList.add('sm-row-highlight'); }
-  });
-
-  if(firstMatch) firstMatch.scrollIntoView({behavior:'smooth', block:'center'});
-  else document.getElementById('schedGrid').scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-function validateAndHighlight() {
-  const totals=readGridTotalsFromDOM();
-  const required={};
-  ST.production.forEach(r=>required[r.name]=r.qty);
-  const {panelHtml, errorRolls}=renderValidationPanel(totals, required);
-  let panel=document.getElementById('gridValidPanel');
-  if(panel) panel.innerHTML=panelHtml;
-  highlightErrors(errorRolls);
-  const el=document.getElementById('schedValidation');
-  if(errorRolls.size>0) el.innerHTML=`<span style="color:var(--red)"><i class="ti ti-alert-triangle"></i> ${errorRolls.size} roll(s) con diferencia</span>`;
-  else el.innerHTML='<span style="color:var(--green)"><i class="ti ti-circle-check"></i> Todos los totales OK</span>';
-  return errorRolls.size===0;
-}
-
-function hourOptionsHtml(selectedHour) {
-  let opts = '';
-  for (let h = 0; h < 24; h++) {
-    const hs = String(h).padStart(2,'0');
-    opts += `<option value="${hs}" ${hs===selectedHour?'selected':''}>${hs}</option>`;
-  }
-  return opts;
-}
-function openAddHourModal() {
-  openModal('Agregar franja horaria', `
-    <div class="form-grid" style="margin-bottom:.5rem">
-      <div>
-        <label class="form-lbl">Desde</label>
-        <div class="row" style="gap:4px">
-          <select id="addHourFromH" style="flex:1">${hourOptionsHtml('16')}</select>
-          <span>:</span>
-          <select id="addHourFromM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
-        </div>
-      </div>
-      <div>
-        <label class="form-lbl">Hasta</label>
-        <div class="row" style="gap:4px">
-          <select id="addHourToH" style="flex:1">${hourOptionsHtml('17')}</select>
-          <span>:</span>
-          <select id="addHourToM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
-        </div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:var(--text3)">Se inserta en el lugar cronológico correcto dentro de la grilla, sin tareas asignadas todavía.</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmAddHourSlot()">Agregar</button>`
-  );
-}
-function confirmAddHourSlot() {
-  const fromH=document.getElementById('addHourFromH').value, fromM=document.getElementById('addHourFromM').value;
-  const toH=document.getElementById('addHourToH').value, toM=document.getElementById('addHourToM').value;
-  const fromMins=toMins(`${fromH}:${fromM}`), toMinsVal=toMins(`${toH}:${toM}`);
-  if(toMinsVal<=fromMins){ alert('La hora de fin debe ser posterior a la de inicio'); return; }
-
-  syncGridStateFromDOM(); // preservar los cambios ya hechos en la grilla antes de insertar
-
-  const newHour={ label:`${fromH}:${fromM}-${toH}:${toM}`, startMins:fromMins, tasks:{} };
-  ST.schedule.sushimanes.forEach(sm=>{ newHour.tasks[sm.id]=[]; });
-
-  const getStart=h=>h.startMins ?? toMins(h.label.split('-')[0]);
-  let insertIdx=ST.schedule.hours.findIndex(h=>getStart(h)>fromMins);
-  if(insertIdx===-1) insertIdx=ST.schedule.hours.length;
-  ST.schedule.hours.splice(insertIdx,0,newHour);
-
-  closeModal();
-  toggleEditGrid();
-}
-
-function toggleEditGrid() {
-  ST.scheduleBackup=JSON.parse(JSON.stringify(ST.schedule));
-  const {sushimanes,hours}=ST.schedule;
-  const rollOpts=ST.production.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-
-  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
-  hours.forEach(h=>g+=`<th style="text-align:center;min-width:170px">${h.label}</th>`);
-  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
-
-  sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige);vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
-    hours.forEach((h,hi)=>{
-      const tasks=h.tasks[sm.id]||[];
-      const cellId=`cell_${si}_${hi}`;
-      let cellHtml=tasks.map((t,ti)=>`
-        <div class="row grid-task-row" draggable="true" style="margin-bottom:5px;gap:3px;border-radius:4px;padding:2px;cursor:grab" id="${cellId}_task${ti}"
-             ondragstart="onTaskDragStart(event,${si},${hi},${ti})" ondragend="onTaskDragEnd(event)">
-          <span style="color:var(--text3);flex-shrink:0"><i class="ti ti-grip-vertical" style="font-size:12px"></i></span>
-          <select style="flex:1;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border)" onchange="onGridChange()">${rollOpts.replace(`value="${t.name}"`,`value="${t.name}" selected`)}</select>
-          <input type="number" value="${t.qty}" min="0" max="999" style="width:46px;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border);text-align:center" oninput="onGridChange()">
-          <button class="btn-remove-x" style="width:18px;height:18px;font-size:12px" title="Quitar" onclick="removeGridTask(${si},${hi},${ti})">&times;</button>
-        </div>`).join('');
-      cellHtml+=`<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-top:2px;width:100%" onclick="addGridTask(${si},${hi})"><i class="ti ti-plus" style="font-size:10px"></i> agregar</button>`;
-      g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}"
-             ondragover="event.preventDefault();this.classList.add('grid-drop-target')"
-             ondragleave="this.classList.remove('grid-drop-target')"
-             ondrop="onCellDrop(event,${si},${hi})">${cellHtml}</td>`;
-    });
-    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${ST.schedule.cutMins} min</td>`;
-    g+='</tr>';
-  });
-  g+='</tbody></table><div id="gridValidPanel" style="margin-top:10px"></div>';
-
-  document.getElementById('schedGrid').innerHTML=g;
-  document.getElementById('addHourBtn').classList.remove('hidden');
-  document.getElementById('editGridBtn').classList.add('hidden');
-  document.getElementById('saveGridBtn').classList.remove('hidden');
-  document.getElementById('cancelGridBtn').classList.remove('hidden');
-  ST.editingGrid=true;
-  validateAndHighlight();
-}
-
-function onGridChange() { validateAndHighlight(); }
-
-// ── Drag & drop: mover una tarea de una celda (sushiman+hora) a otra ──
-let draggedTaskInfo = null;
-function onTaskDragStart(e, si, hi, ti) {
-  syncGridStateFromDOM(); // congelar el estado actual antes de mover nada
-  draggedTaskInfo = {si, hi, ti};
-  e.currentTarget.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function onTaskDragEnd(e) {
-  e.currentTarget.classList.remove('dragging');
-}
-function onCellDrop(e, toSi, toHi) {
-  e.currentTarget.classList.remove('grid-drop-target');
-  if (!draggedTaskInfo) return;
-  const {si: fromSi, hi: fromHi, ti: fromTi} = draggedTaskInfo;
-  draggedTaskInfo = null;
-  if (fromSi===toSi && fromHi===toHi) return; // solto en la misma celda, no hay nada que hacer
-
-  const fromSmId = ST.schedule.sushimanes[fromSi].id;
-  const toSmId = ST.schedule.sushimanes[toSi].id;
-  const fromTasks = ST.schedule.hours[fromHi].tasks[fromSmId] || [];
-  const task = fromTasks[fromTi];
-  if (!task) return;
-  fromTasks.splice(fromTi, 1);
-  if (!ST.schedule.hours[toHi].tasks[toSmId]) ST.schedule.hours[toHi].tasks[toSmId] = [];
-  ST.schedule.hours[toHi].tasks[toSmId].push(task);
-
-  toggleEditGrid();
-}
-
-function addGridTask(smIdx, hIdx) {
-  syncGridStateFromDOM();
-  const smId=ST.schedule.sushimanes[smIdx].id;
-  const firstRoll=ST.production[0]?.name||'';
-  if(!ST.schedule.hours[hIdx].tasks[smId]) ST.schedule.hours[hIdx].tasks[smId]=[];
-  ST.schedule.hours[hIdx].tasks[smId].push({name:firstRoll,qty:1});
-  toggleEditGrid();
-}
-
-function removeGridTask(smIdx, hIdx, tIdx) {
-  syncGridStateFromDOM();
-  const smId=ST.schedule.sushimanes[smIdx].id;
-  ST.schedule.hours[hIdx].tasks[smId].splice(tIdx,1);
-  toggleEditGrid();
-}
-
-function syncGridStateFromDOM() {
-  const {sushimanes,hours}=ST.schedule;
-  sushimanes.forEach((sm,si)=>{
-    hours.forEach((h,hi)=>{
-      const tasks=[];
-      document.querySelectorAll(`#cell_${si}_${hi} .grid-task-row`).forEach(row=>{
-        const sel=row.querySelector('select'); const inp=row.querySelector('input[type=number]');
-        if(sel&&inp&&sel.value) tasks.push({name:sel.value,qty:parseInt(inp.value)||0});
-      });
-      h.tasks[sm.id]=tasks;
-    });
-  });
-}
-
-function saveGridEdits() {
-  syncGridStateFromDOM();
-  if(!validateAndHighlight()){ if(!confirm('Hay rolls con cantidades incorrectas. ¿Guardar igual?')) return; }
-  ST.editingGrid=false; ST.scheduleBackup=null;
-  renderScheduleDisplay();
-  guardarProgresoPlanilla('confirmada');
-}
-
-function cancelGridEdits() {
-  if(ST.scheduleBackup) ST.schedule=ST.scheduleBackup;
-  ST.editingGrid=false;
-  renderScheduleDisplay();
-}
-
-// ═══════════════════════════════════════════════════════
-// PDF
-// ═══════════════════════════════════════════════════════
-async function downloadPDF() {
-  const btn=document.getElementById('pdfBtn');
-  btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
-  const payload={
-    date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
-    production:ST.production, insumos:ST.insumos, semis:ST.semis,
-    combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
-    schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
-    semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
-  };
-  try {
-    const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!res.ok) throw new Error(await res.text());
-    const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`produccion_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.pdf`;
-    a.click(); URL.revokeObjectURL(url);
-  } catch(e){ alert('Error al generar el PDF: '+e.message); }
-  finally{ btn.innerHTML='<i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)'; btn.disabled=false; }
-}
-
-// ═══════════════════════════════════════════════════════
-// CONFIG RENDERING
-// ═══════════════════════════════════════════════════════
-function marcaBadges(marcas) {
-  if (!marcas || !marcas.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
-  return marcas.map(m=>`<span class="badge b-green" style="margin:1px">${m}</span>`).join(' ');
-}
-
-function renderComboCfg() {
-  const byFam={};
-  ST.combos.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
-  let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  for(const [fam,items] of Object.entries(byFam)){
-    h+=`<tr class="fam-row"><td colspan="5"><span class="badge b-blue">${fam}</span></td></tr>`;
-    items.forEach(c=>{
-      const r=Object.entries(c.rolls).filter(([,q])=>q>0).map(([r,q])=>`${r} ×${q}`).join(' · ');
-      h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
-        <td style="font-size:11px">${marcaBadges(c.marcas)}</td>
-        <td><div class="row" style="gap:4px">
-          <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-        </div></td></tr>`;
-    });
-  }
-  h+='</tbody></table>';
-  document.getElementById('comboCfg').innerHTML=h;
-}
-
-function renderRollCfg() {
-  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
-    h+=`<tr><td style="font-weight:600">${r.name}</td>
-      <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
-      <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
-      <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  document.getElementById('rollCfg').innerHTML=h;
-}
-
-function renderSemiCfg() {
-  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.semielaborados.forEach(s=>{
-    const hasReceta = s.receta && s.receta.length > 0;
-    const recetaSummary = hasReceta
-      ? s.receta.map(i=>{
-          const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          const nombreEstilizado = i.key
-            ? styledIngredientName(i.key)
-            : `<span style="background:var(--bg);color:var(--text3);font-weight:700;padding:2px 8px;border-radius:20px" title="Sin vincular">${i.nombre}</span>`;
-          return `${nombreEstilizado} (${i.cantidad}${unidad})`;
-        }).join(', ')
-      : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
-    const rendDisplay = (s.rendimiento_cantidad > 0)
-      ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
-      : '<span style="color:var(--text3)">—</span>';
-    const tiempoDisplay = s.tiempo_elaboracion_min ? `${s.tiempo_elaboracion_min} min` : '<span style="color:var(--text3)">—</span>';
-    const vidaDisplay = s.vida_util_dias ? `${s.vida_util_dias} día${s.vida_util_dias===1?'':'s'}` : '<span style="color:var(--text3)">—</span>';
-    const usedInRolls = ST.rolls.filter(r=>(r.insumos[s.insumo_key]||0) > 0).map(r=>r.name);
-    const usedInDisplay = usedInRolls.length ? usedInRolls.join(', ') : '<span style="color:var(--text3);font-style:italic">Ningún roll lo usa todavía</span>';
-    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${usedInDisplay}</td>
-      <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
-      <td>${rendDisplay}</td>
-      <td style="text-align:center;font-size:12px">${tiempoDisplay}</td>
-      <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
-      <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  document.getElementById('semiCfg').innerHTML=h;
-}
-
-// ── Historial de planillas ──
-async function renderHistorialCfg() {
-  if (!ST.currentLocalId) { document.getElementById('historialCfg').innerHTML = '<div class="empty">Elegí un local primero.</div>'; return; }
-  const planillas = await fetch(`/api/planillas?local_id=${ST.currentLocalId}`).then(r=>r.json());
-  ST.historial = planillas;
-  let h = '<table><thead><tr><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:100px"></th></tr></thead><tbody>';
-  planillas.forEach(p=>{
-    const estadoBadge = p.estado==='confirmada' ? '<span class="badge b-green">Confirmada</span>' : '<span class="badge b-warn">Borrador</span>';
-    h += `<tr><td style="font-weight:600">${p.fecha}</td><td>${estadoBadge}</td>
-      <td style="font-size:12px;color:var(--text2)">${p.created_by||'—'}</td>
-      <td style="font-size:12px;color:var(--text3)">${new Date(p.updated_at).toLocaleString('es-AR')}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button></td></tr>`;
-  });
-  h += '</tbody></table>';
-  if (!planillas.length) h = '<div class="empty">Todavía no hay planillas guardadas para este local.</div>';
-  document.getElementById('historialCfg').innerHTML = h;
-}
-
-async function abrirPlanilla(id) {
-  const p = await fetch(`/api/planillas/${id}`).then(r=>r.json());
-  if (p.error) { alert(p.error); return; }
-  const d = p.data || {};
-  ST.currentPlanillaId = p.id;
-  ST.currentLocalId = p.local_id;
-  ST.sales = d.sales || [];
-  ST.adj = d.adj || {};
-  ST.globalPct = d.globalPct ?? 100;
-  ST.production = d.production || [];
-  ST.insumos = d.insumos || {};
-  ST.semis = d.semis || [];
-  ST.otrosVenta = d.otrosVenta || [];
-  ST.rollosBlancos = d.rollosBlancos || [];
-  ST.schedule = d.schedule || null;
-  ST.dailySm = d.dailySm || {};
-  ST.dividirPlanilla = d.dividirPlanilla || false;
-  ST.combinedProduction = d.combinedProduction || null;
-  ST.viewMode = d.viewMode || 'separado';
-  ST.remainingProduction = d.remainingProduction || null;
-
-  // Reflejar el local elegido en el selector, por si difiere del que estaba activo
-  const sel = document.getElementById('localSelector');
-  if (sel) sel.value = ST.currentLocalId;
-
-  const flowTab = [...document.querySelectorAll('#mainProduccion > .tabs .tab')].find(t=>t.textContent.includes('Planificar'));
-  showProdSubTab('flow', flowTab);
-
-  const targetStep = d.step && d.step >= 2 ? d.step : 2;
-  goStep(targetStep);
-  if (targetStep >= 3) renderSales();
-  if (targetStep >= 4) renderProduction();
-  if (ST.schedule) { renderScheduleDisplay(); document.getElementById('schedRes').classList.remove('hidden'); }
-  showStatus('success', `Planilla del ${p.fecha} abierta — podés seguir editándola.`);
-}
-
-async function guardarProgresoPlanilla(estado) {
-  if (!ST.currentLocalId) return;
-  const data = {
-    sales: ST.sales, adj: ST.adj, globalPct: ST.globalPct,
-    production: ST.production, insumos: ST.insumos, semis: ST.semis,
-    otrosVenta: ST.otrosVenta, rollosBlancos: ST.rollosBlancos,
-    schedule: ST.schedule, dailySm: ST.dailySm, step: ST.step,
-    dividirPlanilla: ST.dividirPlanilla, remainingProduction: ST.remainingProduction,
-    combinedProduction: ST.combinedProduction, viewMode: ST.viewMode
-  };
-  const payload = { local_id: ST.currentLocalId, fecha: new Date().toISOString().slice(0,10), estado: estado||'borrador', data };
-  try {
-    if (ST.currentPlanillaId) {
-      await fetch(`/api/planillas/${ST.currentPlanillaId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    } else {
-      const res = await fetch('/api/planillas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-      const result = await res.json();
-      if (result.id) ST.currentPlanillaId = result.id;
-    }
-  } catch(e) { console.error('guardarProgresoPlanilla', e); }
-}
-
-function renderSmCfg() {
-  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
-  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  lista.forEach(s=>{
-    h+=`<tr><td><div class="row" style="gap:8px"><div class="avatar">${s.name.slice(0,2).toUpperCase()}</div><strong>${s.name}</strong></div></td>
-      <td style="text-align:right">${s.productivity} rolls/h</td>
-      <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSmModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('sushimanes',${s.id},renderSmCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!lista.length) h='<div class="empty">No hay sushimanes cargados para este local. Agregá el primero.</div>';
-  document.getElementById('smCfg').innerHTML=h;
-}
-
-function poblarFiltrosInsumo() {
-  const selCat = document.getElementById('filtroCategoria');
-  const selProv = document.getElementById('filtroProveedor');
-  if (!selCat || !selProv) return;
-  const catActual = selCat.value;
-  const provActual = selProv.value;
-  selCat.innerHTML = '<option value="">Todas las categorías</option>' +
-    ST.categoriasInsumos.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
-  selProv.innerHTML = '<option value="">Todos los proveedores</option>' +
-    ST.proveedores.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  selCat.value = catActual;
-  selProv.value = provActual;
-}
-function limpiarFiltrosInsumo() {
-  document.getElementById('filtroCategoria').value = '';
-  document.getElementById('filtroProveedor').value = '';
-  document.getElementById('filtro8020').value = '';
-  renderInsumoCfg();
-}
-function renderInsumoCfg() {
-  poblarFiltrosInsumo();
-  const fCategoria = document.getElementById('filtroCategoria')?.value || '';
-  const fProveedor = document.getElementById('filtroProveedor')?.value || '';
-  const f8020 = document.getElementById('filtro8020')?.value || '';
-
-  const lista = ST.insumosMaster.filter(i=>{
-    if (fCategoria && i.categoria !== fCategoria) return false;
-    if (fProveedor) {
-      const pid = parseInt(fProveedor);
-      const usaEseProveedor = [i.proveedor_principal_id, i.proveedor_alt1_id, i.proveedor_alt2_id].includes(pid);
-      if (!usaEseProveedor) return false;
-    }
-    if (f8020 === 'si' && !i.es_80_20) return false;
-    if (f8020 === 'no' && i.es_80_20) return false;
-    return true;
-  });
-
-  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
-  lista.forEach(i=>{
-    h+=`<tr><td style="font-weight:600">${i.label}</td>
-      <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
-      <td style="text-align:center">${i.es_80_20?'<span class="badge b-warn">80/20</span>':'—'}</td>
-      <td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
-      <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openInsumoModal(${i.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.insumosMaster.length) h='<div class="empty">No hay insumos configurados. Agregá el primero.</div>';
-  else if(!lista.length) h='<div class="empty">Ningún insumo coincide con los filtros elegidos.</div>';
-  document.getElementById('insumoCfg').innerHTML=h;
-}
-
-function renderMarcaCfg() {
-  let h='<table><thead><tr><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.marcas.forEach(m=>{
-    h+=`<tr><td style="font-weight:600">${m.name}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('marcas',${m.id},renderMarcaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.marcas.length) h='<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
-  document.getElementById('marcaCfg').innerHTML=h;
-}
-
-function openMarcaModal(id) {
-  const marca = id ? ST.marcas.find(m=>m.id===id) : null;
-  openModal(id?'Editar marca':'Nueva marca',`
-    <div><label class="form-lbl">Nombre de la marca</label><input type="text" id="m_name" class="w-full" value="${marca?.name||''}" placeholder="Ej: Sushi Pop"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveMarca(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveMarca(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  await fetch(id?`/api/marcas/${id}`:'/api/marcas',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  closeModal(); await loadConfig(); renderMarcaCfg();
-}
-
-// ── Familias ──
-function renderFamiliaCfg() {
-  let h='<table><thead><tr><th>Familia</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.familias.forEach(f=>{
-    h+=`<tr><td style="font-weight:600">${f.name}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openFamiliaModal(${f.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('familias',${f.id},renderFamiliaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.familias.length) h='<div class="empty">No hay familias configuradas.</div>';
-  document.getElementById('familiaCfg').innerHTML=h;
-}
-function openFamiliaModal(id) {
-  const familia = id ? ST.familias.find(f=>f.id===id) : null;
-  openModal(id?'Editar familia':'Nueva familia',`
-    <div><label class="form-lbl">Nombre de la familia</label><input type="text" id="m_name" class="w-full" value="${familia?.name||''}" placeholder="Ej: Ensaladas"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveFamilia(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveFamilia(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const res = await fetch(id?`/api/familias/${id}`:'/api/familias',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderFamiliaCfg();
-}
-
-// ── Categorías de insumos ──
-function renderCategoriaCfg() {
-  let h='<table><thead><tr><th>Categoría</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.categoriasInsumos.forEach(c=>{
-    h+=`<tr><td style="font-weight:600">${c.name}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openCategoriaModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('categorias-insumos',${c.id},renderCategoriaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.categoriasInsumos.length) h='<div class="empty">No hay categorías configuradas.</div>';
-  document.getElementById('categoriaCfg').innerHTML=h;
-}
-function openCategoriaModal(id) {
-  const cat = id ? ST.categoriasInsumos.find(c=>c.id===id) : null;
-  openModal(id?'Editar categoría':'Nueva categoría',`
-    <div><label class="form-lbl">Nombre de la categoría</label><input type="text" id="m_name" class="w-full" value="${cat?.name||''}" placeholder="Ej: Verduras"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCategoria(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveCategoria(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const res = await fetch(id?`/api/categorias-insumos/${id}`:'/api/categorias-insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderCategoriaCfg();
-}
-function categoriaOptions(selected) {
-  const opts = ST.categoriasInsumos.map(c=>`<option value="${c.name}" ${selected===c.name?'selected':''}>${c.name}</option>`).join('');
-  return `<option value="">Sin categoría</option>` + opts;
-}
-
-// ── Grupos de rollo blanco (rolls que comparten el mismo relleno) ──
-function renderRolloBlancoGrupoCfg() {
-  let h='<table><thead><tr><th>Grupo</th><th>Rolls asignados</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolloBlancoGrupos.forEach(g=>{
-    const rollsDelGrupo = ST.rolls.filter(r=>r.rollo_blanco_grupo===g.name).map(r=>r.name);
-    h+=`<tr><td style="font-weight:600">${g.name}</td>
-      <td style="font-size:12px;color:var(--text2)">${rollsDelGrupo.length?rollsDelGrupo.join(', '):'<span style="color:var(--text3);font-style:italic">Ningún roll asignado todavía</span>'}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openRolloBlancoGrupoModal(${g.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('rollo-blanco-grupos',${g.id},renderRolloBlancoGrupoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.rolloBlancoGrupos.length) h='<div class="empty">No hay grupos configurados. Agregá uno para agrupar rolls que comparten relleno.</div>';
-  document.getElementById('rolloBlancoGrupoCfg').innerHTML=h;
-}
-function openRolloBlancoGrupoModal(id) {
-  const g = id ? ST.rolloBlancoGrupos.find(x=>x.id===id) : null;
-  openModal(id?'Editar grupo':'Nuevo grupo',`
-    <div><label class="form-lbl">Nombre del grupo</label><input type="text" id="m_name" class="w-full" value="${g?.name||''}" placeholder="Ej: Base Apaltado"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRolloBlancoGrupo(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveRolloBlancoGrupo(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const res = await fetch(id?`/api/rollo-blanco-grupos/${id}`:'/api/rollo-blanco-grupos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderRolloBlancoGrupoCfg();
-}
-function rolloBlancoGrupoOptions(selected) {
-  const opts = ST.rolloBlancoGrupos.map(g=>`<option value="${g.name}" ${selected===g.name?'selected':''}>${g.name}</option>`).join('');
-  return `<option value="">Sin grupo</option>` + opts;
-}
-
-// ── Zonas de almacenamiento ──
-function renderZonaCfg() {
-  let h='<table><thead><tr><th>Zona</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.zonasAlmacenamiento.forEach(z=>{
-    h+=`<tr><td style="font-weight:600">${z.name}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openZonaModal(${z.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('zonas-almacenamiento',${z.id},renderZonaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.zonasAlmacenamiento.length) h='<div class="empty">No hay zonas configuradas.</div>';
-  document.getElementById('zonaCfg').innerHTML=h;
-}
-function openZonaModal(id) {
-  const zona = id ? ST.zonasAlmacenamiento.find(z=>z.id===id) : null;
-  openModal(id?'Editar zona':'Nueva zona',`
-    <div><label class="form-lbl">Nombre de la zona</label><input type="text" id="m_name" class="w-full" value="${zona?.name||''}" placeholder="Ej: Cámara de frío"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveZona(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveZona(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const res = await fetch(id?`/api/zonas-almacenamiento/${id}`:'/api/zonas-almacenamiento',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderZonaCfg();
-}
-function zonaOptions(selected) {
-  const opts = ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}" ${selected===z.name?'selected':''}>${z.name}</option>`).join('');
-  return `<option value="">Sin asignar</option>` + opts;
-}
-
-// ── Proveedores (con contactos) ──
-function renderProveedorCfg() {
-  let h='<table><thead><tr><th>Proveedor</th><th>Contactos</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.proveedores.forEach(p=>{
-    const contactosResumen = p.contactos.length
-      ? p.contactos.map(c=>c.nombre).join(', ')
-      : '<span style="color:var(--text3);font-style:italic">Sin contactos cargados</span>';
-    h+=`<tr><td style="font-weight:600">${p.name}</td>
-      <td style="font-size:12px;color:var(--text2)">${contactosResumen}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openProveedorModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('proveedores',${p.id},renderProveedorCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.proveedores.length) h='<div class="empty">No hay proveedores cargados.</div>';
-  document.getElementById('proveedorCfg').innerHTML=h;
-}
-function contactoRow(c) {
-  const div = document.createElement('div');
-  div.className = 'contacto-row';
-  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';
-  div.innerHTML = `
-    <input type="text" class="ct-nombre" placeholder="Nombre" value="${c?.nombre||''}">
-    <input type="text" class="ct-cargo" placeholder="Cargo" value="${c?.cargo||''}">
-    <input type="text" class="ct-telefono" placeholder="Teléfono" value="${c?.telefono||''}">
-    <input type="email" class="ct-email" placeholder="Email" value="${c?.email||''}">
-  `;
-  const btn = document.createElement('button');
-  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
-  btn.onclick = () => div.remove();
-  div.appendChild(btn);
-  return div;
-}
-function addContactoRow() {
-  document.getElementById('contactoRows').appendChild(contactoRow(null));
-}
-function openProveedorModal(id) {
-  const prov = id ? ST.proveedores.find(p=>p.id===id) : null;
-  openModal(id?'Editar proveedor':'Nuevo proveedor',`
-    <div style="margin-bottom:1.25rem"><label class="form-lbl">Nombre del proveedor</label><input type="text" id="m_name" class="w-full" value="${prov?.name||''}" placeholder="Ej: Pescadería Sur"></div>
-    <div class="form-lbl" style="margin-bottom:8px">Contactos</div>
-    <div id="contactoRows" style="margin-bottom:8px"></div>
-    <button class="btn btn-sm" onclick="addContactoRow()"><i class="ti ti-plus"></i> Agregar contacto</button>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveProveedor(${id||'null'})">Guardar</button>`
-  );
-  const container = document.getElementById('contactoRows');
-  if (prov?.contactos?.length) {
-    prov.contactos.forEach(c => container.appendChild(contactoRow(c)));
-  } else {
-    container.appendChild(contactoRow(null));
-  }
-}
-async function saveProveedor(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const contactos = [...document.querySelectorAll('#contactoRows .contacto-row')].map(row=>({
-    nombre: row.querySelector('.ct-nombre').value.trim(),
-    cargo: row.querySelector('.ct-cargo').value.trim(),
-    telefono: row.querySelector('.ct-telefono').value.trim(),
-    email: row.querySelector('.ct-email').value.trim(),
-  })).filter(c=>c.nombre);
-  const res = await fetch(id?`/api/proveedores/${id}`:'/api/proveedores',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,contactos})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderProveedorCfg();
-}
-function proveedorOptions(selectedId) {
-  const opts = ST.proveedores.map(p=>`<option value="${p.id}" ${String(selectedId)===String(p.id)?'selected':''}>${p.name}</option>`).join('');
-  return `<option value="">Sin asignar</option>` + opts;
-}
-
-function familiaOptions(selected) {
-  if (!ST.familias.length) return `<option value="Otros">Otros</option>`;
-  return ST.familias.map(f=>`<option value="${f.name}" ${selected===f.name?'selected':''}>${f.name}</option>`).join('');
-}
-
-// ── Equivalencias (mismo producto, distinto nombre por marca) ──
-// Vista de matriz: filas = productos del tipo elegido, columnas = marcas.
-const TIPO_EQUIV_LABELS = {combo:'Combo', roll:'Roll', otro_producto:'Otro producto'};
-let equivTipoActual = 'combo';
-
-function listaPorTipo(tipo) {
-  if (tipo === 'combo') return ST.combos.map(c=>c.name);
-  if (tipo === 'roll') return ST.rolls.map(r=>r.name);
-  return ST.otrosProductos.map(p=>p.name);
-}
-function equivalenciaProductoOptions(tipo, selected) {
-  return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
-}
-
-function renderEquivalenciaCfg() {
-  const container = document.getElementById('equivalenciaCfg');
-
-  if (!ST.marcas.length) {
-    container.innerHTML = '<div class="empty">Primero cargá al menos una marca en la pestaña "Marcas" para poder armar la tabla de equivalencias.</div>';
-    return;
-  }
-
-  const productos = listaPorTipo(equivTipoActual);
-
-  let h = `<div class="tabs" style="margin-bottom:1rem;border-bottom:1px solid var(--border)">
-    ${['combo','roll','otro_producto'].map(t=>`
-      <div class="tab${t===equivTipoActual?' active':''}" onclick="setEquivTipo('${t}')">${TIPO_EQUIV_LABELS[t]}</div>
-    `).join('')}
-  </div>`;
-
-  if (!productos.length) {
-    h += `<div class="empty">No hay ${TIPO_EQUIV_LABELS[equivTipoActual].toLowerCase()}s cargados todavía.</div>`;
-    container.innerHTML = h;
-    return;
-  }
-
-  h += '<div class="tbl-wrap"><table><thead><tr><th style="min-width:160px">Producto</th>';
-  ST.marcas.forEach(m => h += `<th style="min-width:140px">${m.name}</th>`);
-  h += '</tr></thead><tbody>';
-
-  productos.forEach(prodName => {
-    h += `<tr><td style="font-weight:600">${prodName}</td>`;
-    ST.marcas.forEach(m => {
-      const existing = ST.equivalencias.find(e=>e.tipo===equivTipoActual && e.nombre_canonico===prodName && e.marca===m.name);
-      h += `<td><input type="text" class="equiv-cell" data-producto="${prodName}" data-marca="${m.name}"
-              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%"></td>`;
-    });
-    h += '</tr>';
-  });
-  h += '</tbody></table></div>';
-
-  h += `<div class="flex-end">
-    <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
-  </div>`;
-
-  container.innerHTML = h;
-}
-
-function setEquivTipo(tipo) {
-  equivTipoActual = tipo;
-  renderEquivalenciaCfg();
-}
-
-async function saveEquivalenciaMatrix() {
-  const entries = [];
-  document.querySelectorAll('#equivalenciaCfg .equiv-cell').forEach(input => {
-    entries.push({
-      nombre_canonico: input.dataset.producto,
-      marca: input.dataset.marca,
-      nombre_alias: input.value.trim()
-    });
-  });
-  const res = await fetch('/api/equivalencias/sync', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({tipo: equivTipoActual, entries})
-  });
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  await loadConfig();
-  renderEquivalenciaCfg();
-  showStatus('success', `Equivalencias de ${TIPO_EQUIV_LABELS[equivTipoActual].toLowerCase()}s guardadas (${result.count} activas)`);
-}
-
-// ── Otros productos (porciones, ensaladas, entradas, platos calientes) ──
-const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entrada', plato_caliente:'Plato caliente', otro:'Otro'};
-
-function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
-  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
-  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Rolls</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  lista.forEach(p=>{
-    const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
-    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
-    h+=`<tr><td style="font-weight:600">${p.name}</td>
-      <td>${p.familia||'—'}</td>
-      <td style="font-size:12px;color:var(--text2)">${rollsResumen||'—'}</td>
-      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
-      <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm" onclick="duplicateOtroProducto(${p.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},${renderFnName})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!lista.length) h=`<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
-  document.getElementById(containerId).innerHTML=h;
-}
-function renderPorcionesCfg(){ renderOtroProductoCfgTipo('porcion','porcionCfg',renderPorcionesCfg); }
-function renderEnsaladasCfg(){ renderOtroProductoCfgTipo('ensalada','ensaladaCfg',renderEnsaladasCfg); }
-function renderEntradasCfg(){ renderOtroProductoCfgTipo('entrada','entradaCfg',renderEntradasCfg); }
-function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente','platoCalienteCfg',renderPlatosCalientesCfg); }
-
-function openOtroProductoModal(id, dup, defaultTipo) {
-  const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
-  const ins = prod?.insumos || {};
-  const rollsExistentes = prod?.rolls || {};
-  const tipoSeleccionado = prod?.tipo || defaultTipo;
-  const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
-    `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
-  const rollOptsProd=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd)).join('');
-  openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
-      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
-    </div>
-    <div style="margin-bottom:1.25rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
-
-    <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y piezas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para productos armados con piezas de un roll, igual que un combo)</span></div>
-    <div id="otroProdRollRows" style="margin-bottom:8px">${existingRollRows}</div>
-    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
-
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para lo que se agrega directo, sin pasar por un roll)</span></div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
-      <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
-        oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
-        onkeydown="handleIngredientKeydown(event,'otroProd')" onblur="closeIngredientDropdownOnBlur('otroProd')">
-      <div id="otroProdIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
-    <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
-    <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
-    ${codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
-  );
-  const container = document.getElementById('otroProdIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
-}
-function addOtroProdRollRow(){
-  const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
-  const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
-  const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
-  const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
-  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
-  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
-  div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
-  document.getElementById('otroProdRollRows').appendChild(div);
-}
-function renderOtroProductoCfg(){ renderPorcionesCfg(); renderEnsaladasCfg(); renderEntradasCfg(); renderPlatosCalientesCfg(); }
-
-function duplicateOtroProducto(id) {
-  const prod = ST.otrosProductos.find(p=>p.id===id);
-  if(!prod) return;
-  openOtroProductoModal(null, {...prod, name: prod.name + ' (copia)'});
-}
-async function saveOtroProducto(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const rolls={};
-  document.querySelectorAll('#otroProdRollRows .row').forEach(row=>{
-    const sel=row.querySelector('select'); const inp=row.querySelector('input');
-    if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
-  });
-  const insumos={};
-  document.querySelectorAll('#otroProdIngRows .roll-ing-row').forEach(row=>{
-    const v = parseFloat(row.querySelector('input').value)||0;
-    if (v>0) insumos[row.dataset.key] = v;
-  });
-  const marcas = readMarcaChecks('otroProdMarcaChecks');
-  const nombreAnterior = id ? ST.otrosProductos.find(p=>p.id===id)?.name : null;
-  const data = {
-    name, tipo: document.getElementById('m_tipo').value,
-    familia: document.getElementById('m_familia').value,
-    insumos, marcas, rolls
-  };
-  const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  await syncCodigosVenta('otro_producto', nombreAnterior, name, 'otroProdCodigosVenta');
-  closeModal(); await loadConfig(); renderOtroProductoCfg();
-}
-
-// Helper: renders a checkbox list for selecting marcas, used in combo/roll/semi modals
-function marcaChecks(selectedNames) {
-  selectedNames = selectedNames || [];
-  if (!ST.marcas.length) {
-    return '<div style="font-size:12px;color:var(--text3);font-style:italic">No hay marcas configuradas todavía. Agregalas en la pestaña "Marcas".</div>';
-  }
-  return ST.marcas.map(m=>`<label style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer">
-    <input type="checkbox" class="marca-check" value="${m.name}" ${selectedNames.includes(m.name)?'checked':''}> ${m.name}</label>`).join('');
-}
-function readMarcaChecks(containerId) {
-  return [...document.querySelectorAll(`#${containerId} .marca-check:checked`)].map(c=>c.value);
-}
-
-// ── Usuarios (admin) ──
-function renderUsuarioCfg() {
-  let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Locales</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.usuarios.forEach(u=>{
-    const isMe = u.email === (window.CURRENT_USER_EMAIL||'');
-    const localesTxt = u.role==='admin' ? '<span style="color:var(--text3);font-style:italic">Todos</span>'
-      : (u.locales||[]).map(lid=>ST.locales.find(l=>l.id===lid)?.name).filter(Boolean).join(', ') || '<span style="color:var(--text3);font-style:italic">Sin asignar</span>';
-    h+=`<tr><td style="font-weight:600">${u.email}${isMe?' <span class="badge b-blue" style="margin-left:4px">vos</span>':''}</td>
-      <td>${u.nombre||'—'}</td>
-      <td><span class="badge ${u.role==='admin'?'b-warn':'b-blue'}">${u.role==='admin'?'Admin':'Usuario'}</span></td>
-      <td style="font-size:12px;color:var(--text2)">${localesTxt}</td>
-      <td><span class="badge ${u.active?'b-green':'b-red'}">${u.active?'Activo':'Inactivo'}</span></td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openUsuarioModal(${u.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteUsuario(${u.id})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.usuarios.length) h='<div class="empty">No hay usuarios cargados todavía.</div>';
-  document.getElementById('usuarioCfg').innerHTML=h;
-}
-function onUsuarioRoleChange() {
-  const isAdmin = document.getElementById('m_role').value === 'admin';
-  document.getElementById('m_localesWrap').classList.toggle('hidden', isAdmin);
-}
-function openUsuarioModal(id) {
-  const u = id ? ST.usuarios.find(x=>x.id===id) : null;
-  const userLocales = u?.locales || [];
-  openModal(id?'Editar usuario':'Nuevo usuario',`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Email de Google</label>
-      <input type="email" id="m_email" class="w-full" value="${u?.email||''}" placeholder="persona@gmail.com"></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional, se completa solo al iniciar sesión)</span></label>
-      <input type="text" id="m_nombre" class="w-full" value="${u?.nombre||''}"></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Rol</label><select id="m_role" class="w-full" onchange="onUsuarioRoleChange()">
-        <option value="user" ${u?.role==='user'?'selected':''}>Usuario (solo sus locales)</option>
-        <option value="admin" ${u?.role==='admin'?'selected':''}>Administrador (ve y edita todo)</option>
-      </select></div>
-      <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
-        <option value="1" ${u?.active!==false?'selected':''}>Activo</option>
-        <option value="0" ${u?.active===false?'selected':''}>Inactivo (bloqueado)</option>
-      </select></div>
-    </div>
-    <div id="m_localesWrap" class="${u?.role==='admin'?'hidden':''}">
-      <div class="form-lbl" style="margin-bottom:8px">Locales a los que tiene acceso</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;max-height:200px;overflow-y:auto">
-        ${ST.locales.map(l=>`<label style="display:flex;align-items:center;gap:7px;cursor:pointer">
-          <input type="checkbox" class="usuario-local-check" value="${l.id}" ${userLocales.includes(l.id)?'checked':''}> ${l.name}</label>`).join('') || '<span style="color:var(--text3);font-size:13px">No hay locales cargados todavía.</span>'}
-      </div>
-    </div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUsuario(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveUsuario(id) {
-  const email=document.getElementById('m_email').value.trim().toLowerCase();
-  if(!email || !email.includes('@')){alert('Ingresá un email válido');return;}
-  const locales = [...document.querySelectorAll('.usuario-local-check:checked')].map(c=>parseInt(c.value));
-  const data={
-    email, nombre: document.getElementById('m_nombre').value.trim(),
-    role: document.getElementById('m_role').value,
-    active: document.getElementById('m_active').value==='1',
-    locales
-  };
-  const res = await fetch(id?`/api/usuarios/${id}`:'/api/usuarios',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderUsuarioCfg();
-}
-async function deleteUsuario(id) {
-  if(!confirm('¿Confirmar eliminación? Esa cuenta perderá el acceso a la app.')) return;
-  const res = await fetch(`/api/usuarios/${id}`,{method:'DELETE'});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  await loadConfig(); renderUsuarioCfg();
-}
-
-// ── Locales ──
-function renderLocalCfg() {
-  let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.locales.forEach(l=>{
-    h+=`<tr><td style="font-weight:600">${l.name}</td>
-      <td><span class="badge ${l.active?'b-green':'b-red'}">${l.active?'Activo':'Inactivo'}</span></td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openLocalModal(${l.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('locales',${l.id},renderLocalCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!ST.locales.length) h='<div class="empty">No hay locales cargados todavía.</div>';
-  document.getElementById('localCfg').innerHTML=h;
-}
-function openLocalModal(id) {
-  const l = id ? ST.locales.find(x=>x.id===id) : null;
-  openModal(id?'Editar local':'Nuevo local',`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del local</label>
-      <input type="text" id="m_name" class="w-full" value="${l?.name||''}" placeholder="Ej: Sucursal Palermo"></div>
-    <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
-      <option value="1" ${l?.active!==false?'selected':''}>Activo</option>
-      <option value="0" ${l?.active===false?'selected':''}>Inactivo</option>
-    </select></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveLocal(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveLocal(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const data={name, active: document.getElementById('m_active').value==='1'};
-  const res = await fetch(id?`/api/locales/${id}`:'/api/locales',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderLocalCfg(); setupLocalSelector();
-}
-
-async function deleteItem(endpoint, id, rerender) {
-  if(!confirm('¿Confirmar eliminación?')) return;
-  await fetch(`/api/${endpoint}/${id}`,{method:'DELETE'});
-  await loadConfig(); rerender();
-}
-
-// ═══════════════════════════════════════════════════════
-// MODALS
-// ═══════════════════════════════════════════════════════
-function openModal(title,body,footer){
-  document.getElementById('modalTitle').textContent=title;
-  document.getElementById('modalBody').innerHTML=body;
-  document.getElementById('modalFoot').innerHTML=footer;
-  document.getElementById('modal').classList.remove('hidden');
-  legacyLinkTarget = null;
-}
-function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; }
-
-// ── Sushiman modal ──
-function openSmModal(id) {
-  const sm=id?ST.sushimanes.find(s=>s.id===id):null;
-  const dias = sm?.dias_franco || [];
-  const diasSemana = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-  openModal(id?'Editar sushiman':'Nuevo sushiman',`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${sm?.name||''}"></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
-      <div><label class="form-lbl">Horario de ingreso habitual</label><input type="time" id="m_ingreso" class="w-full" step="1800" value="${sm?.horario_ingreso||''}"></div>
-    </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
-      <option value="1" ${sm?.active!==false?'selected':''}>Activo</option>
-      <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>
-    <div class="form-lbl" style="margin-bottom:8px">Días de franco</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">
-      ${diasSemana.map(d=>`<label style="display:flex;align-items:center;gap:7px;cursor:pointer">
-        <input type="checkbox" class="dia-franco-check" value="${d}" ${dias.includes(d)?'checked':''}> ${d}</label>`).join('')}
-    </div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSm(${id||'null'})">Guardar</button>`
-  );
-}
-async function saveSm(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const dias_franco = [...document.querySelectorAll('.dia-franco-check:checked')].map(c=>c.value);
-  const data={
-    name, productivity:parseInt(document.getElementById('m_prod').value)||10,
-    active:document.getElementById('m_active').value==='1',
-    dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null,
-    local_id: ST.currentLocalId
-  };
-  const res = await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
-}
-
-// ── Roll modal ──
-// Helpers: resolve label/unit for any ingredient key (raw insumo OR semielaborado)
-function getIngredientLabel(key) {
-  const master = ST.insumosMaster.find(i=>i.key===key);
-  if (master) return master.label;
-  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
-  if (semi) return semi.name;
-  return INSUMO_LABELS[key] || key;
-}
-function styledIngredientName(key) {
-  const master = ST.insumosMaster.find(i=>i.key===key);
-  if (master) return `<span style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:2px 8px;border-radius:20px">${master.label}</span>`;
-  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
-  if (semi) return `<span style="background:var(--green-bg);color:var(--green);font-weight:700;padding:2px 8px;border-radius:20px">${semi.name}</span>`;
-  return getIngredientLabel(key);
-}
-function getIngredientUnit(key) {
-  const master = ST.insumosMaster.find(i=>i.key===key);
-  if (master) return master.unidad_receta;
-  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
-  if (semi) return semi.unit;
-  return key==='algas'?'hojas':key==='langos'?'u':'g';
-}
-function buildIngredientList() {
-  // combined list of {key, label, type} from master insumos + semielaborados, deduped by key
-  const seen = new Set();
-  const list = [];
-  ST.insumosMaster.forEach(i=>{
-    if (seen.has(i.key)) return; seen.add(i.key);
-    list.push({key:i.key, label:i.label, type:'insumo'});
-  });
-  ST.semielaborados.forEach(s=>{
-    if (seen.has(s.insumo_key)) return; seen.add(s.insumo_key);
-    list.push({key:s.insumo_key, label:s.name, type:'semi'});
-  });
-  return list;
-}
-// ── Reordenar por drag & drop (generico, se aplica a cualquier fila de receta) ──
-let draggedRow = null;
-function makeDraggable(row) {
-  row.draggable = true;
-  row.addEventListener('dragstart', () => {
-    draggedRow = row;
-    row.classList.add('dragging');
-  });
-  row.addEventListener('dragend', () => {
-    row.classList.remove('dragging');
-    draggedRow = null;
-  });
-  row.addEventListener('dragover', e => {
-    e.preventDefault();
-    if (!draggedRow || draggedRow === row || row.parentNode !== draggedRow.parentNode) return;
-    const rect = row.getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    if (e.clientY < midpoint) row.parentNode.insertBefore(draggedRow, row);
-    else row.parentNode.insertBefore(draggedRow, row.nextSibling);
-  });
-}
-function dragHandle() {
-  const h = document.createElement('span');
-  h.innerHTML = '<i class="ti ti-grip-vertical"></i>';
-  h.style.cssText = 'cursor:grab;color:var(--text3);flex-shrink:0;padding:0 2px;user-select:none';
-  h.title = 'Arrastrar para reordenar';
-  return h;
-}
-function tipoBadge(type) {
-  const b = document.createElement('span');
-  b.className = `ing-item-badge ${type}`;
-  b.style.flexShrink = '0';
-  b.textContent = type === 'insumo' ? 'Insumo' : 'Semielaborado';
-  return b;
-}
-
-function makeIngRow(key, qty) {
-  const div = document.createElement('div');
-  div.className = 'row roll-ing-row';
-  div.style.marginBottom = '6px';
-  div.dataset.key = key;
-  const isInsumo = ST.insumosMaster.some(i=>i.key===key);
-  const label = document.createElement('div');
-  label.style.flex = '1'; label.style.fontSize = '13px';
-  label.textContent = getIngredientLabel(key);
-  const inp = document.createElement('input');
-  inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
-  const unit = document.createElement('span');
-  unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
-  unit.textContent = getIngredientUnit(key);
-  const btn = document.createElement('button');
-  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
-  btn.onclick = () => div.remove();
-  div.appendChild(dragHandle());
-  div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
-  div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
-  makeDraggable(div);
-  return div;
-}
-
-// ── Filas "sin vincular": entradas viejas de receta en texto libre (antes de
-// que existiera el buscador). Se pueden asociar a un insumo/elaborado real. ──
-let legacyLinkTarget = null;
-function legacyIngRow(nombre, cantidad, unidad, prefix) {
-  const div = document.createElement('div');
-  div.className = 'row roll-ing-row legacy-row';
-  div.style.marginBottom = '6px';
-  div.dataset.legacyNombre = nombre;
-  div.dataset.legacyUnidad = unidad || 'g';
-
-  const badge = document.createElement('span');
-  badge.className = 'ing-item-badge';
-  badge.style.cssText += 'background:var(--bg);color:var(--text3);flex-shrink:0';
-  badge.textContent = 'Sin vincular';
-
-  const label = document.createElement('div');
-  label.style.flex = '1'; label.style.fontSize = '13px';
-  label.textContent = nombre;
-
-  const inp = document.createElement('input');
-  inp.type = 'number'; inp.value = cantidad || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
-  inp.className = 'legacy-cant';
-
-  const unitSpan = document.createElement('span');
-  unitSpan.style.fontSize = '12px'; unitSpan.style.color = 'var(--text3)'; unitSpan.style.minWidth = '40px';
-  unitSpan.textContent = unidad || 'g';
-
-  const vincularBtn = document.createElement('button');
-  vincularBtn.className = 'btn btn-sm'; vincularBtn.innerHTML = '<i class="ti ti-link"></i>';
-  vincularBtn.title = 'Vincular a un insumo o elaborado real';
-  vincularBtn.onclick = () => vincularLegacyRow(div, prefix);
-
-  const btn = document.createElement('button');
-  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
-  btn.onclick = () => div.remove();
-
-  div.appendChild(dragHandle());
-  div.appendChild(badge); div.appendChild(label); div.appendChild(inp); div.appendChild(unitSpan);
-  div.appendChild(vincularBtn); div.appendChild(btn);
-  makeDraggable(div);
-  return div;
-}
-function vincularLegacyRow(rowEl, prefix) {
-  const cantidad = parseFloat(rowEl.querySelector('.legacy-cant').value) || 1;
-  legacyLinkTarget = { row: rowEl, cantidad };
-  document.getElementById(prefix+'IngSearch').value = rowEl.dataset.legacyNombre;
-  document.getElementById(prefix+'IngSearch').focus();
-  filterIngredientDropdown(prefix);
-}
-
-// ── Custom ingredient search dropdown (reutilizable: Rolls y Otros Productos) ──
-// Cada instancia se identifica por un "prefix" (ej: 'roll', 'otroProd') que arma
-// los ids: {prefix}IngSearch, {prefix}IngDropdown, {prefix}IngRows
-let ingDropdownActiveIdx = -1;
-let ingDropdownItems = [];
-let ingDropdownPrefix = 'roll';
-
-function normalizeSearchText(s) {
-  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-}
-function filterIngredientDropdown(prefix) {
-  ingDropdownPrefix = prefix || ingDropdownPrefix;
-  const input = document.getElementById(ingDropdownPrefix+'IngSearch');
-  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
-  const q = normalizeSearchText(input.value.trim());
-  const all = buildIngredientList();
-  ingDropdownItems = q ? all.filter(i=>normalizeSearchText(i.label).includes(q)) : all;
-  ingDropdownActiveIdx = -1;
-  renderIngredientDropdown();
-  dropdown.classList.remove('hidden');
-}
-function renderIngredientDropdown() {
-  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
-  if (!ingDropdownItems.length) {
-    dropdown.innerHTML = '<div class="ing-item-empty">No se encontraron resultados</div>';
-    return;
-  }
-  dropdown.innerHTML = ingDropdownItems.map((item,idx)=>`
-    <div class="ing-item${idx===ingDropdownActiveIdx?' active':''}" data-idx="${idx}"
-         onmousedown="event.preventDefault();selectIngredientFromDropdown(${idx})">
-      <span class="ing-item-badge ${item.type}">${item.type==='insumo'?'Insumo':'Semielaborado'}</span>
-      <span>${item.label}</span>
-    </div>`).join('');
-}
-function selectIngredientFromDropdown(idx) {
-  const item = ingDropdownItems[idx];
-  if (!item) return;
-  const container = document.getElementById(ingDropdownPrefix+'IngRows');
-
-  // Si legacyLinkTarget quedo "pegado" de un modal anterior que se cerro sin
-  // terminar de vincular, su fila ya no esta en el documento — la descartamos
-  // en vez de romper el agregado normal.
-  if (legacyLinkTarget && !document.body.contains(legacyLinkTarget.row)) {
-    legacyLinkTarget = null;
-  }
-
-  if (legacyLinkTarget) {
-    // Reemplaza la fila "sin vincular" por una fila real, conservando la cantidad
-    const { row, cantidad } = legacyLinkTarget;
-    const nueva = makeIngRow(item.key, cantidad);
-    row.parentNode.insertBefore(nueva, row);
-    row.remove();
-    legacyLinkTarget = null;
-  } else {
-    const existing = [...container.children].find(row=>row.dataset.key===item.key);
-    if (existing) {
-      existing.querySelector('input').focus();
-      existing.querySelector('input').select();
-    } else {
-      container.appendChild(makeIngRow(item.key, 1));
-    }
-  }
-  document.getElementById(ingDropdownPrefix+'IngSearch').value = '';
-  document.getElementById(ingDropdownPrefix+'IngDropdown').classList.add('hidden');
-  document.getElementById(ingDropdownPrefix+'IngSearch').focus();
-}
-function handleIngredientKeydown(e, prefix) {
-  ingDropdownPrefix = prefix || ingDropdownPrefix;
-  const dropdown = document.getElementById(ingDropdownPrefix+'IngDropdown');
-  if (dropdown.classList.contains('hidden')) {
-    if (e.key === 'ArrowDown') filterIngredientDropdown(ingDropdownPrefix);
-    return;
-  }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    ingDropdownActiveIdx = Math.min(ingDropdownActiveIdx+1, ingDropdownItems.length-1);
-    renderIngredientDropdown();
-    scrollActiveIngIntoView();
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    ingDropdownActiveIdx = Math.max(ingDropdownActiveIdx-1, 0);
-    renderIngredientDropdown();
-    scrollActiveIngIntoView();
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    const idx = ingDropdownActiveIdx >= 0 ? ingDropdownActiveIdx : 0;
-    if (ingDropdownItems.length) selectIngredientFromDropdown(idx);
-  } else if (e.key === 'Escape') {
-    dropdown.classList.add('hidden');
-  }
-}
-function scrollActiveIngIntoView() {
-  const active = document.querySelector(`#${ingDropdownPrefix}IngDropdown .ing-item.active`);
-  if (active && typeof active.scrollIntoView === 'function') active.scrollIntoView({block:'nearest'});
-}
-function closeIngredientDropdownOnBlur(prefix) {
-  const p = prefix || ingDropdownPrefix;
-  // slight delay so a click (mousedown already handled selection) doesn't get lost
-  setTimeout(()=>{ const d=document.getElementById(p+'IngDropdown'); if(d) d.classList.add('hidden'); }, 100);
-}
-function openRollModal(id, dup) {
-  const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
-  const ins = roll?.insumos || {};
-  openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
-      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50"></div>
-    </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Grupo de rollo blanco <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — rolls con el mismo relleno pero distinta cobertura)</span></label>
-      <select id="m_rolloBlanco" class="w-full">${rolloBlancoGrupoOptions(roll?.rollo_blanco_grupo)}</select></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
-      <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
-        oninput="filterIngredientDropdown('roll')" onfocus="filterIngredientDropdown('roll')"
-        onkeydown="handleIngredientKeydown(event,'roll')" onblur="closeIngredientDropdownOnBlur('roll')">
-      <div id="rollIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
-    <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
-    <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
-  );
-  const container = document.getElementById('rollIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
-}
-function duplicateRoll(id) {
-  const roll = ST.rolls.find(r=>r.id===id);
-  if(!roll) return;
-  openRollModal(null, {...roll, name: roll.name + ' (copia)'});
-}
-async function saveRoll(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const insumos={};
-  document.querySelectorAll('#rollIngRows .roll-ing-row').forEach(row=>{
-    const v = parseFloat(row.querySelector('input').value)||0;
-    if (v>0) insumos[row.dataset.key] = v;
-  });
-  const marcas = readMarcaChecks('rollMarcaChecks');
-  const piezas_por_rollo = parseInt(document.getElementById('m_piezas').value)||14;
-  const rollo_blanco_grupo = document.getElementById('m_rolloBlanco').value || null;
-  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo,rollo_blanco_grupo})});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderRollCfg();
-}
-
-// ── Combo modal ──
-// ── Códigos de venta por producto (código + factor, para el matcheo de la planilla) ──
-function codigoVentaRow(codigo, factor) {
-  return `<div class="row codigo-venta-row" style="margin-bottom:6px;gap:6px">
-    <input type="text" placeholder="Código (ej: PORCION, UPS)" style="flex:1" value="${codigo||''}">
-    <span style="font-size:12px;color:var(--text3)">factor</span>
-    <input type="number" placeholder="1" step="0.1" min="0" value="${factor??1}" style="width:70px">
-    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
-  </div>`;
-}
-function addCodigoVentaRow(containerId) {
-  document.getElementById(containerId).insertAdjacentHTML('beforeend', codigoVentaRow('', 1));
-}
-function getCodigosVentaFromContainer(containerId) {
-  const codigos = [];
-  document.querySelectorAll(`#${containerId} .codigo-venta-row`).forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    const codigo = inputs[0].value.trim();
-    const factor = parseFloat(inputs[1].value) || 1;
-    if (codigo) codigos.push({codigo, factor});
-  });
-  return codigos;
-}
-function codigosVentaSection(tipo, nombreProducto, containerId) {
-  const existentes = ST.equivalencias.filter(e => e.tipo===tipo && e.nombre_canonico===nombreProducto && !e.marca);
-  const rows = existentes.map(e => codigoVentaRow(e.nombre_alias, e.factor)).join('');
-  return `
-    <div class="sec"><i class="ti ti-barcode"></i> Códigos de venta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Si este producto aparece en tu planilla de ventas con otro código o nombre, agregalo acá. El factor multiplica la cantidad vendida bajo ese código antes de sumarla — ej: si "UPS" es media porción, poné factor 0.5.</div>
-    <div id="${containerId}" style="margin-bottom:8px">${rows}</div>
-    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addCodigoVentaRow('${containerId}')"><i class="ti ti-plus"></i> Agregar código</button>
-  `;
-}
-async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) {
-  const codigos = getCodigosVentaFromContainer(containerId);
-  if (nombreAnterior && nombreAnterior !== nombreNuevo) {
-    // Se renombró el producto: limpiar los códigos que quedaron bajo el nombre viejo
-    await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({tipo, nombre_canonico: nombreAnterior, codigos: []})});
-  }
-  await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
-}
-
-function openComboModal(id) {
-  const combo=id?ST.combos.find(c=>c.id===id):null;
-  const famOpts=familiaOptions(combo?.family);
-  const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts)).join(''):'';
-  openModal(id?'Editar combo':'Nuevo combo',`
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}"></div>
-      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full">${famOpts}</select></div>
-    </div>
-    <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
-    <div id="rollRows">${existingRows}</div>
-    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
-    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
-    ${codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
-  );
-}
-function rollRow(name,qty,opts){
-  return `<div class="row" style="margin-bottom:6px">
-    <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
-    <input type="number" value="${qty}" min="1" max="100" style="width:65px">
-    <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
-  </div>`;
-}
-function addRollRow(){
-  const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
-  const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
-  const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
-  const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
-  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
-  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
-  div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
-  document.getElementById('rollRows').appendChild(div);
-}
-async function saveCombo(id) {
-  const name=document.getElementById('m_name').value.trim();
-  const family=document.getElementById('m_fam').value;
-  if(!name){alert('Ingresá un nombre');return;}
-  const rolls={};
-  document.querySelectorAll('#rollRows .row').forEach(row=>{
-    const sel=row.querySelector('select'); const inp=row.querySelector('input');
-    if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
-  });
-  const marcas = readMarcaChecks('comboMarcaChecks');
-  const nombreAnterior = id ? ST.combos.find(c=>c.id===id)?.name : null;
-  await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls,marcas})});
-  await syncCodigosVenta('combo', nombreAnterior, name, 'comboCodigosVenta');
-  closeModal(); await loadConfig(); renderComboCfg();
-}
-
-// ── Semi modal ──
-// ── Escalar receta segun un ingrediente (regla de tres sobre toda la receta) ──
-function toggleConversorReceta() {
-  const panel = document.getElementById('conversorReceta');
-  const chevron = document.getElementById('convChevron');
-  const abriendo = panel.classList.contains('hidden');
-  panel.classList.toggle('hidden');
-  chevron.style.transform = abriendo ? 'rotate(180deg)' : 'rotate(0deg)';
-  if (abriendo) poblarSelectConversor();
-  else { const prev = document.getElementById('convPreviewModal'); if (prev) prev.innerHTML = ''; }
-}
-function getRecetaRowInfo(row) {
-  if (row.dataset.key) {
-    return {
-      nombre: getIngredientLabel(row.dataset.key),
-      qtyInput: row.querySelector('input[type=number]'),
-      unidad: getIngredientUnit(row.dataset.key)
-    };
-  }
-  return {
-    nombre: row.dataset.legacyNombre,
-    qtyInput: row.querySelector('.legacy-cant'),
-    unidad: row.dataset.legacyUnidad
-  };
-}
-function poblarSelectConversor() {
-  const sel = document.getElementById('convIngSelect');
-  const rows = document.querySelectorAll('#semiRecetaIngRows .roll-ing-row');
-  let opts = [...rows].map((row, idx) => {
-    const { nombre } = getRecetaRowInfo(row);
-    return `<option value="${idx}">${nombre || `(ingrediente ${idx+1})`}</option>`;
-  }).join('');
-  const rendActual = parseFloat(document.getElementById('m_rendCant').value);
-  if (!isNaN(rendActual) && rendActual > 0) {
-    const rendUnidad = document.getElementById('m_rendUnid').value;
-    opts += `<option value="rend">— Rendimiento (${rendUnidad}) —</option>`;
-  }
-  sel.innerHTML = opts;
-}
-function aplicarConversionReceta() {
-  const rows = [...document.querySelectorAll('#semiRecetaIngRows .roll-ing-row')];
-  const selValue = document.getElementById('convIngSelect').value;
-  const nuevaCant = parseFloat(document.getElementById('convNuevaCant').value);
-  if (selValue === '' || selValue === undefined) { alert('Elegí un ingrediente o el rendimiento'); return; }
-  if (isNaN(nuevaCant) || nuevaCant <= 0) { alert('Ingresá una cantidad nueva válida'); return; }
-
-  const usaRendimiento = (selValue === 'rend');
-  let cantOriginal, rendUnidad = document.getElementById('m_rendUnid').value;
-
-  if (usaRendimiento) {
-    cantOriginal = parseFloat(document.getElementById('m_rendCant').value);
-    if (!cantOriginal || cantOriginal <= 0) { alert('Cargá primero el rendimiento de la receta'); return; }
-  } else {
-    const idx = parseInt(selValue);
-    if (isNaN(idx) || !rows[idx]) { alert('Elegí un ingrediente de la receta'); return; }
-    cantOriginal = parseFloat(getRecetaRowInfo(rows[idx]).qtyInput.value);
-    if (!cantOriginal || cantOriginal <= 0) { alert('Ese ingrediente no tiene una cantidad original cargada'); return; }
-  }
-
-  const ratio = nuevaCant / cantOriginal;
-  const escalar = v => Math.round(v * ratio * 100) / 100;
-
-  // Solo se calcula y se MUESTRA — nunca se escribe en los inputs reales de la receta.
-  let filas = rows.map(row => {
-    const { nombre, qtyInput, unidad } = getRecetaRowInfo(row);
-    const actual = parseFloat(qtyInput.value);
-    if (isNaN(actual)) return null;
-    return `<tr><td>${nombre || '(sin nombre)'}</td><td style="text-align:right">${actual} ${unidad}</td><td style="text-align:right;font-weight:700">${escalar(actual)} ${unidad}</td></tr>`;
-  }).filter(Boolean).join('');
-
-  const rendActual = parseFloat(document.getElementById('m_rendCant').value);
-  let rendFila = '';
-  if (!isNaN(rendActual) && rendActual > 0) {
-    rendFila = `<tr style="border-top:2px solid var(--border)"><td style="font-style:italic">Rendimiento</td><td style="text-align:right;font-style:italic">${rendActual} ${rendUnidad}</td><td style="text-align:right;font-weight:700;font-style:italic">${escalar(rendActual)} ${rendUnidad}</td></tr>`;
-  }
-
-  mostrarPreviewConversion(`
-    <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Solo vista previa — esto NO modifica la receta guardada. Si querés estos valores de verdad, escribilos vos mismo en los campos de arriba.</div>
-    <table style="width:100%"><thead><tr><th>Ingrediente</th><th style="text-align:right">Original</th><th style="text-align:right">Escalado (×${ratio.toFixed(3)})</th></tr></thead>
-    <tbody>${filas}${rendFila}</tbody></table>
-  `);
-}
-function mostrarPreviewConversion(html) {
-  let el = document.getElementById('convPreviewModal');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'convPreviewModal';
-    el.style.marginTop = '10px';
-    document.getElementById('conversorReceta').appendChild(el);
-  }
-  el.innerHTML = html;
-}
-function openSemiModal(id, dup) {
-  const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
-  openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Clave interna <span style="font-weight:400;color:var(--text3);text-transform:none">(para vincularlo en las recetas de rolls)</span></label>
-        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío"></div>
-      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full">
-        <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
-        <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
-    </div>
-    <div class="form-grid" style="margin-bottom:1.25rem">
-      <div><label class="form-lbl">Tiempo de elaboración <span style="font-weight:400;color:var(--text3);text-transform:none">(minutos)</span></label>
-        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25"></div>
-      <div><label class="form-lbl">Vida útil <span style="font-weight:400;color:var(--text3);text-transform:none">(días)</span></label>
-        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3"></div>
-    </div>
-    <div class="alert alert-info" style="margin-bottom:1.25rem">
-      <i class="ti ti-info-circle"></i>
-      <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
-    </div>
-
-    <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
-      <input type="text" id="semiRecetaIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
-        oninput="filterIngredientDropdown('semiReceta')" onfocus="filterIngredientDropdown('semiReceta')"
-        onkeydown="handleIngredientKeydown(event,'semiReceta')" onblur="closeIngredientDropdownOnBlur('semiReceta')">
-      <div id="semiRecetaIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
-    <div id="semiRecetaIngRows" style="margin-bottom:1.25rem"></div>
-
-    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
-      <div class="row-between" style="cursor:pointer" onclick="toggleConversorReceta()">
-        <div class="form-lbl" style="margin:0"><i class="ti ti-calculator"></i> Calculadora: ver receta escalada (no guarda cambios)</div>
-        <i class="ti ti-chevron-down" id="convChevron"></i>
-      </div>
-      <div id="conversorReceta" class="hidden" style="margin-top:10px">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Elegí un ingrediente (ej: lo que trae un paquete) <strong>o el rendimiento</strong> (ej: cuánto querés obtener en total) y poné la cantidad deseada, para ver cómo quedaría el resto de la receta en esa proporción. Es solo para consultar — no modifica ni guarda nada.</div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="convIngSelect" style="flex:1;min-width:160px"></select>
-          <span style="font-size:13px;color:var(--text3)">→ nueva cantidad:</span>
-          <input type="number" id="convNuevaCant" step="0.1" style="width:100px" placeholder="Ej: 150">
-          <button class="btn btn-sm btn-primary" onclick="aplicarConversionReceta()"><i class="ti ti-calculator"></i> Ver conversión</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="form-grid" style="background:var(--warn-bg);padding:12px;border-radius:var(--rsm);margin-top:.5rem">
-      <div><label class="form-lbl" style="color:#7a5500">⚠ Rendimiento de la receta</label>
-        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850"></div>
-      <div><label class="form-lbl" style="color:#7a5500">Unidad del rendimiento</label>
-        <select id="m_rendUnid" class="w-full">
-          <option value="g" ${semi?.rendimiento_unidad==='g'?'selected':''}>Gramos (g)</option>
-          <option value="u" ${semi?.rendimiento_unidad==='u'?'selected':''}>Unidades (u)</option>
-          <option value="ml" ${semi?.rendimiento_unidad==='ml'?'selected':''}>Mililitros (ml)</option>
-        </select></div>
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Cantidad final obtenida luego de la preparación/cocción (puede ser menor que la suma de ingredientes por merma).</div>
-
-    <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
-  );
-  // Populate existing recipe rows (formato nuevo con 'key', o formato viejo en texto libre)
-  const ingRowsDiv = document.getElementById('semiRecetaIngRows');
-  if (semi?.receta?.length) {
-    semi.receta.forEach(ing => {
-      if (ing.key) {
-        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad));
-      } else {
-        ingRowsDiv.appendChild(legacyIngRow(ing.nombre, ing.cantidad, ing.unidad, 'semiReceta'));
-      }
-    });
-  }
-}
-function duplicateSemi(id) {
-  const semi = ST.semielaborados.find(s=>s.id===id);
-  if(!semi) return;
-  openSemiModal(null, {...semi, name: semi.name + ' (copia)'});
-}
-async function saveSemi(id) {
-  const name=document.getElementById('m_name').value.trim();
-  if(!name){alert('Ingresá un nombre');return;}
-  const receta=[...document.querySelectorAll('#semiRecetaIngRows .roll-ing-row')].map(row=>{
-    if (row.dataset.key) {
-      const cantidad = parseFloat(row.querySelector('input').value)||0;
-      return {key: row.dataset.key, cantidad};
-    }
-    // Fila vieja sin vincular: se conserva en formato texto libre hasta que se vincule
-    const cantidad = parseFloat(row.querySelector('.legacy-cant').value)||0;
-    return {nombre: row.dataset.legacyNombre, unidad: row.dataset.legacyUnidad, cantidad};
-  }).filter(i=>i.cantidad>0);
-  const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
-  const rendimiento_unidad = document.getElementById('m_rendUnid').value;
-  const marcas = readMarcaChecks('semiMarcaChecks');
-  const tiempoElabVal = document.getElementById('m_tiempoElab').value;
-  const vidaUtilVal = document.getElementById('m_vidaUtil').value;
-  let insumoKey = document.getElementById('m_insumo').value.trim();
-  if (!insumoKey) insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
-  const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
-              rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas,
-              tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
-              vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null};
-  await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  closeModal(); await loadConfig(); renderSemiCfg();
-}
-
-// ── Insumo modal ──
-function openInsumoModal(id) {
-  const ins=id?ST.insumosMaster.find(i=>i.id===id):null;
-  openModal(id?'Editar insumo':'Nuevo insumo',`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre visible</label><input type="text" id="m_label" class="w-full" value="${ins?.label||''}"></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Clave interna (sin espacios, ej: salmon)</label><input type="text" id="m_key" class="w-full" value="${ins?.key||''}" ${id?'readonly':''} style="${id?'background:var(--bg);color:var(--text3)':''}"></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Unidad en receta</label><select id="m_ur" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="g" ${ins?.unidad_receta==='g'?'selected':''}>Gramos (g)</option>
-        <option value="ml" ${ins?.unidad_receta==='ml'?'selected':''}>Mililitros (ml)</option>
-        <option value="u" ${ins?.unidad_receta==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_receta==='hojas'?'selected':''}>Hojas</option></select></div>
-      <div><label class="form-lbl">Unidad en resumen</label><select id="m_us" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="kg" ${ins?.unidad_resumen==='kg'?'selected':''}>Kilogramos (kg)</option>
-        <option value="L" ${ins?.unidad_resumen==='L'?'selected':''}>Litros (L)</option>
-        <option value="u" ${ins?.unidad_resumen==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_resumen==='hojas'?'selected':''}>Hojas</option></select></div>
-    </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
-      <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
-      <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
-    <div style="margin-bottom:1.25rem"><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
-      <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>
-
-    <div class="sec"><i class="ti ti-tag"></i> Clasificación</div>
-    <div class="form-grid" style="margin-bottom:1.25rem">
-      <div><label class="form-lbl">Categoría</label><select id="m_categoria" class="w-full">${categoriaOptions(ins?.categoria)}</select></div>
-      <div><label class="form-lbl">Zona de almacenamiento</label><select id="m_zona" class="w-full">${zonaOptions(ins?.zona_almacenamiento)}</select></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;cursor:pointer">
-      <input type="checkbox" id="m_8020" ${ins?.es_80_20?'checked':''} style="width:18px;height:18px">
-      <span class="form-lbl" style="margin:0">Es 80/20 <span style="font-weight:400;color:var(--text3);text-transform:none">(producto principal)</span></span>
-    </label>
-    <div style="margin-bottom:1.25rem"><label class="form-lbl">Comentario <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></label>
-      <textarea id="m_comentario" class="w-full" rows="2" placeholder="Ej: comprar siempre fresco, no congelado">${ins?.comentario||''}</textarea></div>
-
-    <div class="sec"><i class="ti ti-award"></i> Marca del producto</div>
-    <div class="form-grid" style="margin-bottom:1.25rem">
-      <div><label class="form-lbl">Marca <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></label>
-        <input type="text" id="m_marcaProd" class="w-full" value="${ins?.marca_producto||''}" placeholder="Ej: AquaChile"></div>
-      <div><label class="form-lbl">Tipo</label><select id="m_marcaTipo" class="w-full">
-        <option value="sugerida" ${ins?.marca_tipo==='sugerida'?'selected':''}>Sugerida</option>
-        <option value="obligatoria" ${ins?.marca_tipo==='obligatoria'?'selected':''}>Obligatoria</option></select></div>
-    </div>
-
-    <div class="sec"><i class="ti ti-truck"></i> Proveedores</div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Proveedor principal</label>
-      <select id="m_provPrincipal" class="w-full">${proveedorOptions(ins?.proveedor_principal_id)}</select></div>
-    <div class="form-grid">
-      <div><label class="form-lbl">Alternativo 1</label><select id="m_provAlt1" class="w-full">${proveedorOptions(ins?.proveedor_alt1_id)}</select></div>
-      <div><label class="form-lbl">Alternativo 2</label><select id="m_provAlt2" class="w-full">${proveedorOptions(ins?.proveedor_alt2_id)}</select></div>
-    </div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveInsumo(${id||'null'})">Guardar</button>`
-  );
-}
-function updateFactorSuggestion() {
-  const ur=document.getElementById('m_ur').value;
-  const us=document.getElementById('m_us').value;
-  const map={'g_kg':0.001,'ml_L':0.001,'u_u':1,'hojas_hojas':1};
-  const key=`${ur}_${us}`;
-  if(map[key]!==undefined) document.getElementById('m_factor').value=map[key];
-}
-async function saveInsumo(id) {
-  const label=document.getElementById('m_label').value.trim();
-  const key=document.getElementById('m_key').value.trim().toLowerCase().replace(/\s+/g,'_');
-  if(!label||!key){alert('Completá nombre y clave');return;}
-  const precioVal=document.getElementById('m_precio').value;
-  const provPrincipal = document.getElementById('m_provPrincipal').value;
-  const provAlt1 = document.getElementById('m_provAlt1').value;
-  const provAlt2 = document.getElementById('m_provAlt2').value;
-  const data={
-    label, key,
-    unidad_receta:document.getElementById('m_ur').value,
-    unidad_resumen:document.getElementById('m_us').value,
-    factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
-    precio_unidad:precioVal?parseFloat(precioVal):null,
-    categoria: document.getElementById('m_categoria').value || null,
-    es_80_20: document.getElementById('m_8020').checked,
-    comentario: document.getElementById('m_comentario').value.trim() || null,
-    marca_producto: document.getElementById('m_marcaProd').value.trim() || null,
-    marca_tipo: document.getElementById('m_marcaProd').value.trim() ? document.getElementById('m_marcaTipo').value : null,
-    zona_almacenamiento: document.getElementById('m_zona').value || null,
-    proveedor_principal_id: provPrincipal ? parseInt(provPrincipal) : null,
-    proveedor_alt1_id: provAlt1 ? parseInt(provAlt1) : null,
-    proveedor_alt2_id: provAlt2 ? parseInt(provAlt2) : null,
-  };
-  const res = await fetch(id?`/api/insumos/${id}`:'/api/insumos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderInsumoCfg();
-}
-
-// ═══════════════════════════════════════════════════════
-// IMPORT
-// ═══════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════
-// BACKUP / RESTORE
-// ═══════════════════════════════════════════════════════
-async function downloadBackup() {
-  const btn = document.getElementById('backupBtn');
-  btn.innerHTML = '<span class="loader" style="border-top-color:#fff"></span> Generando...';
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/backup');
-    if (!res.ok) throw new Error('No se pudo generar el respaldo');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_sushi_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch(e) {
-    alert('Error al descargar el respaldo: ' + e.message);
-  } finally {
-    btn.innerHTML = '<i class="ti ti-download"></i> Descargar respaldo completo';
-    btn.disabled = false;
-  }
-}
-
-async function restoreBackup(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (!confirm('Esto va a agregar/actualizar datos desde el archivo de respaldo. ¿Continuar?')) {
-    e.target.value = '';
-    return;
-  }
-  const resultEl = document.getElementById('restoreResult');
-  resultEl.classList.remove('hidden');
-  resultEl.innerHTML = '<div class="alert alert-info"><span class="loader" style="border-top-color:var(--blue)"></span> Restaurando...</div>';
-
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const res = await fetch('/api/restore', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
-    });
-    const result = await res.json();
-    if (result.error) {
-      resultEl.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>${result.error}</span></div>`;
-      return;
-    }
-    const labels = {combos:'Combos', rolls:'Rolls', semielaborados:'Semielaborados',
-                     sushimanes:'Sushimanes', insumos:'Insumos', marcas:'Marcas', usuarios:'Usuarios'};
-    let html = '<div class="alert alert-success"><i class="ti ti-circle-check"></i><span>Respaldo restaurado correctamente</span></div>';
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
-    Object.entries(result.counts).forEach(([k,v])=>{
-      html += `<span class="badge b-green">${labels[k]||k}: ${v}</span>`;
-    });
-    html += '</div>';
-    resultEl.innerHTML = html;
-    await loadConfig();
-    renderComboCfg();
-  } catch(err) {
-    resultEl.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Error: el archivo no es un respaldo válido (${err.message})</span></div>`;
-  } finally {
-    e.target.value = '';
-  }
-}
-
-function handleImportDrop(e, type) {
-  e.preventDefault();
-  const dropId = type === 'rolls' ? 'dropRolls' : 'dropSemi';
-  document.getElementById(dropId).classList.remove('over');
-  if(e.dataTransfer.files[0]) processImport(e.dataTransfer.files[0], type);
-}
-function importFile(e, type) { if(e.target.files[0]) processImport(e.target.files[0], type); }
-
-async function processImport(file, type) {
-  const dropId   = type === 'rolls' ? 'dropRolls' : 'dropSemi';
-  const resultId = type === 'rolls' ? 'resultRolls' : 'resultSemi';
-  const bodyId   = type === 'rolls' ? 'resultRollsBody' : 'resultSemiBody';
-  const endpoint = `/api/importar/${type}`;
-
-  document.getElementById(dropId).innerHTML = `<span class="loader" style="border-top-color:var(--text);border-color:var(--border)"></span><div style="font-size:13px;margin-top:.5rem">Procesando...</div>`;
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    const res = await fetch(endpoint, {method:'POST', body: formData});
-    const data = await res.json();
-
-    const icon = type === 'rolls' ? 'recetas_rolls.xlsx' : 'recetas_semielaborados.xlsx';
-    document.getElementById(dropId).innerHTML = `<i class="ti ti-file-spreadsheet" style="font-size:28px;margin-bottom:.5rem;display:block"></i>
-       <div style="font-size:13px;font-weight:500">${icon}</div><div style="font-size:12px;margin-top:4px">Arrastrá o hacé click</div>`;
-    document.getElementById(dropId).onclick = ()=>document.getElementById(type==='rolls'?'fileRolls':'fileSemi').click();
-
-    if(data.error) {
-      document.getElementById(bodyId).innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>${data.error}</span></div>`;
-    } else {
-      let html = `<div class="metric" style="margin-bottom:.75rem"><div class="metric-lbl">Total procesados</div><div class="metric-val">${data.total}</div></div>`;
-      if(data.creados?.length) html += `<div style="margin-bottom:.5rem"><div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px"><i class="ti ti-plus"></i> Nuevos (${data.creados.length})</div>${data.creados.map(n=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border-light)">${n}</div>`).join('')}</div>`;
-      if(data.actualizados?.length) html += `<div><div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px"><i class="ti ti-refresh"></i> Actualizados (${data.actualizados.length})</div>${data.actualizados.map(n=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border-light)">${n}</div>`).join('')}</div>`;
-      if(data.total === 0) html += `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No se encontraron recetas válidas.</span></div>`;
-      document.getElementById(bodyId).innerHTML = html;
-    }
-    document.getElementById(resultId).classList.remove('hidden');
-    await loadConfig();
-    if(type==='rolls') renderRollCfg(); else renderSemiCfg();
-  } catch(err) {
-    document.getElementById(bodyId).innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Error: ${err.message}</span></div>`;
-    document.getElementById(resultId).classList.remove('hidden');
-  }
-}
-</script>
-</body>
-</html>
+        conn = get_db()
+        creados, actualizados = [], []
+
+        for row in ws.iter_rows(min_row=4, values_only=True):
+            nombre = row[0] if row[0] else None
+            if not nombre or str(nombre).strip() == '' or 'EJEMPLO' in str(nombre).upper():
+                continue
+            nombre = str(nombre).strip()
+
+            piezas_por_rollo = 14
+            if len(row) > 1 and row[1] is not None:
+                try:
+                    piezas_por_rollo = int(float(row[1]))
+                except (ValueError, TypeError):
+                    pass
+
+            insumos = {}
+            for ci, header in enumerate(headers[2:], 2):
+                if ci >= len(row): break
+                val = row[ci]
+                if val is None: continue
+                try: val = float(val)
+                except: continue
+                if val <= 0: continue
+                h_lower = header.lower().strip()
+                key = HEADER_MAP.get(h_lower, h_lower.replace(' ','_').replace('(','').replace(')','').strip('_'))
+                if key: insumos[key] = val
+
+            existing = conn.execute('SELECT id FROM rolls WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
+            if existing:
+                conn.execute('UPDATE rolls SET insumos=?, piezas_por_rollo=? WHERE id=?',
+                             (json.dumps(insumos), piezas_por_rollo, existing['id']))
+                actualizados.append(nombre)
+            else:
+                conn.execute('INSERT INTO rolls (name, insumos, piezas_por_rollo) VALUES (?,?,?)',
+                             (nombre, json.dumps(insumos), piezas_por_rollo))
+                creados.append(nombre)
+
+        conn.commit()
+        conn.close()
+        return jsonify({'ok': True, 'creados': creados, 'actualizados': actualizados,
+                        'total': len(creados) + len(actualizados)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/importar/semielaborados', methods=['POST'])
+@admin_required
+def importar_semielaborados():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    file = request.files['file']
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx o .xls'}), 400
+
+    try:
+        from openpyxl import load_workbook
+        tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+        file.save(tmp.name)
+        tmp.close()
+
+        wb = load_workbook(tmp.name, data_only=True)
+        os.unlink(tmp.name)
+
+        conn = get_db()
+        creados, actualizados = [], []
+
+        for sheet_name in wb.sheetnames:
+            if 'NUEVO' in sheet_name.upper():
+                continue
+
+            ws = wb[sheet_name]
+            semi_name = sheet_name.strip()
+            ingredientes = []
+            rendimiento = None
+            unidad_rend = 'g'
+
+            for row in ws.iter_rows(min_row=4, values_only=True):
+                if not any(row): continue
+                ing_name = row[0]
+                if ing_name is None: continue
+                ing_str = str(ing_name).strip()
+
+                if 'RENDIMIENTO' in ing_str.upper():
+                    try:
+                        rendimiento = float(row[1]) if row[1] else 0
+                        unidad_rend = str(row[2]).strip() if row[2] else 'g'
+                    except: pass
+                    break
+
+                if ing_str.upper() in ('INGREDIENTE','') or ing_str.startswith('🍣'):
+                    continue
+
+                try:
+                    cant = float(row[1]) if row[1] is not None else 0
+                    unid = str(row[2]).strip() if row[2] else 'g'
+                except:
+                    cant, unid = 0, 'g'
+
+                if cant > 0 and ing_str:
+                    ingredientes.append({'nombre': ing_str, 'cantidad': cant, 'unidad': unid})
+
+            if not ingredientes and rendimiento is None:
+                continue
+
+            KEY_MAP = {
+                'tartar': 'tartar', 'grill': 'grill', 'langostino': 'langos',
+                'guacamole': 'guac', 'batata': 'batata', 'kanikama': 'kanikama',
+                'spicy': 'spicy', 'okinawa': 'okinawa', 'salmon crispy': 'salmonCrispy',
+            }
+            insumo_key = semi_name.lower().replace(' ','_')
+            for k, v in KEY_MAP.items():
+                if k in semi_name.lower():
+                    insumo_key = v
+                    break
+
+            receta_json = json.dumps(ingredientes)
+
+            existing = conn.execute('SELECT id FROM semielaborados WHERE LOWER(name)=LOWER(?)', (semi_name,)).fetchone()
+            rolls_json = json.dumps([])
+            if existing:
+                ex_full = conn.execute('SELECT rolls FROM semielaborados WHERE id=?', (existing['id'],)).fetchone()
+                rolls_json = ex_full['rolls'] if ex_full else '[]'
+                conn.execute('''UPDATE semielaborados SET insumo_key=?, unit=?, rolls=?,
+                                receta=?, rendimiento_cantidad=?, rendimiento_unidad=? WHERE id=?''',
+                            (insumo_key, unidad_rend, rolls_json, receta_json,
+                             rendimiento or 0, unidad_rend, existing['id']))
+                actualizados.append(semi_name)
+            else:
+                conn.execute('''INSERT INTO semielaborados
+                                (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad)
+                                VALUES (?,?,?,?,?,?,?)''',
+                            (semi_name, insumo_key, unidad_rend, rolls_json, receta_json,
+                             rendimiento or 0, unidad_rend))
+                creados.append(semi_name)
+
+        conn.commit()
+        conn.close()
+        return jsonify({'ok': True, 'creados': creados, 'actualizados': actualizados,
+                        'total': len(creados) + len(actualizados)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ── Main ──────────────────────────────────────────────────────────────────
+init_db()
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
