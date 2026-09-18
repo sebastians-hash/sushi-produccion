@@ -178,6 +178,7 @@ def init_db():
             nombre_canonico TEXT NOT NULL,
             nombre_alias TEXT NOT NULL,
             marca TEXT,
+            factor REAL NOT NULL DEFAULT 1.0,
             UNIQUE(tipo, nombre_alias)
         );
         CREATE TABLE IF NOT EXISTS locales (
@@ -259,6 +260,10 @@ def init_db():
     otro_cols = get_columns('otros_productos')
     if 'rolls' not in otro_cols:
         c.execute("ALTER TABLE otros_productos ADD COLUMN rolls TEXT NOT NULL DEFAULT '{}'")
+
+    equiv_cols = get_columns('equivalencias')
+    if 'factor' not in equiv_cols:
+        c.execute("ALTER TABLE equivalencias ADD COLUMN factor REAL NOT NULL DEFAULT 1.0")
 
     # Migration: add 'marcas' column to combos and rolls
     combo_cols = get_columns('combos')
@@ -717,8 +722,8 @@ def restore_data():
     for e in equiv_rows:
         if not e.get('nombre_alias'):
             continue
-        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
-                     (e['tipo'], e['nombre_canonico'], e['nombre_alias'], e.get('marca', '')))
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (e['tipo'], e['nombre_canonico'], e['nombre_alias'], e.get('marca', ''), e.get('factor') or 1.0))
         n_equiv += 1
     counts['equivalencias'] = n_equiv
 
@@ -845,7 +850,8 @@ def get_equivalencias():
     rows = conn.execute('SELECT * FROM equivalencias ORDER BY tipo, nombre_canonico, nombre_alias').fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'nombre_canonico': r['nombre_canonico'],
-                     'nombre_alias': r['nombre_alias'], 'marca': r['marca']} for r in rows])
+                     'nombre_alias': r['nombre_alias'], 'marca': r['marca'],
+                     'factor': r['factor'] if r['factor'] is not None else 1.0} for r in rows])
 
 @app.route('/api/equivalencias', methods=['POST'])
 @admin_required
@@ -853,8 +859,9 @@ def create_equivalencia():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
-                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', '')))
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''),
+                      data.get('factor', 1.0) or 1.0))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -869,8 +876,9 @@ def update_equivalencia(equiv_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE equivalencias SET tipo=?, nombre_canonico=?, nombre_alias=?, marca=? WHERE id=?',
-                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''), equiv_id))
+        conn.execute('UPDATE equivalencias SET tipo=?, nombre_canonico=?, nombre_alias=?, marca=?, factor=? WHERE id=?',
+                     (data['tipo'], data['nombre_canonico'], data['nombre_alias'].strip(), data.get('marca', ''),
+                      data.get('factor', 1.0) or 1.0, equiv_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -888,6 +896,43 @@ def delete_equivalencia(equiv_id):
     conn.close()
     return jsonify({'ok': True})
 
+@app.route('/api/equivalencias/sync-producto', methods=['POST'])
+@admin_required
+def sync_equivalencias_producto():
+    """Reemplaza los códigos (sin marca, con factor) de UN producto puntual,
+    sin tocar los códigos de ningún otro producto ni los de la matriz por marca."""
+    data = request.json
+    tipo = data.get('tipo')
+    nombre_canonico = data.get('nombre_canonico')
+    codigos = data.get('codigos', [])  # [{codigo, factor}]
+    if tipo not in ('combo', 'roll', 'otro_producto') or not nombre_canonico:
+        return jsonify({'error': 'Datos inválidos'}), 400
+
+    conn = get_db()
+    conn.execute("""DELETE FROM equivalencias WHERE tipo=? AND nombre_canonico=?
+                    AND (marca IS NULL OR marca='')""", (tipo, nombre_canonico))
+    count = 0
+    for c in codigos:
+        codigo = (c.get('codigo') or '').strip()
+        if not codigo:
+            continue
+        factor = c.get('factor')
+        try:
+            factor = float(factor) if factor not in (None, '') else 1.0
+        except (TypeError, ValueError):
+            factor = 1.0
+        try:
+            conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                         (tipo, nombre_canonico, codigo, '', factor))
+            count += 1
+        except IntegrityError:
+            conn.rollback()
+            conn.close()
+            return jsonify({'error': f'El código "{codigo}" ya está usado en otro producto de ese tipo'}), 400
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'count': count})
+
 @app.route('/api/equivalencias/sync', methods=['POST'])
 @admin_required
 def sync_equivalencias():
@@ -901,14 +946,16 @@ def sync_equivalencias():
         return jsonify({'error': 'Tipo inválido'}), 400
 
     conn = get_db()
-    conn.execute('DELETE FROM equivalencias WHERE tipo=?', (tipo,))
+    # Solo tocamos las filas CON marca (las de esta matriz) — las que no tienen marca
+    # son códigos propios de cada producto (con o sin factor) y no se deben borrar acá.
+    conn.execute("DELETE FROM equivalencias WHERE tipo=? AND marca IS NOT NULL AND marca != ''", (tipo,))
     count = 0
     for e in entries:
         alias = (e.get('nombre_alias') or '').strip()
         if not alias:
             continue
-        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca) VALUES (?,?,?,?)',
-                     (tipo, e['nombre_canonico'], alias, e.get('marca', '')))
+        conn.execute('INSERT INTO equivalencias (tipo, nombre_canonico, nombre_alias, marca, factor) VALUES (?,?,?,?,?)',
+                     (tipo, e['nombre_canonico'], alias, e.get('marca', ''), 1.0))
         count += 1
     conn.commit()
     conn.close()
@@ -1548,9 +1595,9 @@ def calcular():
     def norm(s):
         return (s or '').lower().replace(' ', '').replace('-', '').replace('_', '')
 
-    equiv_rows = conn.execute('SELECT tipo, nombre_canonico, nombre_alias FROM equivalencias').fetchall()
-    equiv_combo = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'combo'}
-    equiv_otro  = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'otro_producto'}
+    equiv_rows = conn.execute('SELECT tipo, nombre_canonico, nombre_alias, factor FROM equivalencias').fetchall()
+    equiv_combo = {norm(r['nombre_alias']): (r['nombre_canonico'], r['factor'] or 1.0) for r in equiv_rows if r['tipo'] == 'combo'}
+    equiv_otro  = {norm(r['nombre_alias']): (r['nombre_canonico'], r['factor'] or 1.0) for r in equiv_rows if r['tipo'] == 'otro_producto'}
     equiv_roll  = {norm(r['nombre_alias']): r['nombre_canonico'] for r in equiv_rows if r['tipo'] == 'roll'}
     conn.close()
 
@@ -1559,12 +1606,7 @@ def calcular():
     direct_insumo_totals = {}  # insumos que vienen DIRECTO de "otros productos" (no de rolls)
 
     for s in sales:
-        a = adj.get(s['code'], 0)
-        adj_qty = max(0, round(s['qty'] + (s['qty'] * a / 100 if adj_mode == 'pct' else a)))
-        final_qty = round(adj_qty * global_pct / 100)
-        if final_qty <= 0:
-            continue
-
+        factor = 1.0
         combo = combos_db.get(s['name']) or combos_db.get(s['code'])
         if not combo:
             name_lower = s['name'].lower().replace(' ', '')
@@ -1573,10 +1615,42 @@ def calcular():
                     combo = crolls
                     break
         if not combo:
-            # Ver si el nombre/codigo es un alias conocido de otra marca para un combo existente
-            canonico = equiv_combo.get(norm(s['name'])) or equiv_combo.get(norm(s['code']))
-            if canonico:
+            # Ver si el nombre/codigo es un codigo/alias conocido para un combo existente
+            equiv_match = equiv_combo.get(norm(s['name'])) or equiv_combo.get(norm(s['code']))
+            if equiv_match:
+                canonico, factor = equiv_match
                 combo = combos_db.get(canonico)
+
+        otro = None
+        if not combo:
+            # No es combo: ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+            otro = otros_db.get(s['name']) or otros_db.get(s['code'])
+            if not otro:
+                name_lower = s['name'].lower().replace(' ', '')
+                for pname, pdata in otros_db.items():
+                    if pname.lower().replace(' ', '') == name_lower:
+                        otro = pdata
+                        break
+            if not otro:
+                # Ver si el nombre/codigo es un codigo/alias conocido para un producto existente
+                equiv_match = equiv_otro.get(norm(s['name'])) or equiv_otro.get(norm(s['code']))
+                if equiv_match:
+                    canonico, factor = equiv_match
+                    otro = otros_db.get(canonico)
+
+        if not combo and not otro:
+            # No matchea ningun combo ni otro producto por ningun medio: se ignora por completo
+            continue
+
+        # El factor (si vino de un codigo con equivalencia, ej "UPS"=0.5) se aplica sobre
+        # la cantidad base, ANTES de los ajustes por porcentaje/valor fijo y el % global.
+        effective_qty = s['qty'] * factor
+        a = adj.get(s['code'], 0)
+        adj_qty = max(0, round(effective_qty + (effective_qty * a / 100 if adj_mode == 'pct' else a)))
+        final_qty = round(adj_qty * global_pct / 100)
+        if final_qty <= 0:
+            continue
+
         if combo:
             for roll_name, piezas in combo.items():
                 if not piezas:
@@ -1587,19 +1661,6 @@ def calcular():
                 roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
             continue
 
-        # No es combo: ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-        otro = otros_db.get(s['name']) or otros_db.get(s['code'])
-        if not otro:
-            name_lower = s['name'].lower().replace(' ', '')
-            for pname, pdata in otros_db.items():
-                if pname.lower().replace(' ', '') == name_lower:
-                    otro = pdata
-                    break
-        if not otro:
-            # Ver si el nombre/codigo es un alias conocido de otra marca para un producto existente
-            canonico = equiv_otro.get(norm(s['name'])) or equiv_otro.get(norm(s['code']))
-            if canonico:
-                otro = otros_db.get(canonico)
         if otro:
             key = None
             for pname, pdata in otros_db.items():
