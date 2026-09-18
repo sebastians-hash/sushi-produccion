@@ -604,17 +604,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
         </div>
         <div id="equivalenciaCfg"></div>
       </div>
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Códigos SKU alternativos</div>
-          <button class="btn btn-sm" onclick="openSkuModal()"><i class="ti ti-plus"></i> Vincular código</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Un mismo producto puede aparecer en tu planilla de ventas con varios códigos distintos (por descuentos, canales de venta, etc). Vinculá acá esos códigos extra a tu producto real para que se sumen todos juntos.</span>
-        </div>
-        <div id="skuCfg"></div>
-      </div>
     </div>
 
   </div>
@@ -816,7 +805,7 @@ function goMainSection(name) {
   if(name==='productos') renderComboCfg();
   if(name==='recetas') renderRollCfg();
   if(name==='insumos') renderInsumoCfg();
-  if(name==='equivalencias'){ renderEquivalenciaCfg(); renderSkuCfg(); }
+  if(name==='equivalencias'){ renderEquivalenciaCfg(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -930,6 +919,7 @@ function processFile(file) {
 
       if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
       const grp={};
+      let ignoradas=0;
 
       function addToGroup(key, name, family, matched, qty) {
         if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
@@ -943,23 +933,22 @@ function processFile(file) {
       rows.slice(1).forEach(r=>{
         const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
         const rawName=ni>=0?(r[ni]||'').toString().trim():code;
-        const qty=parseFloat(r[qi])||0;
-        if(!qty) return;
+        const qtyRaw=parseFloat(r[qi])||0;
+        if(!qtyRaw) return;
 
-        const mc=findCombo(code,rawName);
-
-        if(mc){
-          // Coincidencia directa con un combo existente
+        const foundCombo=findCombo(code,rawName);
+        if(foundCombo){
+          // Coincidencia directa (o por código de venta) con un combo existente
           const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-          addToGroup(key, mc.name, mc.family, true, qty);
+          addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
           return;
         }
 
         // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-        const mp=findOtroProducto(code,rawName);
-        if(mp){
+        const foundOtro=findOtroProducto(code,rawName);
+        if(foundOtro){
           const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
-          addToGroup(key, mp.name, mp.familia||'Otros', true, qty);
+          addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
           return;
         }
 
@@ -973,23 +962,21 @@ function processFile(file) {
             if(matchedParts.every(m=>m)){
               // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
               matchedParts.forEach(m=>{
-                const key = m.name.toLowerCase().replace(/\s+/g,'');
-                addToGroup(key, m.name, m.family, true, qty);
+                const key = m.match.name.toLowerCase().replace(/\s+/g,'');
+                addToGroup(key, m.match.name, m.match.family, true, qtyRaw*m.factor);
               });
               return;
             }
           }
         }
 
-        // No matcheó ni directo ni como combinación de combos conocidos
-        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-        if(!key) return;
-        addToGroup(key, rawName, 'Otros', false, qty);
+        // No matcheó ningún producto por ningún medio (ni directo, ni código de venta,
+        // ni combinación de combos): se ignora por completo, no se muestra ni se cuenta.
+        ignoradas++;
       });
       ST.sales=Object.values(grp).filter(s=>s.qty>0);
-      const unm=ST.sales.filter(s=>!s.matched).length;
       let msg=`${file.name} — ${ST.sales.length} productos cargados`;
-      if(unm>0) msg+=` (${unm} sin receta, se ignorarán)`;
+      if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
       showStatus('success',msg);
       ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
       guardarProgresoPlanilla('borrador');
@@ -1002,20 +989,24 @@ function processFile(file) {
 function findCombo(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
   let match = ST.combos.find(c=>n(c.name)===n(code)||n(c.name)===n(name));
-  if (!match) {
-    const equiv = ST.equivalencias.find(e=>e.tipo==='combo' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-    if (equiv) match = ST.combos.find(c=>n(c.name)===n(equiv.nombre_canonico));
+  if (match) return {match, factor:1};
+  const equiv = ST.equivalencias.find(e=>e.tipo==='combo' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
+  if (equiv) {
+    match = ST.combos.find(c=>n(c.name)===n(equiv.nombre_canonico));
+    if (match) return {match, factor: equiv.factor||1};
   }
-  return match;
+  return null;
 }
 function findOtroProducto(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
   let match = ST.otrosProductos.find(p=>n(p.name)===n(code)||n(p.name)===n(name));
-  if (!match) {
-    const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-    if (equiv) match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
+  if (match) return {match, factor:1};
+  const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
+  if (equiv) {
+    match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
+    if (match) return {match, factor: equiv.factor||1};
   }
-  return match;
+  return null;
 }
 
 function showStatus(type,msg) {
@@ -2281,60 +2272,6 @@ function equivalenciaProductoOptions(tipo, selected) {
   return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
 }
 
-// ── Códigos SKU alternativos (mismo producto, distinto código por precio/canal) ──
-// Reutiliza la misma tabla de equivalencias, pero sin marca asociada (marca vacía).
-function renderSkuCfg() {
-  const skuRows = ST.equivalencias.filter(e => !e.marca);
-  let h='<table><thead><tr><th>Código SKU</th><th>Tipo</th><th>Producto real</th><th style="width:90px"></th></tr></thead><tbody>';
-  skuRows.sort((a,b)=>a.nombre_alias.localeCompare(b.nombre_alias,'es')).forEach(e=>{
-    h+=`<tr><td style="font-weight:600;font-family:monospace">${e.nombre_alias}</td>
-      <td><span class="badge b-blue">${TIPO_EQUIV_LABELS[e.tipo]||e.tipo}</span></td>
-      <td>${e.nombre_canonico}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSkuModal(${e.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn-remove-x" onclick="deleteItem('equivalencias',${e.id},renderSkuCfg)" title="Eliminar">&times;</button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!skuRows.length) h='<div class="empty">No hay códigos SKU vinculados todavía.</div>';
-  document.getElementById('skuCfg').innerHTML=h;
-}
-function openSkuModal(id) {
-  const sku = id ? ST.equivalencias.find(e=>e.id===id) : null;
-  const tipo = sku?.tipo || 'combo';
-  openModal(id?'Editar código SKU':'Vincular código SKU', `
-    <div style="margin-bottom:1rem"><label class="form-lbl">Tipo de producto</label>
-      <select id="m_sku_tipo" class="w-full" onchange="onSkuTipoChange()">
-        <option value="combo" ${tipo==='combo'?'selected':''}>Combo</option>
-        <option value="roll" ${tipo==='roll'?'selected':''}>Roll</option>
-        <option value="otro_producto" ${tipo==='otro_producto'?'selected':''}>Otro producto (porción/ensalada/entrada/plato)</option>
-      </select></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Producto real</label>
-      <select id="m_sku_producto" class="w-full">${equivalenciaProductoOptions(tipo, sku?.nombre_canonico)}</select></div>
-    <div><label class="form-lbl">Código SKU <span style="font-weight:400;color:var(--text3);text-transform:none">(tal como aparece en la columna "Código" de tu planilla de ventas)</span></label>
-      <input type="text" id="m_sku_codigo" class="w-full" value="${sku?.nombre_alias||''}" placeholder="Ej: salsa_teri"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSku(${id||'null'})">Guardar</button>`
-  );
-}
-function onSkuTipoChange() {
-  const tipo = document.getElementById('m_sku_tipo').value;
-  document.getElementById('m_sku_producto').innerHTML = equivalenciaProductoOptions(tipo, null);
-}
-async function saveSku(id) {
-  const codigo = document.getElementById('m_sku_codigo').value.trim();
-  if(!codigo){ alert('Ingresá el código SKU'); return; }
-  const data = {
-    tipo: document.getElementById('m_sku_tipo').value,
-    nombre_canonico: document.getElementById('m_sku_producto').value,
-    nombre_alias: codigo,
-    marca: ''
-  };
-  const res = await fetch(id?`/api/equivalencias/${id}`:'/api/equivalencias',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderSkuCfg();
-}
-
 function renderEquivalenciaCfg() {
   const container = document.getElementById('equivalenciaCfg');
 
@@ -2462,7 +2399,8 @@ function openOtroProductoModal(id, dup, defaultTipo) {
     </div>
     <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(prod?.marcas)}</div>`,
+    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
+    ${codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
   );
   const container = document.getElementById('otroProdIngRows');
@@ -2500,6 +2438,7 @@ async function saveOtroProducto(id) {
     if (v>0) insumos[row.dataset.key] = v;
   });
   const marcas = readMarcaChecks('otroProdMarcaChecks');
+  const nombreAnterior = id ? ST.otrosProductos.find(p=>p.id===id)?.name : null;
   const data = {
     name, tipo: document.getElementById('m_tipo').value,
     familia: document.getElementById('m_familia').value,
@@ -2508,6 +2447,7 @@ async function saveOtroProducto(id) {
   const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
+  await syncCodigosVenta('otro_producto', nombreAnterior, name, 'otroProdCodigosVenta');
   closeModal(); await loadConfig(); renderOtroProductoCfg();
 }
 
@@ -2988,6 +2928,49 @@ async function saveRoll(id) {
 }
 
 // ── Combo modal ──
+// ── Códigos de venta por producto (código + factor, para el matcheo de la planilla) ──
+function codigoVentaRow(codigo, factor) {
+  return `<div class="row codigo-venta-row" style="margin-bottom:6px;gap:6px">
+    <input type="text" placeholder="Código (ej: PORCION, UPS)" style="flex:1" value="${codigo||''}">
+    <span style="font-size:12px;color:var(--text3)">factor</span>
+    <input type="number" placeholder="1" step="0.1" min="0" value="${factor??1}" style="width:70px">
+    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
+  </div>`;
+}
+function addCodigoVentaRow(containerId) {
+  document.getElementById(containerId).insertAdjacentHTML('beforeend', codigoVentaRow('', 1));
+}
+function getCodigosVentaFromContainer(containerId) {
+  const codigos = [];
+  document.querySelectorAll(`#${containerId} .codigo-venta-row`).forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const codigo = inputs[0].value.trim();
+    const factor = parseFloat(inputs[1].value) || 1;
+    if (codigo) codigos.push({codigo, factor});
+  });
+  return codigos;
+}
+function codigosVentaSection(tipo, nombreProducto, containerId) {
+  const existentes = ST.equivalencias.filter(e => e.tipo===tipo && e.nombre_canonico===nombreProducto && !e.marca);
+  const rows = existentes.map(e => codigoVentaRow(e.nombre_alias, e.factor)).join('');
+  return `
+    <div class="sec"><i class="ti ti-barcode"></i> Códigos de venta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Si este producto aparece en tu planilla de ventas con otro código o nombre, agregalo acá. El factor multiplica la cantidad vendida bajo ese código antes de sumarla — ej: si "UPS" es media porción, poné factor 0.5.</div>
+    <div id="${containerId}" style="margin-bottom:8px">${rows}</div>
+    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addCodigoVentaRow('${containerId}')"><i class="ti ti-plus"></i> Agregar código</button>
+  `;
+}
+async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) {
+  const codigos = getCodigosVentaFromContainer(containerId);
+  if (nombreAnterior && nombreAnterior !== nombreNuevo) {
+    // Se renombró el producto: limpiar los códigos que quedaron bajo el nombre viejo
+    await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo, nombre_canonico: nombreAnterior, codigos: []})});
+  }
+  await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
+}
+
 function openComboModal(id) {
   const combo=id?ST.combos.find(c=>c.id===id):null;
   const famOpts=familiaOptions(combo?.family);
@@ -3002,7 +2985,8 @@ function openComboModal(id) {
     <div id="rollRows">${existingRows}</div>
     <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(combo?.marcas)}</div>`,
+    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
+    ${codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
   );
 }
@@ -3035,7 +3019,9 @@ async function saveCombo(id) {
     if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
   });
   const marcas = readMarcaChecks('comboMarcaChecks');
+  const nombreAnterior = id ? ST.combos.find(c=>c.id===id)?.name : null;
   await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls,marcas})});
+  await syncCodigosVenta('combo', nombreAnterior, name, 'comboCodigosVenta');
   closeModal(); await loadConfig(); renderComboCfg();
 }
 
