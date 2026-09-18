@@ -2349,11 +2349,13 @@ const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entr
 
 function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
-  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Rolls</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
+    const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
     const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
       <td>${p.familia||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${rollsResumen||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
       <td><div class="row" style="gap:4px">
@@ -2374,16 +2376,24 @@ function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente',
 function openOtroProductoModal(id, dup, defaultTipo) {
   const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
   const ins = prod?.insumos || {};
+  const rollsExistentes = prod?.rolls || {};
   const tipoSeleccionado = prod?.tipo || defaultTipo;
   const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
     `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
+  const rollOptsProd=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd)).join('');
   openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
       <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
     </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
+
+    <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y piezas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para productos armados con piezas de un roll, igual que un combo)</span></div>
+    <div id="otroProdRollRows" style="margin-bottom:8px">${existingRollRows}</div>
+    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para lo que se agrega directo, sin pasar por un roll)</span></div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
@@ -2398,6 +2408,17 @@ function openOtroProductoModal(id, dup, defaultTipo) {
   const container = document.getElementById('otroProdIngRows');
   Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
 }
+function addOtroProdRollRow(){
+  const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
+  const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
+  const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
+  const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
+  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
+  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
+  div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
+  document.getElementById('otroProdRollRows').appendChild(div);
+}
 function renderOtroProductoCfg(){ renderPorcionesCfg(); renderEnsaladasCfg(); renderEntradasCfg(); renderPlatosCalientesCfg(); }
 
 function duplicateOtroProducto(id) {
@@ -2408,6 +2429,11 @@ function duplicateOtroProducto(id) {
 async function saveOtroProducto(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
+  const rolls={};
+  document.querySelectorAll('#otroProdRollRows .row').forEach(row=>{
+    const sel=row.querySelector('select'); const inp=row.querySelector('input');
+    if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
+  });
   const insumos={};
   document.querySelectorAll('#otroProdIngRows .roll-ing-row').forEach(row=>{
     const v = parseFloat(row.querySelector('input').value)||0;
@@ -2417,7 +2443,7 @@ async function saveOtroProducto(id) {
   const data = {
     name, tipo: document.getElementById('m_tipo').value,
     familia: document.getElementById('m_familia').value,
-    insumos, marcas
+    insumos, marcas, rolls
   };
   const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
