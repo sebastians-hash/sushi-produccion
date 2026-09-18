@@ -1774,7 +1774,7 @@ function renderComboCfg() {
 function renderRollCfg() {
   let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${ingredientTypeDot(k)}${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
       <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
@@ -1796,10 +1796,11 @@ function renderSemiCfg() {
     const hasReceta = s.receta && s.receta.length > 0;
     const recetaSummary = hasReceta
       ? s.receta.map(i=>{
-          const nombre = i.key ? getIngredientLabel(i.key) : i.nombre;
           const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          const dot = i.key ? ingredientTypeDot(i.key) : '<span class="ing-item-badge" style="margin-right:5px;display:inline-block;background:var(--bg);color:var(--text3)">Sin vincular</span>';
-          return `${dot}${nombre} (${i.cantidad}${unidad})`;
+          const nombreEstilizado = i.key
+            ? styledIngredientName(i.key)
+            : `<span style="background:var(--bg);color:var(--text3);font-weight:700;padding:2px 8px;border-radius:20px" title="Sin vincular">${i.nombre}</span>`;
+          return `${nombreEstilizado} (${i.cantidad}${unidad})`;
         }).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
     const rendDisplay = (s.rendimiento_cantidad > 0)
@@ -2350,7 +2351,7 @@ function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
   let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
-    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${ingredientTypeDot(k)}${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
       <td>${p.familia||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
@@ -2615,13 +2616,12 @@ function getIngredientLabel(key) {
   if (semi) return semi.name;
   return INSUMO_LABELS[key] || key;
 }
-function ingredientTypeDot(key) {
-  const isInsumo = ST.insumosMaster.some(i=>i.key===key);
-  const isSemi = ST.semielaborados.some(s=>s.insumo_key===key);
-  if (!isInsumo && !isSemi) return '';
-  const cls = isInsumo ? 'insumo' : 'semi';
-  const label = isInsumo ? 'Insumo' : 'Semielaborado';
-  return `<span class="ing-item-badge ${cls}" style="margin-right:5px;display:inline-block">${label}</span>`;
+function styledIngredientName(key) {
+  const master = ST.insumosMaster.find(i=>i.key===key);
+  if (master) return `<span style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:2px 8px;border-radius:20px">${master.label}</span>`;
+  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
+  if (semi) return `<span style="background:var(--green-bg);color:var(--green);font-weight:700;padding:2px 8px;border-radius:20px">${semi.name}</span>`;
+  return getIngredientLabel(key);
 }
 function getIngredientUnit(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
