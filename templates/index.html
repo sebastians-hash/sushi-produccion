@@ -19,6 +19,7 @@
   --blue-bg:#f0f4ff;--blue:#2d4da0;
   --warn-bg:#fffbf0;--warn:#a07020;
   --red-bg:#fff0f0;--red:#a02020;
+  --purple-bg:#f5f0fc;--purple:#6b3fa0;--purple-border:#d8c6ee;
   --r:8px;--rsm:5px;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
@@ -45,6 +46,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:1rem}
 .card-title{font-size:15px;font-weight:600;margin-bottom:1rem}
 .sec{background:var(--text);color:#fff;padding:6px 12px;border-radius:var(--rsm);font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;text-transform:uppercase}
+.card-planilla2{background:var(--purple-bg);border:1px solid var(--purple-border)}
+.card-planilla2 .sec{background:var(--purple);color:#fff}
+.card-planilla2 .form-lbl{color:var(--purple)}
+.card-planilla2 table{background:#fff}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
 .metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:.75rem 1rem}
 .metric-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
@@ -279,13 +284,13 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <!-- ── STEP 4 ── -->
   <div id="s4" class="hidden">
     <div class="tabs hidden" id="vistaProdSwitch" style="margin-bottom:1rem">
-      <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')">Separado</div>
+      <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);margin-right:5px"></span>Separado</div>
       <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
     </div>
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
-    <div class="card hidden" id="remainingProdCard">
-      <div class="sec"><i class="ti ti-clock-hour-4"></i> Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
+    <div class="card card-planilla2 hidden" id="remainingProdCard">
+      <div class="sec"><i class="ti ti-clock-hour-4"></i> Planilla 2 — Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
       <div class="alert alert-info" style="margin-bottom:1rem">
         <i class="ti ti-info-circle"></i>
         <span>Referencia de lo que falta producir del resto de la venta — no pasa por la grilla de horarios.</span>
