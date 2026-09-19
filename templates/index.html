@@ -289,6 +289,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
+    <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
     <div class="card card-planilla2 hidden" id="remainingProdCard">
       <div class="sec"><i class="ti ti-clock-hour-4"></i> Planilla 2 — Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
       <div class="alert alert-info" style="margin-bottom:1rem">
@@ -306,10 +310,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="form-lbl" style="margin-bottom:8px">Combos</div>
       <div id="remainingCombosTbl"></div>
     </div>
-    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
       <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
