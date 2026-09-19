@@ -218,10 +218,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
         ondragleave="this.classList.remove('over')">
         <i class="ti ti-file-spreadsheet"></i>
         <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí el Excel de ventas</div>
-        <div>Arrastrá el archivo acá o hacé click para seleccionar</div>
-        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad</div>
+        <div>Arrastrá el archivo (o varios juntos) acá, o hacé click para seleccionar</div>
+        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad — podés elegir varios archivos a la vez (ej: uno por marca) y se suman todos juntos</div>
       </div>
-      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(event)">
+      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" multiple onchange="loadFile(event)">
       <div id="fStatus" class="hidden" style="margin-top:1rem"></div>
     </div>
     <div class="card">
@@ -920,102 +920,120 @@ function showTab(id, el) {
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('over');
-  if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files.length) processFiles([...e.dataTransfer.files]);
 }
-function loadFile(e){ if(e.target.files[0]) processFile(e.target.files[0]); }
+function loadFile(e){ if(e.target.files.length) processFiles([...e.target.files]); }
 
-function processFile(file) {
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try {
-      const wb=XLSX.read(ev.target.result,{type:'binary'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const data=XLSX.utils.sheet_to_json(ws,{header:1});
-      const rows=data.filter(r=>r.length>=2);
-      const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+// Lee y parsea UN archivo, devuelve sus filas (sin agrupar todavia) o null si falla
+function parseOneFile(file) {
+  return new Promise(resolve => {
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try {
+        const wb=XLSX.read(ev.target.result,{type:'binary'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const data=XLSX.utils.sheet_to_json(ws,{header:1});
+        const rows=data.filter(r=>r.length>=2);
+        if (!rows.length) { resolve({file, error:'archivo vacío'}); return; }
+        const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+        const ci = hdr.findIndex(h=>h.includes('cod'));
+        let ni = hdr.findIndex(h=>h==='producto');
+        if(ni<0) ni = hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
+        if(ni<0) ni = hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+        let qi = hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
+        if(qi<0) qi = hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
+        if(qi<0) qi = hdr.findIndex(h=>h.includes('total'));
+        if(qi<0) { resolve({file, error:'no se encontró columna de cantidad'}); return; }
+        resolve({file, rows, ci, ni, qi});
+      } catch(err) { resolve({file, error:'no se pudo leer (¿es un Excel válido?)'}); }
+    };
+    reader.onerror = () => resolve({file, error:'error al leer el archivo'});
+    reader.readAsBinaryString(file);
+  });
+}
 
-      // Código: primera columna que contenga "cod"
-      const ci=hdr.findIndex(h=>h.includes('cod'));
+async function processFiles(files) {
+  const parsed = await Promise.all(files.map(parseOneFile));
+  const fallidos = parsed.filter(p=>p.error);
+  const validos = parsed.filter(p=>!p.error);
 
-      // Producto: preferir coincidencia EXACTA con "producto" (evita confundir con "producto id")
-      let ni=hdr.findIndex(h=>h==='producto');
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+  if (!validos.length) {
+    showStatus('warn', `No se pudo leer ningún archivo (${fallidos.map(f=>f.file.name+': '+f.error).join(' · ')})`);
+    return;
+  }
 
-      // Cantidad: preferir "1/2 porciones" o "porciones" exacto (formato habitual del sistema de ventas),
-      // y solo si no aparece, caer a la búsqueda genérica anterior (cant/qty/venta/total)
-      let qi=hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('total'));
+  const grp={};
+  let ignoradas=0;
 
-      if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
-      const grp={};
-      let ignoradas=0;
+  function addToGroup(key, name, family, matched, qty) {
+    if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
+    // Si el mismo código viene con nombres distintos entre filas (típico de datos
+    // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
+    // (el más largo) en vez de congelarnos con el primero que aparezca.
+    else if(!matched && name && name.length>grp[key].name.length) grp[key].name=name;
+    grp[key].qty+=qty;
+  }
 
-      function addToGroup(key, name, family, matched, qty) {
-        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
-        // Si el mismo código viene con nombres distintos entre filas (típico de datos
-        // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
-        // (el más largo) en vez de congelarnos con el primero que aparezca.
-        else if(!matched && name && name.length>grp[key].name.length) grp[key].name=name;
-        grp[key].qty+=qty;
+  validos.forEach(({rows, ci, ni, qi})=>{
+    rows.slice(1).forEach(r=>{
+      const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
+      const rawName=ni>=0?(r[ni]||'').toString().trim():code;
+      const qtyRaw=parseFloat(r[qi])||0;
+      if(!qtyRaw) return;
+
+      const foundCombo=findCombo(code,rawName);
+      if(foundCombo){
+        // Coincidencia directa (o por código de venta) con un combo existente
+        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
+        addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
+        return;
       }
 
-      rows.slice(1).forEach(r=>{
-        const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
-        const rawName=ni>=0?(r[ni]||'').toString().trim():code;
-        const qtyRaw=parseFloat(r[qi])||0;
-        if(!qtyRaw) return;
+      // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+      const foundOtro=findOtroProducto(code,rawName);
+      if(foundOtro){
+        const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
+        addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
+        return;
+      }
 
-        const foundCombo=findCombo(code,rawName);
-        if(foundCombo){
-          // Coincidencia directa (o por código de venta) con un combo existente
-          const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-          addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
-          return;
-        }
-
-        // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-        const foundOtro=findOtroProducto(code,rawName);
-        if(foundOtro){
-          const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
-          addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
-          return;
-        }
-
-        // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
-        // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
-        // Separamos por "+" y tratamos de matchear cada parte por separado.
-        if(rawName.includes('+')){
-          const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
-          if(parts.length > 1){
-            const matchedParts = parts.map(p=>findCombo('', p));
-            if(matchedParts.every(m=>m)){
-              // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
-              matchedParts.forEach(m=>{
-                const key = m.match.name.toLowerCase().replace(/\s+/g,'');
-                addToGroup(key, m.match.name, m.match.family, true, qtyRaw*m.factor);
-              });
-              return;
-            }
+      // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
+      // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
+      // Separamos por "+" y tratamos de matchear cada parte por separado.
+      if(rawName.includes('+')){
+        const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
+        if(parts.length > 1){
+          const matchedParts = parts.map(p=>findCombo('', p));
+          if(matchedParts.every(m=>m)){
+            // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
+            matchedParts.forEach(m=>{
+              const key = m.match.name.toLowerCase().replace(/\s+/g,'');
+              addToGroup(key, m.match.name, m.match.family, true, qtyRaw*m.factor);
+            });
+            return;
           }
         }
+      }
 
-        // No matcheó ningún producto por ningún medio (ni directo, ni código de venta,
-        // ni combinación de combos): se ignora por completo, no se muestra ni se cuenta.
-        ignoradas++;
-      });
-      ST.sales=Object.values(grp).filter(s=>s.qty>0);
-      let msg=`${file.name} — ${ST.sales.length} productos cargados`;
-      if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
-      showStatus('success',msg);
-      ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
-      guardarProgresoPlanilla('borrador');
-      setTimeout(()=>goStep(2),500);
-    } catch(err){ showStatus('warn','Error al leer el archivo. Probá exportar como .csv'); }
-  };
-  reader.readAsBinaryString(file);
+      // No matcheó ningún producto por ningún medio (ni directo, ni código de venta,
+      // ni combinación de combos): se ignora por completo, no se muestra ni se cuenta.
+      ignoradas++;
+    });
+  });
+
+  ST.sales=Object.values(grp).filter(s=>s.qty>0);
+  const nombresArchivos = validos.map(v=>v.file.name).join(', ');
+  let msg = validos.length>1
+    ? `${validos.length} archivos combinados (${nombresArchivos}) — ${ST.sales.length} productos cargados`
+    : `${nombresArchivos} — ${ST.sales.length} productos cargados`;
+  if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
+  if(fallidos.length) msg+=` — ATENCIÓN: no se pudieron leer: ${fallidos.map(f=>f.file.name+' ('+f.error+')').join(', ')}`;
+  showStatus(fallidos.length ? 'warn' : 'success', msg);
+  ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
+  guardarProgresoPlanilla('borrador');
+  setTimeout(()=>goStep(2),500);
 }
+
 
 function findCombo(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
