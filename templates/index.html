@@ -19,6 +19,7 @@
   --blue-bg:#f0f4ff;--blue:#2d4da0;
   --warn-bg:#fffbf0;--warn:#a07020;
   --red-bg:#fff0f0;--red:#a02020;
+  --purple-bg:#f5f0fc;--purple:#6b3fa0;--purple-border:#d8c6ee;
   --r:8px;--rsm:5px;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
@@ -45,6 +46,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:1rem}
 .card-title{font-size:15px;font-weight:600;margin-bottom:1rem}
 .sec{background:var(--text);color:#fff;padding:6px 12px;border-radius:var(--rsm);font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;text-transform:uppercase}
+.card-planilla2{background:var(--purple-bg);border:1px solid var(--purple-border)}
+.card-planilla2 .sec{background:var(--purple);color:#fff}
+.card-planilla2 .form-lbl{color:var(--purple)}
+.card-planilla2 table{background:#fff}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
 .metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:.75rem 1rem}
 .metric-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
@@ -58,6 +63,8 @@ tbody tr:hover td{background:var(--bg)}
 .fam-row td{background:var(--beige);font-weight:600;font-size:11px;color:var(--text2);padding:5px 10px}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
 .b-blue{background:var(--blue-bg);color:var(--blue)}
+.btn-remove-x{width:22px;height:22px;min-width:22px;border-radius:50%;border:1px solid var(--red-bg);background:var(--red-bg);color:var(--red);font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:background .12s,color .12s}
+.btn-remove-x:hover{background:var(--red);color:#fff;border-color:var(--red)}
 .b-green{background:var(--green-bg);color:var(--green)}
 .b-warn{background:var(--warn-bg);color:var(--warn)}
 .b-red{background:var(--red-bg);color:var(--red)}
@@ -108,6 +115,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
   align-items:center;justify-content:center;z-index:1000;padding:1rem}
 .modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:560px;
   max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal-wide{max-width:920px}
 .modal-hdr{display:flex;justify-content:space-between;align-items:center;
   padding:1rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
 .modal-title{font-size:15px;font-weight:700}
@@ -211,10 +219,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
         ondragleave="this.classList.remove('over')">
         <i class="ti ti-file-spreadsheet"></i>
         <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí el Excel de ventas</div>
-        <div>Arrastrá el archivo acá o hacé click para seleccionar</div>
-        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad</div>
+        <div>Arrastrá el archivo (o varios juntos) acá, o hacé click para seleccionar</div>
+        <div style="font-size:12px;margin-top:6px;color:var(--text3)">Formatos: .xlsx · .xls · .csv — Columnas: Código, Producto, Cantidad — podés elegir varios archivos a la vez (ej: uno por marca) y se suman todos juntos</div>
       </div>
-      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(event)">
+      <input type="file" id="fi" class="hidden" accept=".xlsx,.xls,.csv" multiple onchange="loadFile(event)">
       <div id="fStatus" class="hidden" style="margin-top:1rem"></div>
     </div>
     <div class="card">
@@ -242,13 +250,17 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="range-row">
         <label>¿Qué % de la venta producís?</label>
         <input type="range" min="30" max="200" step="5" value="100" id="gPct"
-          oninput="document.getElementById('gPctV').textContent=this.value+'%'">
+          oninput="document.getElementById('gPctV').textContent=this.value+'%'; onGPctChange()">
         <span class="range-val" id="gPctV">100%</span>
       </div>
       <div class="alert alert-info" style="margin-top:.75rem">
         <i class="ti ti-info-circle"></i>
         <span>100% = producís exactamente lo vendido. Más del 100% para incluir stock de seguridad.</span>
       </div>
+      <label id="dividirPlanillaWrap" class="hidden" style="display:flex;align-items:center;gap:8px;margin-top:.75rem;cursor:pointer">
+        <input type="checkbox" id="dividirPlanilla" style="width:18px;height:18px">
+        <span>Dividir en 2 planillas <span style="font-weight:400;color:var(--text3)">(esta planilla hace el <span id="dividirPctChosen">70</span>%, y se muestra aparte el <span id="dividirPctResto">30</span>% restante para producir más tarde)</span></span>
+      </label>
     </div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Atrás</button>
@@ -272,12 +284,33 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
   <!-- ── STEP 4 ── -->
   <div id="s4" class="hidden">
+    <div class="tabs hidden" id="vistaProdSwitch" style="margin-bottom:1rem">
+      <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);margin-right:5px"></span>Separado</div>
+      <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
+    </div>
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
+    <div class="card card-planilla2 hidden" id="remainingProdCard">
+      <div class="sec"><i class="ti ti-clock-hour-4"></i> Planilla 2 — Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
+      <div class="alert alert-info" style="margin-bottom:1rem">
+        <i class="ti ti-info-circle"></i>
+        <span>Referencia de lo que falta producir del resto de la venta — no pasa por la grilla de horarios.</span>
+      </div>
+      <div class="form-lbl" style="margin-bottom:8px">Rolls</div>
+      <div id="remainingRollsTbl" style="margin-bottom:1.25rem"></div>
+      <div class="form-lbl" style="margin-bottom:8px">Insumos necesarios</div>
+      <div id="remainingInsumosTbl" style="margin-bottom:1.25rem"></div>
+      <div class="form-lbl" style="margin-bottom:8px">Semielaborados</div>
+      <div id="remainingSemiTbl" style="margin-bottom:1.25rem"></div>
+      <div class="form-lbl" style="margin-bottom:8px">Otros productos</div>
+      <div id="remainingOtrosTbl" style="margin-bottom:1.25rem"></div>
+      <div class="form-lbl" style="margin-bottom:8px">Combos</div>
+      <div id="remainingCombosTbl"></div>
+    </div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
       <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
@@ -355,6 +388,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div class="sch-info" id="schedInfo"></div>
         <div class="tbl-wrap" id="schedGrid"></div>
       </div>
+      <div class="card hidden" id="semiHourlyCard">
+        <div class="sec"><i class="ti ti-clipboard-list"></i> Semielaborados por hora</div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Cuánto de cada semielaborado hace falta tener listo para armar los rolls de cada franja horaria.</span>
+        </div>
+        <div class="tbl-wrap" id="semiHourlyGrid"></div>
+      </div>
       <div class="flex-end" style="margin-bottom:1rem">
         <button class="btn btn-primary" id="pdfBtn" onclick="downloadPDF()">
           <i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)
@@ -411,7 +452,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Porciones</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="porcionCfg"></div>
       </div>
@@ -420,7 +462,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Ensaladas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="ensaladaCfg"></div>
       </div>
@@ -429,7 +472,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Entradas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="entradaCfg"></div>
       </div>
@@ -438,7 +482,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Platos Calientes</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="platoCalienteCfg"></div>
       </div>
@@ -477,7 +522,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Semielaborados</div>
-          <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          <div class="row" style="gap:8px">
+            <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
+            <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
+          </div>
         </div>
         <div id="semiCfg"></div>
       </div>
@@ -593,17 +641,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <span>Elegí una marca. Cada fila es un producto — completá el nombre con el que esa marca lo vende. Dejalo vacío si esa marca no lo vende. La app suma todo bajo el producto real al calcular producción.</span>
         </div>
         <div id="equivalenciaCfg"></div>
-      </div>
-      <div class="card">
-        <div class="row-between" style="margin-bottom:1rem">
-          <div class="card-title" style="margin:0">Códigos SKU alternativos</div>
-          <button class="btn btn-sm" onclick="openSkuModal()"><i class="ti ti-plus"></i> Vincular código</button>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Un mismo producto puede aparecer en tu planilla de ventas con varios códigos distintos (por descuentos, canales de venta, etc). Vinculá acá esos códigos extra a tu producto real para que se sumen todos juntos.</span>
-        </div>
-        <div id="skuCfg"></div>
       </div>
     </div>
 
@@ -721,6 +758,16 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="modal-foot" id="modalFoot"></div>
   </div>
 </div>
+<div class="modal-bg hidden" id="modalW" onclick="if(event.target===this)closeModalW()">
+  <div class="modal modal-wide">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modalWTitle"></div>
+      <button class="modal-close-btn" onclick="closeModalW()" title="Cerrar" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" id="modalWBody"></div>
+    <div class="modal-foot" id="modalWFoot"></div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -736,6 +783,7 @@ const ST = {
   schedule:null, editingGrid:false, scheduleBackup:null,
   combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[], categoriasInsumos:[], zonasAlmacenamiento:[], proveedores:[], rolloBlancoGrupos:[], rollosBlancos:[],
   locales:[], currentLocalId:null, currentPlanillaId:null, historial:[],
+  dividirPlanilla:false, remainingProduction:null, combinedProduction:null, viewMode:'separado',
   dailySm:{}
 };
 
@@ -806,7 +854,7 @@ function goMainSection(name) {
   if(name==='productos') renderComboCfg();
   if(name==='recetas') renderRollCfg();
   if(name==='insumos') renderInsumoCfg();
-  if(name==='equivalencias'){ renderEquivalenciaCfg(); renderSkuCfg(); }
+  if(name==='equivalencias'){ renderEquivalenciaCfg(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -890,122 +938,142 @@ function showTab(id, el) {
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('over');
-  if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files.length) processFiles([...e.dataTransfer.files]);
 }
-function loadFile(e){ if(e.target.files[0]) processFile(e.target.files[0]); }
+function loadFile(e){ if(e.target.files.length) processFiles([...e.target.files]); }
 
-function processFile(file) {
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try {
-      const wb=XLSX.read(ev.target.result,{type:'binary'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const data=XLSX.utils.sheet_to_json(ws,{header:1});
-      const rows=data.filter(r=>r.length>=2);
-      const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+// Lee y parsea UN archivo, devuelve sus filas (sin agrupar todavia) o null si falla
+function parseOneFile(file) {
+  return new Promise(resolve => {
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try {
+        const wb=XLSX.read(ev.target.result,{type:'binary'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const data=XLSX.utils.sheet_to_json(ws,{header:1});
+        const rows=data.filter(r=>r.length>=2);
+        if (!rows.length) { resolve({file, error:'archivo vacío'}); return; }
+        const hdr=rows[0].map(h=>(h||'').toString().toLowerCase().trim());
+        const ci = hdr.findIndex(h=>h.includes('cod'));
+        let ni = hdr.findIndex(h=>h==='producto');
+        if(ni<0) ni = hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
+        if(ni<0) ni = hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+        let qi = hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
+        if(qi<0) qi = hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
+        if(qi<0) qi = hdr.findIndex(h=>h.includes('total'));
+        if(qi<0) { resolve({file, error:'no se encontró columna de cantidad'}); return; }
+        resolve({file, rows, ci, ni, qi});
+      } catch(err) { resolve({file, error:'no se pudo leer (¿es un Excel válido?)'}); }
+    };
+    reader.onerror = () => resolve({file, error:'error al leer el archivo'});
+    reader.readAsBinaryString(file);
+  });
+}
 
-      // Código: primera columna que contenga "cod"
-      const ci=hdr.findIndex(h=>h.includes('cod'));
+async function processFiles(files) {
+  const parsed = await Promise.all(files.map(parseOneFile));
+  const fallidos = parsed.filter(p=>p.error);
+  const validos = parsed.filter(p=>!p.error);
 
-      // Producto: preferir coincidencia EXACTA con "producto" (evita confundir con "producto id")
-      let ni=hdr.findIndex(h=>h==='producto');
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('nombre')||h.includes('descrip'));
-      if(ni<0) ni=hdr.findIndex(h=>h.includes('produ')&&!h.includes('id'));
+  if (!validos.length) {
+    showStatus('warn', `No se pudo leer ningún archivo (${fallidos.map(f=>f.file.name+': '+f.error).join(' · ')})`);
+    return;
+  }
 
-      // Cantidad: preferir "1/2 porciones" o "porciones" exacto (formato habitual del sistema de ventas),
-      // y solo si no aparece, caer a la búsqueda genérica anterior (cant/qty/venta/total)
-      let qi=hdr.findIndex(h=>h.includes('1/2 porciones')||h==='porciones');
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('cant')||h.includes('qty')||h.includes('venta'));
-      if(qi<0) qi=hdr.findIndex(h=>h.includes('total'));
+  const grp={};
+  let ignoradas=0;
 
-      if(qi<0){ showStatus('warn','No se encontró columna de cantidad.'); return; }
-      const grp={};
+  function addToGroup(key, name, family, matched, qty) {
+    if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
+    // Si el mismo código viene con nombres distintos entre filas (típico de datos
+    // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
+    // (el más largo) en vez de congelarnos con el primero que aparezca.
+    else if(!matched && name && name.length>grp[key].name.length) grp[key].name=name;
+    grp[key].qty+=qty;
+  }
 
-      function addToGroup(key, name, family, matched, qty) {
-        if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
-        // Si el mismo código viene con nombres distintos entre filas (típico de datos
-        // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
-        // (el más largo) en vez de congelarnos con el primero que aparezca.
-        else if(!matched && name && name.length>grp[key].name.length) grp[key].name=name;
-        grp[key].qty+=qty;
+  validos.forEach(({rows, ci, ni, qi})=>{
+    rows.slice(1).forEach(r=>{
+      const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
+      const rawName=ni>=0?(r[ni]||'').toString().trim():code;
+      const qtyRaw=parseFloat(r[qi])||0;
+      if(!qtyRaw) return;
+
+      const foundCombo=findCombo(code,rawName);
+      if(foundCombo){
+        // Coincidencia directa (o por código de venta) con un combo existente
+        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
+        addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
+        return;
       }
 
-      rows.slice(1).forEach(r=>{
-        const code=ci>=0?(r[ci]||'').toString().toLowerCase().trim():'';
-        const rawName=ni>=0?(r[ni]||'').toString().trim():code;
-        const qty=parseFloat(r[qi])||0;
-        if(!qty) return;
+      // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
+      const foundOtro=findOtroProducto(code,rawName);
+      if(foundOtro){
+        const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
+        addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
+        return;
+      }
 
-        const mc=findCombo(code,rawName);
-
-        if(mc){
-          // Coincidencia directa con un combo existente
-          const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-          addToGroup(key, mc.name, mc.family, true, qty);
-          return;
-        }
-
-        // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-        const mp=findOtroProducto(code,rawName);
-        if(mp){
-          const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
-          addToGroup(key, mp.name, mp.familia||'Otros', true, qty);
-          return;
-        }
-
-        // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
-        // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
-        // Separamos por "+" y tratamos de matchear cada parte por separado.
-        if(rawName.includes('+')){
-          const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
-          if(parts.length > 1){
-            const matchedParts = parts.map(p=>findCombo('', p));
-            if(matchedParts.every(m=>m)){
-              // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
-              matchedParts.forEach(m=>{
-                const key = m.name.toLowerCase().replace(/\s+/g,'');
-                addToGroup(key, m.name, m.family, true, qty);
-              });
-              return;
-            }
+      // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
+      // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
+      // Separamos por "+" y tratamos de matchear cada parte por separado.
+      if(rawName.includes('+')){
+        const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
+        if(parts.length > 1){
+          const matchedParts = parts.map(p=>findCombo('', p));
+          if(matchedParts.every(m=>m)){
+            // Todas las partes matchearon: sumamos la cantidad completa a CADA combo
+            matchedParts.forEach(m=>{
+              const key = m.match.name.toLowerCase().replace(/\s+/g,'');
+              addToGroup(key, m.match.name, m.match.family, true, qtyRaw*m.factor);
+            });
+            return;
           }
         }
+      }
 
-        // No matcheó ni directo ni como combinación de combos conocidos
-        const key=code||rawName.toLowerCase().replace(/\s+/g,'');
-        if(!key) return;
-        addToGroup(key, rawName, 'Otros', false, qty);
-      });
-      ST.sales=Object.values(grp).filter(s=>s.qty>0);
-      const unm=ST.sales.filter(s=>!s.matched).length;
-      let msg=`${file.name} — ${ST.sales.length} productos cargados`;
-      if(unm>0) msg+=` (${unm} sin receta, se ignorarán)`;
-      showStatus('success',msg);
-      ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
-      guardarProgresoPlanilla('borrador');
-      setTimeout(()=>goStep(2),500);
-    } catch(err){ showStatus('warn','Error al leer el archivo. Probá exportar como .csv'); }
-  };
-  reader.readAsBinaryString(file);
+      // No matcheó ningún producto por ningún medio (ni directo, ni código de venta,
+      // ni combinación de combos): se ignora por completo, no se muestra ni se cuenta.
+      ignoradas++;
+    });
+  });
+
+  ST.sales=Object.values(grp).filter(s=>s.qty>0);
+  const nombresArchivos = validos.map(v=>v.file.name).join(', ');
+  let msg = validos.length>1
+    ? `${validos.length} archivos combinados (${nombresArchivos}) — ${ST.sales.length} productos cargados`
+    : `${nombresArchivos} — ${ST.sales.length} productos cargados`;
+  if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
+  if(fallidos.length) msg+=` — ATENCIÓN: no se pudieron leer: ${fallidos.map(f=>f.file.name+' ('+f.error+')').join(', ')}`;
+  showStatus(fallidos.length ? 'warn' : 'success', msg);
+  ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
+  guardarProgresoPlanilla('borrador');
+  setTimeout(()=>goStep(2),500);
 }
+
 
 function findCombo(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
   let match = ST.combos.find(c=>n(c.name)===n(code)||n(c.name)===n(name));
-  if (!match) {
-    const equiv = ST.equivalencias.find(e=>e.tipo==='combo' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-    if (equiv) match = ST.combos.find(c=>n(c.name)===n(equiv.nombre_canonico));
+  if (match) return {match, factor:1};
+  const equiv = ST.equivalencias.find(e=>e.tipo==='combo' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
+  if (equiv) {
+    match = ST.combos.find(c=>n(c.name)===n(equiv.nombre_canonico));
+    if (match) return {match, factor: equiv.factor||1};
   }
-  return match;
+  return null;
 }
 function findOtroProducto(code, name) {
   const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
   let match = ST.otrosProductos.find(p=>n(p.name)===n(code)||n(p.name)===n(name));
-  if (!match) {
-    const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
-    if (equiv) match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
+  if (match) return {match, factor:1};
+  const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
+  if (equiv) {
+    match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
+    if (match) return {match, factor: equiv.factor||1};
   }
-  return match;
+  return null;
 }
 
 function showStatus(type,msg) {
@@ -1082,6 +1150,19 @@ function getAdjQty(s) {
 // ═══════════════════════════════════════════════════════
 // STEP 3
 // ═══════════════════════════════════════════════════════
+function onGPctChange() {
+  const gPct = parseInt(document.getElementById('gPct').value);
+  const wrap = document.getElementById('dividirPlanillaWrap');
+  if (gPct < 100) {
+    wrap.classList.remove('hidden');
+    document.getElementById('dividirPctChosen').textContent = gPct;
+    document.getElementById('dividirPctResto').textContent = 100 - gPct;
+  } else {
+    wrap.classList.add('hidden');
+    document.getElementById('dividirPlanilla').checked = false;
+  }
+}
+
 async function doConfirm() {
   const btn=document.getElementById('btnConfirm');
   btn.innerHTML='<span class="loader" style="border-top-color:#fff"></span> Calculando...'; btn.disabled=true;
@@ -1093,6 +1174,40 @@ async function doConfirm() {
     const data=await res.json();
     if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
     ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[];
+
+    // Si eligió dividir en 2 planillas, calculamos aparte la produccion del % restante
+    // (solo para MOSTRAR como referencia — no pasa por el resto del flujo)
+    ST.dividirPlanilla = document.getElementById('dividirPlanilla').checked && gPct < 100;
+    ST.remainingProduction = null;
+    ST.combinedProduction = null;
+    ST.viewMode = 'separado';
+    if (ST.dividirPlanilla) {
+      const restoPct = 100 - gPct;
+      const adjModeVal = document.getElementById('adjMode').value;
+      const [resRestante, resJunto] = await Promise.all([
+        fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:adjModeVal,globalPct:restoPct})}),
+        fetch('/api/calcular',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:adjModeVal,globalPct:100})})
+      ]);
+      const dataRestante = await resRestante.json();
+      const dataJunto = await resJunto.json();
+      if (resRestante.ok) {
+        ST.remainingProduction = {
+          pct: restoPct,
+          production: dataRestante.production, insumos: dataRestante.insumos, semis: dataRestante.semis,
+          otrosVenta: dataRestante.otrosProductos||[], rollosBlancos: dataRestante.rollosBlancos||[],
+          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
+        };
+      }
+      if (resJunto.ok) {
+        ST.combinedProduction = {
+          production: dataJunto.production, insumos: dataJunto.insumos, semis: dataJunto.semis,
+          otrosVenta: dataJunto.otrosProductos||[], rollosBlancos: dataJunto.rollosBlancos||[],
+          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
+        };
+      }
+    }
     const totR=ST.production.reduce((s,r)=>s+r.qty,0);
     const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
     const tiempoEstimado = Math.ceil(totR / 35);
@@ -1114,39 +1229,22 @@ async function doConfirm() {
 // ═══════════════════════════════════════════════════════
 // STEP 4
 // ═══════════════════════════════════════════════════════
-function renderProduction() {
-  const totR=ST.production.reduce((s,r)=>s+r.qty,0);
+// Arma el HTML de rolls/insumos/semis/otros/combos a partir de un dataset de produccion
+// (se reutiliza tanto para la vista principal como para "produccion restante" y "todo junto")
+function buildProductionTablesHtml(prod) {
+  const totR=prod.production.reduce((s,r)=>s+r.qty,0);
+  const totPiezas=prod.production.reduce((s,r)=>s+r.piezas,0);
   let rh='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th><th style="text-align:right">Corte</th></tr></thead><tbody>';
-  const totPiezas = ST.production.reduce((s,r)=>s+r.piezas,0);
-  ST.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td><td style="text-align:right;color:var(--text3);font-size:11px">${r.piezasPorRollo}/rollo</td></tr>`);
+  prod.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td><td style="text-align:right;color:var(--text3);font-size:11px">${r.piezasPorRollo}/rollo</td></tr>`);
   rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totPiezas}</td><td></td></tr></tbody></table>`;
-  document.getElementById('rollsTbl').innerHTML=rh;
-
-  const rbCard = document.getElementById('rollosBlancosCard');
-  if (ST.rollosBlancos.length) {
-    rbCard.classList.remove('hidden');
-    let bh='';
-    ST.rollosBlancos.forEach(g=>{
-      const detalle = g.rolls.map(r=>`${r.name} (${r.qty})`).join(' + ');
-      bh += `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-        <div style="font-weight:700;margin-bottom:4px">${g.grupo}</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">${detalle}</div>
-        <div style="font-size:14px"><span style="color:var(--text3)">Total:</span> <span style="font-weight:700;font-size:16px">${g.totalQty} rollos blancos</span></div>
-      </div>`;
-    });
-    document.getElementById('rollosBlancosTbl').innerHTML = bh;
-  } else {
-    rbCard.classList.add('hidden');
-  }
 
   let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">Total</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
-  Object.entries(ST.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.total}</td><td style="text-align:right;color:var(--text2)">${v.display}</td></tr>`);
+  Object.entries(prod.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.total}</td><td style="text-align:right;color:var(--text2)">${v.display}</td></tr>`);
   ih+='</tbody></table>';
-  document.getElementById('insumosTbl').innerHTML=ih;
 
   let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad necesaria</th></tr></thead><tbody>';
-  if(ST.semis.length) {
-    ST.semis.forEach(s=>{
+  if(prod.semis.length) {
+    prod.semis.forEach(s=>{
       sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
       if(s.receta) {
         sh+=`<tr><td colspan="3" style="padding:0;border-bottom:none">
@@ -1167,21 +1265,78 @@ function renderProduction() {
   }
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
-  document.getElementById('semiTbl').innerHTML=sh;
 
   let oh='<table><thead><tr><th>Producto</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  if(ST.otrosVenta.length) {
-    ST.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+  if(prod.otrosVenta.length) {
+    prod.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
   } else {
     oh+='<tr><td colspan="3" class="empty">No hay otros productos en esta producción</td></tr>';
   }
   oh+='</tbody></table>';
-  document.getElementById('otrosTbl').innerHTML=oh;
 
   let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  ST.sales.forEach(s=>{ const qty=Math.round(getAdjQty(s)*ST.globalPct/100); if(qty>0) ch+=`<tr><td>${s.name}</td><td style="text-align:right">${qty}</td></tr>`; });
+  (prod.combos||[]).forEach(c=>{ if(c.qty>0) ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`; });
   ch+='</tbody></table>';
-  document.getElementById('combosTbl').innerHTML=ch;
+
+  let bh='';
+  if (prod.rollosBlancos && prod.rollosBlancos.length) {
+    prod.rollosBlancos.forEach(g=>{
+      const detalle = g.rolls.map(r=>`${r.name} (${r.qty})`).join(' + ');
+      bh += `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <div style="font-weight:700;margin-bottom:4px">${g.grupo}</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">${detalle}</div>
+        <div style="font-size:14px"><span style="color:var(--text3)">Total:</span> <span style="font-weight:700;font-size:16px">${g.totalQty} rollos blancos</span></div>
+      </div>`;
+    });
+  }
+  return {rollsHtml:rh, insumosHtml:ih, semisHtml:sh, otrosHtml:oh, combosHtml:ch, rollosBlancosHtml:bh, hasRollosBlancos: !!(prod.rollosBlancos && prod.rollosBlancos.length)};
+}
+
+function setVistaProduccion(modo) {
+  ST.viewMode = modo;
+  document.querySelectorAll('.vista-prod-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('vistaProd_'+modo).classList.add('active');
+  renderProduction();
+}
+
+function renderProduction() {
+  const combosPrincipal = ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
+  const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
+  const mainData = usarJunto
+    ? ST.combinedProduction
+    : {production:ST.production, insumos:ST.insumos, semis:ST.semis, otrosVenta:ST.otrosVenta, rollosBlancos:ST.rollosBlancos, combos:combosPrincipal};
+
+  const built = buildProductionTablesHtml(mainData);
+  document.getElementById('rollsTbl').innerHTML=built.rollsHtml;
+  document.getElementById('insumosTbl').innerHTML=built.insumosHtml;
+  document.getElementById('semiTbl').innerHTML=built.semisHtml;
+  document.getElementById('otrosTbl').innerHTML=built.otrosHtml;
+  document.getElementById('combosTbl').innerHTML=built.combosHtml;
+  const rbCard = document.getElementById('rollosBlancosCard');
+  if (built.hasRollosBlancos) { rbCard.classList.remove('hidden'); document.getElementById('rollosBlancosTbl').innerHTML = built.rollosBlancosHtml; }
+  else rbCard.classList.add('hidden');
+
+  const vistaSwitch = document.getElementById('vistaProdSwitch');
+  const remCard = document.getElementById('remainingProdCard');
+  if (ST.dividirPlanilla && ST.remainingProduction) {
+    vistaSwitch.classList.remove('hidden');
+    document.getElementById('vistaProd_separado').textContent = `Separado (${ST.globalPct}% / ${ST.remainingProduction.pct}%)`;
+    if (ST.viewMode === 'separado') {
+      remCard.classList.remove('hidden');
+      document.getElementById('remainingProdPct').textContent = `(${ST.remainingProduction.pct}%)`;
+      const builtRem = buildProductionTablesHtml(ST.remainingProduction);
+      document.getElementById('remainingRollsTbl').innerHTML = builtRem.rollsHtml;
+      document.getElementById('remainingInsumosTbl').innerHTML = builtRem.insumosHtml;
+      document.getElementById('remainingSemiTbl').innerHTML = builtRem.semisHtml;
+      document.getElementById('remainingOtrosTbl').innerHTML = builtRem.otrosHtml;
+      document.getElementById('remainingCombosTbl').innerHTML = builtRem.combosHtml;
+    } else {
+      remCard.classList.add('hidden');
+    }
+  } else {
+    vistaSwitch.classList.add('hidden');
+    remCard.classList.add('hidden');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1459,6 +1614,57 @@ function renderScheduleDisplay() {
   document.getElementById('editGridBtn').classList.remove('hidden');
   document.getElementById('saveGridBtn').classList.add('hidden');
   document.getElementById('cancelGridBtn').classList.add('hidden');
+  renderSemiHourlyGrid();
+}
+
+// ── Semielaborados por hora: cuánto hace falta tener listo para los rolls de cada franja ──
+function computeSemiHourlyGrid() {
+  const hours = ST.schedule.hours;
+  // Para cada hora, sumar las tareas de TODOS los sushimanes juntas, por nombre de roll
+  const rollQtyPerHour = hours.map(h => {
+    const totals = {};
+    Object.values(h.tasks).forEach(tasks => {
+      tasks.forEach(t => { totals[t.name] = (totals[t.name]||0) + t.qty; });
+    });
+    return totals;
+  });
+  const result = [];
+  ST.semielaborados.forEach(semi => {
+    const byHour = hours.map((h, hi) => {
+      let amount = 0;
+      Object.entries(rollQtyPerHour[hi]).forEach(([rollName, rollQty]) => {
+        const roll = ST.rolls.find(r=>r.name===rollName);
+        if (roll && roll.insumos[semi.insumo_key]) {
+          amount += roll.insumos[semi.insumo_key] * rollQty;
+        }
+      });
+      return amount;
+    });
+    const total = byHour.reduce((a,b)=>a+b, 0);
+    if (total > 0) result.push({name: semi.name, unit: semi.unit, byHour, total});
+  });
+  return result;
+}
+function renderSemiHourlyGrid() {
+  const card = document.getElementById('semiHourlyCard');
+  if (!ST.schedule || !ST.schedule.hours) { card.classList.add('hidden'); return; }
+  const data = computeSemiHourlyGrid();
+  if (!data.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const hours = ST.schedule.hours;
+  let h = '<table><thead><tr><th>Semielaborado</th>';
+  hours.forEach(hr => { h += `<th style="text-align:center">${hr.label}</th>`; });
+  h += '<th style="text-align:right">Total</th></tr></thead><tbody>';
+  data.forEach(row => {
+    h += `<tr><td style="font-weight:600">${row.name}</td>`;
+    row.byHour.forEach(amt => {
+      const shown = Math.round(amt*10)/10;
+      h += `<td style="text-align:center">${amt>0 ? shown+' '+row.unit : '<span style="color:var(--text3)">—</span>'}</td>`;
+    });
+    h += `<td style="text-align:right;font-weight:700">${Math.round(row.total*10)/10} ${row.unit}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('semiHourlyGrid').innerHTML = h;
 }
 
 // ── Grid editing with validation ──
@@ -1619,7 +1825,7 @@ function toggleEditGrid() {
           <span style="color:var(--text3);flex-shrink:0"><i class="ti ti-grip-vertical" style="font-size:12px"></i></span>
           <select style="flex:1;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border)" onchange="onGridChange()">${rollOpts.replace(`value="${t.name}"`,`value="${t.name}" selected`)}</select>
           <input type="number" value="${t.qty}" min="0" max="999" style="width:46px;font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border);text-align:center" oninput="onGridChange()">
-          <button class="btn btn-sm btn-danger" style="padding:2px 6px;flex-shrink:0" onclick="removeGridTask(${si},${hi},${ti})"><i class="ti ti-x" style="font-size:10px"></i></button>
+          <button class="btn-remove-x" style="width:18px;height:18px;font-size:12px" title="Quitar" onclick="removeGridTask(${si},${hi},${ti})">&times;</button>
         </div>`).join('');
       cellHtml+=`<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-top:2px;width:100%" onclick="addGridTask(${si},${hi})"><i class="ti ti-plus" style="font-size:10px"></i> agregar</button>`;
       g+=`<td style="background:#fafff5;vertical-align:top;padding:6px" id="${cellId}"
@@ -1727,7 +1933,8 @@ async function downloadPDF() {
     date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:ST.semis,
     combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
-    schedule:ST.schedule, rollosBlancos:ST.rollosBlancos
+    schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
+    semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
   try {
     const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -1772,7 +1979,7 @@ function renderComboCfg() {
 function renderRollCfg() {
   let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
       <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
@@ -1789,24 +1996,30 @@ function renderRollCfg() {
 }
 
 function renderSemiCfg() {
-  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   ST.semielaborados.forEach(s=>{
     const hasReceta = s.receta && s.receta.length > 0;
     const recetaSummary = hasReceta
       ? s.receta.map(i=>{
-          const nombre = i.key ? getIngredientLabel(i.key) : i.nombre;
           const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          return `${nombre} (${i.cantidad}${unidad})`;
+          const nombreEstilizado = i.key
+            ? styledIngredientName(i.key)
+            : `<span style="background:var(--bg);color:var(--text3);font-weight:700;padding:2px 8px;border-radius:20px" title="Sin vincular">${i.nombre}</span>`;
+          return `${nombreEstilizado} (${i.cantidad}${unidad})`;
         }).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
       : '<span style="color:var(--text3)">—</span>';
+    const tiempoDisplay = s.tiempo_elaboracion_min ? `${s.tiempo_elaboracion_min} min` : '<span style="color:var(--text3)">—</span>';
+    const vidaDisplay = s.vida_util_dias ? `${s.vida_util_dias} día${s.vida_util_dias===1?'':'s'}` : '<span style="color:var(--text3)">—</span>';
     const usedInRolls = ST.rolls.filter(r=>(r.insumos[s.insumo_key]||0) > 0).map(r=>r.name);
     const usedInDisplay = usedInRolls.length ? usedInRolls.join(', ') : '<span style="color:var(--text3);font-style:italic">Ningún roll lo usa todavía</span>';
     h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${usedInDisplay}</td>
       <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
       <td>${rendDisplay}</td>
+      <td style="text-align:center;font-size:12px">${tiempoDisplay}</td>
+      <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
       <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -1852,6 +2065,10 @@ async function abrirPlanilla(id) {
   ST.rollosBlancos = d.rollosBlancos || [];
   ST.schedule = d.schedule || null;
   ST.dailySm = d.dailySm || {};
+  ST.dividirPlanilla = d.dividirPlanilla || false;
+  ST.combinedProduction = d.combinedProduction || null;
+  ST.viewMode = d.viewMode || 'separado';
+  ST.remainingProduction = d.remainingProduction || null;
 
   // Reflejar el local elegido en el selector, por si difiere del que estaba activo
   const sel = document.getElementById('localSelector');
@@ -1874,7 +2091,9 @@ async function guardarProgresoPlanilla(estado) {
     sales: ST.sales, adj: ST.adj, globalPct: ST.globalPct,
     production: ST.production, insumos: ST.insumos, semis: ST.semis,
     otrosVenta: ST.otrosVenta, rollosBlancos: ST.rollosBlancos,
-    schedule: ST.schedule, dailySm: ST.dailySm, step: ST.step
+    schedule: ST.schedule, dailySm: ST.dailySm, step: ST.step,
+    dividirPlanilla: ST.dividirPlanilla, remainingProduction: ST.remainingProduction,
+    combinedProduction: ST.combinedProduction, viewMode: ST.viewMode
   };
   const payload = { local_id: ST.currentLocalId, fecha: new Date().toISOString().slice(0,10), estado: estado||'borrador', data };
   try {
@@ -2151,7 +2370,7 @@ function contactoRow(c) {
     <input type="email" class="ct-email" placeholder="Email" value="${c?.email||''}">
   `;
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
   div.appendChild(btn);
   return div;
@@ -2211,60 +2430,6 @@ function listaPorTipo(tipo) {
 }
 function equivalenciaProductoOptions(tipo, selected) {
   return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
-}
-
-// ── Códigos SKU alternativos (mismo producto, distinto código por precio/canal) ──
-// Reutiliza la misma tabla de equivalencias, pero sin marca asociada (marca vacía).
-function renderSkuCfg() {
-  const skuRows = ST.equivalencias.filter(e => !e.marca);
-  let h='<table><thead><tr><th>Código SKU</th><th>Tipo</th><th>Producto real</th><th style="width:90px"></th></tr></thead><tbody>';
-  skuRows.sort((a,b)=>a.nombre_alias.localeCompare(b.nombre_alias,'es')).forEach(e=>{
-    h+=`<tr><td style="font-weight:600;font-family:monospace">${e.nombre_alias}</td>
-      <td><span class="badge b-blue">${TIPO_EQUIV_LABELS[e.tipo]||e.tipo}</span></td>
-      <td>${e.nombre_canonico}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openSkuModal(${e.id})" title="Editar"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('equivalencias',${e.id},renderSkuCfg)" title="Eliminar"><i class="ti ti-trash"></i></button>
-      </div></td></tr>`;
-  });
-  h+='</tbody></table>';
-  if(!skuRows.length) h='<div class="empty">No hay códigos SKU vinculados todavía.</div>';
-  document.getElementById('skuCfg').innerHTML=h;
-}
-function openSkuModal(id) {
-  const sku = id ? ST.equivalencias.find(e=>e.id===id) : null;
-  const tipo = sku?.tipo || 'combo';
-  openModal(id?'Editar código SKU':'Vincular código SKU', `
-    <div style="margin-bottom:1rem"><label class="form-lbl">Tipo de producto</label>
-      <select id="m_sku_tipo" class="w-full" onchange="onSkuTipoChange()">
-        <option value="combo" ${tipo==='combo'?'selected':''}>Combo</option>
-        <option value="roll" ${tipo==='roll'?'selected':''}>Roll</option>
-        <option value="otro_producto" ${tipo==='otro_producto'?'selected':''}>Otro producto (porción/ensalada/entrada/plato)</option>
-      </select></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Producto real</label>
-      <select id="m_sku_producto" class="w-full">${equivalenciaProductoOptions(tipo, sku?.nombre_canonico)}</select></div>
-    <div><label class="form-lbl">Código SKU <span style="font-weight:400;color:var(--text3);text-transform:none">(tal como aparece en la columna "Código" de tu planilla de ventas)</span></label>
-      <input type="text" id="m_sku_codigo" class="w-full" value="${sku?.nombre_alias||''}" placeholder="Ej: salsa_teri"></div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSku(${id||'null'})">Guardar</button>`
-  );
-}
-function onSkuTipoChange() {
-  const tipo = document.getElementById('m_sku_tipo').value;
-  document.getElementById('m_sku_producto').innerHTML = equivalenciaProductoOptions(tipo, null);
-}
-async function saveSku(id) {
-  const codigo = document.getElementById('m_sku_codigo').value.trim();
-  if(!codigo){ alert('Ingresá el código SKU'); return; }
-  const data = {
-    tipo: document.getElementById('m_sku_tipo').value,
-    nombre_canonico: document.getElementById('m_sku_producto').value,
-    nombre_alias: codigo,
-    marca: ''
-  };
-  const res = await fetch(id?`/api/equivalencias/${id}`:'/api/equivalencias',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  closeModal(); await loadConfig(); renderSkuCfg();
 }
 
 function renderEquivalenciaCfg() {
@@ -2341,11 +2506,13 @@ const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entr
 
 function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
-  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Rolls</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
-    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${getIngredientLabel(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
+    const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
+    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
       <td>${p.familia||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${rollsResumen||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
       <td><div class="row" style="gap:4px">
@@ -2366,16 +2533,24 @@ function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente',
 function openOtroProductoModal(id, dup, defaultTipo) {
   const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
   const ins = prod?.insumos || {};
+  const rollsExistentes = prod?.rolls || {};
   const tipoSeleccionado = prod?.tipo || defaultTipo;
   const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
     `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
+  const rollOptsProd=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd)).join('');
   openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
       <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
     </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
+
+    <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y piezas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para productos armados con piezas de un roll, igual que un combo)</span></div>
+    <div id="otroProdRollRows" style="margin-bottom:8px">${existingRollRows}</div>
+    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para lo que se agrega directo, sin pasar por un roll)</span></div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
@@ -2384,13 +2559,188 @@ function openOtroProductoModal(id, dup, defaultTipo) {
     </div>
     <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(prod?.marcas)}</div>`,
+    <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
+    ${codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
   );
   const container = document.getElementById('otroProdIngRows');
   Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
 }
+function addOtroProdRollRow(){
+  const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const div=document.createElement('div'); div.className='row'; div.style.marginBottom='6px';
+  const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
+  const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
+  const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
+  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
+  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
+  div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
+  document.getElementById('otroProdRollRows').appendChild(div);
+}
 function renderOtroProductoCfg(){ renderPorcionesCfg(); renderEnsaladasCfg(); renderEntradasCfg(); renderPlatosCalientesCfg(); }
+
+// ── Importar recetas desde PDF (fichas técnicas de otro sistema) ──
+let ST_importRecetas = [];
+
+function openImportarRecetasModal(defaultTipo) {
+  openModalW('Importar recetas desde PDF', `
+    <div class="alert alert-info" style="margin-bottom:1rem">
+      <i class="ti ti-info-circle"></i>
+      <span>Subí una o más fichas técnicas en PDF (mismo formato: título, categoría, tabla de ingredientes con peso/formato, procedimiento). Vas a poder revisar y corregir todo antes de que se guarde nada.</span>
+    </div>
+    <div class="drop" id="importarRecetasDropZone" onclick="document.getElementById('importarRecetasFi').click()"
+      ondrop="handleImportarRecetasDrop(event,'${defaultTipo}')" ondragover="event.preventDefault();this.classList.add('over')"
+      ondragleave="this.classList.remove('over')">
+      <i class="ti ti-file-type-pdf"></i>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí las fichas en PDF</div>
+      <div>Arrastrá uno o varios archivos acá, o hacé click para elegir</div>
+    </div>
+    <input type="file" id="importarRecetasFi" class="hidden" accept=".pdf" multiple onchange="handleImportarRecetasFiles([...this.files],'${defaultTipo}')">
+    <div id="importarRecetasStatus" style="margin-top:1rem"></div>
+    <div id="importarRecetasReview"></div>`,
+    `<button class="btn" onclick="closeModalW()">Cerrar</button>`
+  );
+}
+function handleImportarRecetasDrop(e, defaultTipo) {
+  e.preventDefault();
+  document.getElementById('importarRecetasDropZone').classList.remove('over');
+  if (e.dataTransfer.files.length) handleImportarRecetasFiles([...e.dataTransfer.files], defaultTipo);
+}
+
+async function handleImportarRecetasFiles(files, defaultTipo) {
+  document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-info"><span class="loader"></span> Leyendo ${files.length} archivo(s)...</div>`;
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  try {
+    const res = await fetch('/api/importar-recetas-pdf', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-warn">${data.error || 'Error al procesar los archivos'}</div>`; return; }
+    ST_importRecetas = data.resultados.map(r => ({ ...r, tipo: r.es_semielaborado ? null : (r.tipo_sugerido || defaultTipo || 'porcion'), incluir: !r.error }));
+    const conError = ST_importRecetas.filter(r => r.error).length;
+    const ok = ST_importRecetas.length - conError;
+    document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert ${conError ? 'alert-warn' : 'alert-success'}">${ok} receta(s) leídas correctamente${conError ? `, ${conError} con error` : ''}. Revisá abajo antes de confirmar.</div>`;
+    renderImportarRecetasReview();
+  } catch (err) {
+    document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-warn">Error de conexión al procesar los archivos.</div>`;
+  }
+}
+
+function catalogoInsumosOptions(matchKey) {
+  let h = '';
+  ST.insumosMaster.forEach(i => { h += `<option value="${i.key}" ${i.key===matchKey?'selected':''}>${i.label}</option>`; });
+  if (ST.semielaborados.length) {
+    h += '</optgroup><optgroup label="Semielaborados">';
+    ST.semielaborados.forEach(s => { h += `<option value="${s.insumo_key}" ${s.insumo_key===matchKey?'selected':''}>${s.name}</option>`; });
+  }
+  return h;
+}
+
+function renderImportarRecetasReview() {
+  let h = '';
+  ST_importRecetas.forEach((r, ri) => {
+    if (r.error) {
+      h += `<div class="card" style="border-color:var(--red-bg);background:var(--red-bg);margin-top:1rem">
+        <div style="font-weight:700;color:var(--red)">${r.archivo}</div>
+        <div style="font-size:13px;color:var(--red)">${r.error}</div>
+      </div>`;
+      return;
+    }
+    let ingRows = '';
+    r.ingredientes.forEach((ing, ii) => {
+      const sugerido = ing.match_sugerido;
+      ingRows += `<tr>
+        <td>${ing.nombre}</td>
+        <td><input type="number" class="ing-peso" data-r="${ri}" data-i="${ii}" value="${ing.peso_neto ?? ''}" style="width:70px"> ${ing.unidad_sugerida}</td>
+        <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
+          <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="excluir">No incluir este ingrediente</option>
+          <optgroup label="Vincular a insumo existente">${catalogoInsumosOptions(sugerido?sugerido.key:null)}</optgroup>
+        </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
+      </tr>`;
+    });
+    const esSemi = r.es_semielaborado;
+    const headerFields = esSemi ? `
+        <div class="row" style="gap:8px;align-items:center">
+          <span class="badge b-green">Semielaborado</span>
+          <input type="number" class="semi-rend-cant" data-r="${ri}" value="${r.rendimiento_cantidad ?? ''}" style="width:70px" placeholder="Cant.">
+          <select class="semi-rend-unid" data-r="${ri}" style="width:80px">
+            <option value="g" ${r.rendimiento_unidad==='g'?'selected':''}>g</option>
+            <option value="kg" ${r.rendimiento_unidad==='kg'?'selected':''}>kg</option>
+            <option value="ml" ${r.rendimiento_unidad==='ml'?'selected':''}>ml</option>
+            <option value="l" ${r.rendimiento_unidad==='l'?'selected':''}>l</option>
+            <option value="u" ${r.rendimiento_unidad==='u'?'selected':''}>u</option>
+          </select>
+          <span style="font-size:12px;color:var(--text3)">Vida útil</span>
+          <input type="number" class="semi-vida-util" data-r="${ri}" value="${r.vida_util_dias ?? ''}" style="width:55px" placeholder="días">
+          <span style="font-size:12px;color:var(--text3)">días</span>
+        </div>` : `
+        <select class="receta-tipo" data-r="${ri}" style="width:160px">
+          <option value="porcion" ${r.tipo==='porcion'?'selected':''}>Porción</option>
+          <option value="ensalada" ${r.tipo==='ensalada'?'selected':''}>Ensalada</option>
+          <option value="entrada" ${r.tipo==='entrada'?'selected':''}>Entrada</option>
+          <option value="plato_caliente" ${r.tipo==='plato_caliente'?'selected':''}>Plato Caliente</option>
+        </select>`;
+    h += `<div class="card import-receta-card" data-ri="${ri}" style="margin-top:1rem">
+      <div class="row-between" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;flex:1">
+          <input type="checkbox" class="receta-incluir" data-r="${ri}" ${r.incluir?'checked':''}>
+          <input type="text" class="receta-nombre" data-r="${ri}" value="${r.titulo}" style="font-weight:700;font-size:15px;border:1px solid var(--border);border-radius:var(--rsm);padding:6px 8px;flex:1">
+        </label>
+        ${headerFields}
+      </div>
+      ${(!esSemi && !r.tipo_sugerido) ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">No reconocí la categoría "${r.categoria}" — elegí el tipo correcto arriba.</div>` : ''}
+      <table><thead><tr><th>Ingrediente (del PDF)</th><th style="width:110px">Cantidad</th><th>Vincular a</th></tr></thead>
+      <tbody>${ingRows}</tbody></table>
+    </div>`;
+  });
+  h += `<div class="flex-end" style="margin-top:1.25rem"><button class="btn btn-primary" onclick="confirmarImportacionRecetas()"><i class="ti ti-check"></i> Confirmar importación</button></div>`;
+  document.getElementById('importarRecetasReview').innerHTML = h;
+}
+
+async function confirmarImportacionRecetas() {
+  const recetas = [];
+  ST_importRecetas.forEach((r, ri) => {
+    if (r.error) return;
+    const incluirEl = document.querySelector(`.receta-incluir[data-r="${ri}"]`);
+    if (!incluirEl.checked) return;
+    const nombre = document.querySelector(`.receta-nombre[data-r="${ri}"]`).value.trim();
+    const ingredientes = r.ingredientes.map((ing, ii) => {
+      const pesoEl = document.querySelector(`.ing-peso[data-r="${ri}"][data-i="${ii}"]`);
+      const matchEl = document.querySelector(`.ing-match[data-r="${ri}"][data-i="${ii}"]`);
+      const peso = parseFloat(pesoEl.value) || 0;
+      if (matchEl.value === 'excluir') return { nombre: ing.nombre, excluir: true };
+      if (matchEl.value === 'crear_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_nuevo: true };
+      return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, insumo_key: matchEl.value };
+    });
+    if (r.es_semielaborado) {
+      const rendCant = parseFloat(document.querySelector(`.semi-rend-cant[data-r="${ri}"]`).value) || 0;
+      const rendUnid = document.querySelector(`.semi-rend-unid[data-r="${ri}"]`).value;
+      const vidaUtilVal = document.querySelector(`.semi-vida-util[data-r="${ri}"]`).value;
+      recetas.push({
+        nombre, es_semielaborado: true, ingredientes, procedimiento_pasos: r.procedimiento_pasos,
+        rendimiento_cantidad: rendCant, rendimiento_unidad: rendUnid,
+        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null
+      });
+    } else {
+      const tipo = document.querySelector(`.receta-tipo[data-r="${ri}"]`).value;
+      recetas.push({ nombre, tipo, familia: '', ingredientes, procedimiento_pasos: r.procedimiento_pasos });
+    }
+  });
+
+  if (!recetas.length) { alert('No hay ninguna receta marcada para importar'); return; }
+
+  const res = await fetch('/api/confirmar-importacion-recetas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ recetas }) });
+  const result = await res.json();
+  if (!res.ok) { alert(result.error || 'Error al confirmar la importación'); return; }
+
+  let msg = `Listo: ${result.creados_productos} producto(s) y ${result.creados_insumos} insumo(s) nuevo(s) creados.`;
+  if (result.errores.length) msg += `\n\nAvisos:\n` + result.errores.join('\n');
+  alert(msg);
+  await loadConfig();
+  renderOtroProductoCfg();
+  renderSemiCfg();
+  closeModalW();
+}
 
 function duplicateOtroProducto(id) {
   const prod = ST.otrosProductos.find(p=>p.id===id);
@@ -2400,20 +2750,27 @@ function duplicateOtroProducto(id) {
 async function saveOtroProducto(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
+  const rolls={};
+  document.querySelectorAll('#otroProdRollRows .row').forEach(row=>{
+    const sel=row.querySelector('select'); const inp=row.querySelector('input');
+    if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
+  });
   const insumos={};
   document.querySelectorAll('#otroProdIngRows .roll-ing-row').forEach(row=>{
     const v = parseFloat(row.querySelector('input').value)||0;
     if (v>0) insumos[row.dataset.key] = v;
   });
   const marcas = readMarcaChecks('otroProdMarcaChecks');
+  const nombreAnterior = id ? ST.otrosProductos.find(p=>p.id===id)?.name : null;
   const data = {
     name, tipo: document.getElementById('m_tipo').value,
     familia: document.getElementById('m_familia').value,
-    insumos, marcas
+    insumos, marcas, rolls
   };
   const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
+  await syncCodigosVenta('otro_producto', nombreAnterior, name, 'otroProdCodigosVenta');
   closeModal(); await loadConfig(); renderOtroProductoCfg();
 }
 
@@ -2561,6 +2918,14 @@ function openModal(title,body,footer){
 }
 function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; }
 
+function openModalW(title,body,footer){
+  document.getElementById('modalWTitle').textContent=title;
+  document.getElementById('modalWBody').innerHTML=body;
+  document.getElementById('modalWFoot').innerHTML=footer;
+  document.getElementById('modalW').classList.remove('hidden');
+}
+function closeModalW(){ document.getElementById('modalW').classList.add('hidden'); }
+
 // ── Sushiman modal ──
 function openSmModal(id) {
   const sm=id?ST.sushimanes.find(s=>s.id===id):null;
@@ -2605,8 +2970,15 @@ function getIngredientLabel(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
   if (master) return master.label;
   const semi = ST.semielaborados.find(s=>s.insumo_key===key);
-  if (semi) return semi.name + ' (semielaborado)';
+  if (semi) return semi.name;
   return INSUMO_LABELS[key] || key;
+}
+function styledIngredientName(key) {
+  const master = ST.insumosMaster.find(i=>i.key===key);
+  if (master) return `<span style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:2px 8px;border-radius:20px">${master.label}</span>`;
+  const semi = ST.semielaborados.find(s=>s.insumo_key===key);
+  if (semi) return `<span style="background:var(--green-bg);color:var(--green);font-weight:700;padding:2px 8px;border-radius:20px">${semi.name}</span>`;
+  return getIngredientLabel(key);
 }
 function getIngredientUnit(key) {
   const master = ST.insumosMaster.find(i=>i.key===key);
@@ -2680,7 +3052,7 @@ function makeIngRow(key, qty) {
   unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
   unit.textContent = getIngredientUnit(key);
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
   div.appendChild(dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
@@ -2722,7 +3094,7 @@ function legacyIngRow(nombre, cantidad, unidad, prefix) {
   vincularBtn.onclick = () => vincularLegacyRow(div, prefix);
 
   const btn = document.createElement('button');
-  btn.className = 'btn btn-sm btn-danger'; btn.innerHTML = '<i class="ti ti-x"></i>';
+  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
   btn.onclick = () => div.remove();
 
   div.appendChild(dragHandle());
@@ -2887,6 +3259,49 @@ async function saveRoll(id) {
 }
 
 // ── Combo modal ──
+// ── Códigos de venta por producto (código + factor, para el matcheo de la planilla) ──
+function codigoVentaRow(codigo, factor) {
+  return `<div class="row codigo-venta-row" style="margin-bottom:6px;gap:6px">
+    <input type="text" placeholder="Código (ej: PORCION, UPS)" style="flex:1" value="${codigo||''}">
+    <span style="font-size:12px;color:var(--text3)">factor</span>
+    <input type="number" placeholder="1" step="0.1" min="0" value="${factor??1}" style="width:70px">
+    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
+  </div>`;
+}
+function addCodigoVentaRow(containerId) {
+  document.getElementById(containerId).insertAdjacentHTML('beforeend', codigoVentaRow('', 1));
+}
+function getCodigosVentaFromContainer(containerId) {
+  const codigos = [];
+  document.querySelectorAll(`#${containerId} .codigo-venta-row`).forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const codigo = inputs[0].value.trim();
+    const factor = parseFloat(inputs[1].value) || 1;
+    if (codigo) codigos.push({codigo, factor});
+  });
+  return codigos;
+}
+function codigosVentaSection(tipo, nombreProducto, containerId) {
+  const existentes = ST.equivalencias.filter(e => e.tipo===tipo && e.nombre_canonico===nombreProducto && !e.marca);
+  const rows = existentes.map(e => codigoVentaRow(e.nombre_alias, e.factor)).join('');
+  return `
+    <div class="sec"><i class="ti ti-barcode"></i> Códigos de venta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional)</span></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Si este producto aparece en tu planilla de ventas con otro código o nombre, agregalo acá. El factor multiplica la cantidad vendida bajo ese código antes de sumarla — ej: si "UPS" es media porción, poné factor 0.5.</div>
+    <div id="${containerId}" style="margin-bottom:8px">${rows}</div>
+    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addCodigoVentaRow('${containerId}')"><i class="ti ti-plus"></i> Agregar código</button>
+  `;
+}
+async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) {
+  const codigos = getCodigosVentaFromContainer(containerId);
+  if (nombreAnterior && nombreAnterior !== nombreNuevo) {
+    // Se renombró el producto: limpiar los códigos que quedaron bajo el nombre viejo
+    await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo, nombre_canonico: nombreAnterior, codigos: []})});
+  }
+  await fetch('/api/equivalencias/sync-producto', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
+}
+
 function openComboModal(id) {
   const combo=id?ST.combos.find(c=>c.id===id):null;
   const famOpts=familiaOptions(combo?.family);
@@ -2901,7 +3316,8 @@ function openComboModal(id) {
     <div id="rollRows">${existingRows}</div>
     <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
-    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(combo?.marcas)}</div>`,
+    <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
+    ${codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
   );
 }
@@ -2910,7 +3326,7 @@ function rollRow(name,qty,opts){
     <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
     <input type="number" value="${qty}" min="1" max="100" style="width:65px">
     <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn btn-sm btn-danger" onclick="this.parentNode.remove()"><i class="ti ti-x"></i></button>
+    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
   </div>`;
 }
 function addRollRow(){
@@ -2919,8 +3335,8 @@ function addRollRow(){
   const sel=document.createElement('select'); sel.style.flex='1'; sel.innerHTML=opts;
   const inp=document.createElement('input'); inp.type='number'; inp.value='1'; inp.min='1'; inp.max='100'; inp.style.width='65px';
   const span=document.createElement('span'); span.style.fontSize='12px'; span.style.color='var(--text3)'; span.textContent='piezas';
-  const btn=document.createElement('button'); btn.className='btn btn-sm btn-danger';
-  btn.innerHTML='<i class="ti ti-x"></i>'; btn.onclick=()=>div.remove();
+  const btn=document.createElement('button'); btn.className='btn-remove-x'; btn.title='Quitar';
+  btn.innerHTML='&times;'; btn.onclick=()=>div.remove();
   div.appendChild(sel); div.appendChild(inp); div.appendChild(span); div.appendChild(btn);
   document.getElementById('rollRows').appendChild(div);
 }
@@ -2934,7 +3350,9 @@ async function saveCombo(id) {
     if(sel&&inp&&sel.value) rolls[sel.value]=parseInt(inp.value)||0;
   });
   const marcas = readMarcaChecks('comboMarcaChecks');
+  const nombreAnterior = id ? ST.combos.find(c=>c.id===id)?.name : null;
   await fetch(id?`/api/combos/${id}`:'/api/combos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,family,rolls,marcas})});
+  await syncCodigosVenta('combo', nombreAnterior, name, 'comboCodigosVenta');
   closeModal(); await loadConfig(); renderComboCfg();
 }
 
@@ -3041,6 +3459,12 @@ function openSemiModal(id, dup) {
         <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
     </div>
+    <div class="form-grid" style="margin-bottom:1.25rem">
+      <div><label class="form-lbl">Tiempo de elaboración <span style="font-weight:400;color:var(--text3);text-transform:none">(minutos)</span></label>
+        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25"></div>
+      <div><label class="form-lbl">Vida útil <span style="font-weight:400;color:var(--text3);text-transform:none">(días)</span></label>
+        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3"></div>
+    </div>
     <div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
@@ -3120,10 +3544,14 @@ async function saveSemi(id) {
   const rendimiento_cantidad = parseFloat(document.getElementById('m_rendCant').value)||0;
   const rendimiento_unidad = document.getElementById('m_rendUnid').value;
   const marcas = readMarcaChecks('semiMarcaChecks');
+  const tiempoElabVal = document.getElementById('m_tiempoElab').value;
+  const vidaUtilVal = document.getElementById('m_vidaUtil').value;
   let insumoKey = document.getElementById('m_insumo').value.trim();
   if (!insumoKey) insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
   const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
-              rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas};
+              rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas,
+              tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
+              vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
