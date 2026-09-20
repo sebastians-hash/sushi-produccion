@@ -387,6 +387,7 @@ def handle_error(e):
 
 # ── Auth routes ──────────────────────────────────────────────────────────
 @app.route('/debug/env')
+@admin_required
 def debug_env():
     """Ruta temporal de diagnostico. Borrar despues de resolver el problema de login."""
     def mask(val, keep_start=12, keep_end=8):
@@ -428,6 +429,9 @@ def debug_env():
         f"FLASK_SECRET_KEY: {'CONFIGURADA' if secret_key else 'NO CONFIGURADA (usando valor por defecto, inseguro)'}",
         "",
         f"ADMIN_EMAIL: {admin_email if admin_email else 'NO CONFIGURADA'}",
+        "",
+        f"RESEND_API_KEY: {mask(os.environ.get('RESEND_API_KEY'), keep_start=6, keep_end=4)}",
+        f"RESEND_FROM_EMAIL: {os.environ.get('RESEND_FROM_EMAIL') or '(no configurada, usa onboarding@resend.dev por defecto)'}",
         "",
         f"URL de callback que la app va a pedirle a Google: {url_for('auth_callback', _external=True)}",
     ]
