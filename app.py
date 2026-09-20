@@ -1755,7 +1755,7 @@ def create_insumo():
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe un insumo con esa clave'}), 400
+        return jsonify({'error': 'Ya existe un insumo con un nombre muy similar. Probá con un nombre distinto (ej: agregando la marca o una aclaración).'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -1779,7 +1779,7 @@ def update_insumo(ins_id):
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe otro insumo con esa clave'}), 400
+        return jsonify({'error': 'Ya existe otro insumo con un nombre muy similar. Probá con un nombre distinto.'}), 400
     conn.close()
     return jsonify({'ok': True})
 
