@@ -3507,13 +3507,9 @@ function openSemiModal(id, dup, readOnly) {
   const dis = ro ? 'disabled' : '';
   openModal(ro?'Ver semielaborado':(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado')),`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}" ${dis}></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Clave interna <span style="font-weight:400;color:var(--text3);text-transform:none">(para vincularlo en las recetas de rolls)</span></label>
-        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío" ${dis}></div>
-      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full" ${dis}>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full" ${dis}>
         <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
-    </div>
     <div class="form-grid" style="margin-bottom:1.25rem">
       <div><label class="form-lbl">Tiempo de elaboración <span style="font-weight:400;color:var(--text3);text-transform:none">(minutos)</span></label>
         <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25" ${dis}></div>
@@ -3605,8 +3601,14 @@ async function saveSemi(id) {
   const marcas = readMarcaChecks('semiMarcaChecks');
   const tiempoElabVal = document.getElementById('m_tiempoElab').value;
   const vidaUtilVal = document.getElementById('m_vidaUtil').value;
-  let insumoKey = document.getElementById('m_insumo').value.trim();
-  if (!insumoKey) insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  let insumoKey;
+  if (id) {
+    // Editando uno existente: la clave interna nunca se toca (evita romper vínculos ya usados en rolls/recetas)
+    const original = ST.semielaborados.find(s=>s.id===id);
+    insumoKey = original ? original.insumo_key : '';
+  } else {
+    insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
   const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
               rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas,
               tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
@@ -3620,7 +3622,6 @@ function openInsumoModal(id) {
   const ins=id?ST.insumosMaster.find(i=>i.id===id):null;
   openModal(id?'Editar insumo':'Nuevo insumo',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre visible</label><input type="text" id="m_label" class="w-full" value="${ins?.label||''}"></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Clave interna (sin espacios, ej: salmon)</label><input type="text" id="m_key" class="w-full" value="${ins?.key||''}" ${id?'readonly':''} style="${id?'background:var(--bg);color:var(--text3)':''}"></div>
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Unidad en receta</label><select id="m_ur" class="w-full" onchange="updateFactorSuggestion()">
         <option value="g" ${ins?.unidad_receta==='g'?'selected':''}>Gramos (g)</option>
@@ -3679,8 +3680,15 @@ function updateFactorSuggestion() {
 }
 async function saveInsumo(id) {
   const label=document.getElementById('m_label').value.trim();
-  const key=document.getElementById('m_key').value.trim().toLowerCase().replace(/\s+/g,'_');
-  if(!label||!key){alert('Completá nombre y clave');return;}
+  if(!label){alert('Ingresá un nombre');return;}
+  let key;
+  if (id) {
+    // Editando uno existente: la clave interna nunca se toca (evita romper vínculos ya usados en recetas)
+    const original = ST.insumosMaster.find(i=>i.id===id);
+    key = original ? original.key : '';
+  } else {
+    key = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
   const precioVal=document.getElementById('m_precio').value;
   const provPrincipal = document.getElementById('m_provPrincipal').value;
   const provAlt1 = document.getElementById('m_provAlt1').value;
