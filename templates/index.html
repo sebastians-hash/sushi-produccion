@@ -179,11 +179,13 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
   <div class="main-nav">
     <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
-    {% if is_admin %}
     <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
     <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
+    {% if is_admin %}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
+    {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    {% if is_admin %}
     <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
     {% endif %}
   </div>
@@ -443,7 +445,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Combos configurados</div>
-          <button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>
+          {% if is_admin %}<button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>{% endif %}
         </div>
         <div id="comboCfg"></div>
       </div>
@@ -452,8 +454,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Porciones</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
         <div id="porcionCfg"></div>
       </div>
@@ -462,8 +464,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Ensaladas</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
         <div id="ensaladaCfg"></div>
       </div>
@@ -472,8 +474,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Entradas</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
         <div id="entradaCfg"></div>
       </div>
@@ -482,8 +484,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Platos Calientes</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
         <div id="platoCalienteCfg"></div>
       </div>
@@ -493,16 +495,20 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div id="mainRecetas" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tr',this)">Rolls</div>
+      {% if is_admin %}
       <div class="tab" onclick="showTab('trbg',this)">Grupos de rollo blanco</div>
+      {% endif %}
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
+      {% if is_admin %}
       <div class="tab" onclick="showTab('tma',this)">Marcas</div>
       <div class="tab" onclick="showTab('tfa',this)">Familias</div>
+      {% endif %}
     </div>
 <div id="tr">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Rolls</div>
-          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
+          {% if is_admin %}<button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>{% endif %}
         </div>
         <div id="rollCfg"></div>
       </div>
@@ -522,10 +528,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Semielaborados</div>
-          <div class="row" style="gap:8px">
+          {% if is_admin %}<div class="row" style="gap:8px">
             <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
             <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
-          </div>
+          </div>{% endif %}
         </div>
         <div id="semiCfg"></div>
       </div>
@@ -1967,8 +1973,12 @@ function renderComboCfg() {
       h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
         <td style="font-size:11px">${marcaBadges(c.marcas)}</td>
         <td><div class="row" style="gap:4px">
+          ${IS_ADMIN ? `
           <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
           <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+          ` : `
+          <button class="btn btn-sm" onclick="openComboModal(${c.id},true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
+          `}
         </div></td></tr>`;
     });
   }
@@ -1986,9 +1996,13 @@ function renderRollCfg() {
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : `
+        <button class="btn btn-sm" onclick="openRollModal(${r.id},null,true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
+        `}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -2022,9 +2036,13 @@ function renderSemiCfg() {
       <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
       <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : `
+        <button class="btn btn-sm" onclick="openSemiModal(${s.id},null,true)" title="Ver receta y usar la calculadora"><i class="ti ti-calculator"></i> Ver / Calculadora</button>
+        `}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -2463,15 +2481,17 @@ function renderEquivalenciaCfg() {
     ST.marcas.forEach(m => {
       const existing = ST.equivalencias.find(e=>e.tipo===equivTipoActual && e.nombre_canonico===prodName && e.marca===m.name);
       h += `<td><input type="text" class="equiv-cell" data-producto="${prodName}" data-marca="${m.name}"
-              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%"></td>`;
+              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%" ${IS_ADMIN?'':'disabled'}></td>`;
     });
     h += '</tr>';
   });
   h += '</tbody></table></div>';
 
-  h += `<div class="flex-end">
-    <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
-  </div>`;
+  if (IS_ADMIN) {
+    h += `<div class="flex-end">
+      <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
+    </div>`;
+  }
 
   container.innerHTML = h;
 }
@@ -2515,9 +2535,13 @@ function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
       <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
       <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateOtroProducto(${p.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},${renderFnName})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : `
+        <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id},null,null,true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
+        `}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -2529,40 +2553,44 @@ function renderEnsaladasCfg(){ renderOtroProductoCfgTipo('ensalada','ensaladaCfg
 function renderEntradasCfg(){ renderOtroProductoCfgTipo('entrada','entradaCfg',renderEntradasCfg); }
 function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente','platoCalienteCfg',renderPlatosCalientesCfg); }
 
-function openOtroProductoModal(id, dup, defaultTipo) {
+function openOtroProductoModal(id, dup, defaultTipo, readOnly) {
   const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
   const ins = prod?.insumos || {};
   const rollsExistentes = prod?.rolls || {};
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
   const tipoSeleccionado = prod?.tipo || defaultTipo;
   const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
     `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
   const rollOptsProd=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd)).join('');
-  openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
+  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd,ro)).join('');
+  openModal(ro?'Ver producto':(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto')),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
-      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
+      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón" ${dis}></div>
+      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full" ${dis}>${tipoOpts}</select></div>
     </div>
 
     <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y piezas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para productos armados con piezas de un roll, igual que un combo)</span></div>
     <div id="otroProdRollRows" style="margin-bottom:8px">${existingRollRows}</div>
-    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+    ${ro ? '' : `<button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`}
 
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para lo que se agrega directo, sin pasar por un roll)</span></div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
+    ${ro ? '' : `<div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
         onkeydown="handleIngredientKeydown(event,'otroProd')" onblur="closeIngredientDropdownOnBlur('otroProd')">
       <div id="otroProdIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
-    ${codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
+    ${ro ? '' : codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
+    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
   );
+  if (ro) document.querySelectorAll('#otroProdMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('otroProdIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro)); });
 }
 function addOtroProdRollRow(){
   const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
@@ -3049,7 +3077,7 @@ function tipoBadge(type) {
   return b;
 }
 
-function makeIngRow(key, qty) {
+function makeIngRow(key, qty, readOnly) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
@@ -3060,16 +3088,20 @@ function makeIngRow(key, qty) {
   label.textContent = getIngredientLabel(key);
   const inp = document.createElement('input');
   inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
+  if (readOnly) inp.disabled = true;
   const unit = document.createElement('span');
   unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
   unit.textContent = getIngredientUnit(key);
-  const btn = document.createElement('button');
-  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
-  btn.onclick = () => div.remove();
-  div.appendChild(dragHandle());
+  div.appendChild(readOnly ? document.createElement('span') : dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
-  div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
-  makeDraggable(div);
+  div.appendChild(label); div.appendChild(inp); div.appendChild(unit);
+  if (!readOnly) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
+    btn.onclick = () => div.remove();
+    div.appendChild(btn);
+    makeDraggable(div);
+  }
   return div;
 }
 
@@ -3223,30 +3255,34 @@ function closeIngredientDropdownOnBlur(prefix) {
   // slight delay so a click (mousedown already handled selection) doesn't get lost
   setTimeout(()=>{ const d=document.getElementById(p+'IngDropdown'); if(d) d.classList.add('hidden'); }, 100);
 }
-function openRollModal(id, dup) {
+function openRollModal(id, dup, readOnly) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
   const ins = roll?.insumos || {};
-  openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
+  openModal(ro?'Ver roll':(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll')),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
-      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50"></div>
+      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}" ${dis}></div>
+      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50" ${dis}></div>
     </div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Grupo de rollo blanco <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — rolls con el mismo relleno pero distinta cobertura)</span></label>
-      <select id="m_rolloBlanco" class="w-full">${rolloBlancoGrupoOptions(roll?.rollo_blanco_grupo)}</select></div>
+      <select id="m_rolloBlanco" class="w-full" ${dis}>${rolloBlancoGrupoOptions(roll?.rollo_blanco_grupo)}</select></div>
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
+    ${ro ? '' : `<div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('roll')" onfocus="filterIngredientDropdown('roll')"
         onkeydown="handleIngredientKeydown(event,'roll')" onblur="closeIngredientDropdownOnBlur('roll')">
       <div id="rollIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
+    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
   );
+  if (ro) document.querySelectorAll('#rollMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('rollIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro)); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -3314,31 +3350,36 @@ async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) 
     body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
 }
 
-function openComboModal(id) {
+function openComboModal(id, readOnly) {
   const combo=id?ST.combos.find(c=>c.id===id):null;
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
   const famOpts=familiaOptions(combo?.family);
   const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts)).join(''):'';
-  openModal(id?'Editar combo':'Nuevo combo',`
+  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts,ro)).join(''):'';
+  openModal(ro?'Ver combo':(id?'Editar combo':'Nuevo combo'),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}"></div>
-      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full">${famOpts}</select></div>
+      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}" ${dis}></div>
+      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full" ${dis}>${famOpts}</select></div>
     </div>
     <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
     <div id="rollRows">${existingRows}</div>
-    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+    ${ro ? '' : `<button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`}
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
-    ${codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
+    ${ro ? '' : codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
+    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
   );
+  if (ro) document.querySelectorAll('#comboMarcaChecks input').forEach(cb=>cb.disabled=true);
 }
-function rollRow(name,qty,opts){
+function rollRow(name,qty,opts,readOnly){
+  const dis = readOnly ? 'disabled' : '';
   return `<div class="row" style="margin-bottom:6px">
-    <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
-    <input type="number" value="${qty}" min="1" max="100" style="width:65px">
+    <select style="flex:1" ${dis}>${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
+    <input type="number" value="${qty}" min="1" max="100" style="width:65px" ${dis}>
     <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
+    ${readOnly ? '' : `<button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>`}
   </div>`;
 }
 function addRollRow(){
@@ -3460,36 +3501,38 @@ function mostrarPreviewConversion(html) {
   }
   el.innerHTML = html;
 }
-function openSemiModal(id, dup) {
+function openSemiModal(id, dup, readOnly) {
   const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
-  openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
+  openModal(ro?'Ver semielaborado':(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado')),`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}" ${dis}></div>
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Clave interna <span style="font-weight:400;color:var(--text3);text-transform:none">(para vincularlo en las recetas de rolls)</span></label>
-        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío"></div>
-      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full">
+        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío" ${dis}></div>
+      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full" ${dis}>
         <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
     </div>
     <div class="form-grid" style="margin-bottom:1.25rem">
       <div><label class="form-lbl">Tiempo de elaboración <span style="font-weight:400;color:var(--text3);text-transform:none">(minutos)</span></label>
-        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25"></div>
+        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25" ${dis}></div>
       <div><label class="form-lbl">Vida útil <span style="font-weight:400;color:var(--text3);text-transform:none">(días)</span></label>
-        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3"></div>
+        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3" ${dis}></div>
     </div>
-    <div class="alert alert-info" style="margin-bottom:1.25rem">
+    ${ro ? '' : `<div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
-    </div>
+    </div>`}
 
     <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
+    ${ro ? '' : `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="semiRecetaIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('semiReceta')" onfocus="filterIngredientDropdown('semiReceta')"
         onkeydown="handleIngredientKeydown(event,'semiReceta')" onblur="closeIngredientDropdownOnBlur('semiReceta')">
       <div id="semiRecetaIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="semiRecetaIngRows" style="margin-bottom:1.25rem"></div>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
@@ -3510,9 +3553,9 @@ function openSemiModal(id, dup) {
 
     <div class="form-grid" style="background:var(--warn-bg);padding:12px;border-radius:var(--rsm);margin-top:.5rem">
       <div><label class="form-lbl" style="color:#7a5500">⚠ Rendimiento de la receta</label>
-        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850"></div>
+        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850" ${dis}></div>
       <div><label class="form-lbl" style="color:#7a5500">Unidad del rendimiento</label>
-        <select id="m_rendUnid" class="w-full">
+        <select id="m_rendUnid" class="w-full" ${dis}>
           <option value="g" ${semi?.rendimiento_unidad==='g'?'selected':''}>Gramos (g)</option>
           <option value="u" ${semi?.rendimiento_unidad==='u'?'selected':''}>Unidades (u)</option>
           <option value="ml" ${semi?.rendimiento_unidad==='ml'?'selected':''}>Mililitros (ml)</option>
@@ -3522,15 +3565,19 @@ function openSemiModal(id, dup) {
 
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
+    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
   );
+  if (ro) {
+    document.querySelectorAll('#semiMarcaChecks input').forEach(cb=>cb.disabled=true);
+  }
   // Populate existing recipe rows (formato nuevo con 'key', o formato viejo en texto libre)
   const ingRowsDiv = document.getElementById('semiRecetaIngRows');
   if (semi?.receta?.length) {
     semi.receta.forEach(ing => {
       if (ing.key) {
-        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad));
-      } else {
+        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad, ro));
+      } else if (!ro) {
         ingRowsDiv.appendChild(legacyIngRow(ing.nombre, ing.cantidad, ing.unidad, 'semiReceta'));
       }
     });
