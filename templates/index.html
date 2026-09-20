@@ -2876,11 +2876,7 @@ function openUsuarioModal(id) {
         ${ST.locales.map(l=>`<label style="display:flex;align-items:center;gap:7px;cursor:pointer">
           <input type="checkbox" class="usuario-local-check" value="${l.id}" ${userLocales.includes(l.id)?'checked':''}> ${l.name}</label>`).join('') || '<span style="color:var(--text3);font-size:13px">No hay locales cargados todavía.</span>'}
       </div>
-    </div>${id ? '' : `
-    <label style="display:flex;align-items:center;gap:8px;margin-top:1.25rem;cursor:pointer">
-      <input type="checkbox" id="m_enviarBienvenida" checked style="width:18px;height:18px">
-      <span class="form-lbl" style="margin:0;text-transform:none;font-weight:400">Enviarle un mail de bienvenida con instrucciones para entrar</span>
-    </label>`}`,
+    </div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUsuario(${id||'null'})">Guardar</button>`
   );
 }
@@ -2888,22 +2884,16 @@ async function saveUsuario(id) {
   const email=document.getElementById('m_email').value.trim().toLowerCase();
   if(!email || !email.includes('@')){alert('Ingresá un email válido');return;}
   const locales = [...document.querySelectorAll('.usuario-local-check:checked')].map(c=>parseInt(c.value));
-  const enviarBienvendaEl = document.getElementById('m_enviarBienvenida');
   const data={
     email, nombre: document.getElementById('m_nombre').value.trim(),
     role: document.getElementById('m_role').value,
     active: document.getElementById('m_active').value==='1',
-    locales,
-    enviar_bienvenida: enviarBienvendaEl ? enviarBienvendaEl.checked : false
+    locales
   };
   const res = await fetch(id?`/api/usuarios/${id}`:'/api/usuarios',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderUsuarioCfg();
-  if (!id && data.enviar_bienvenida) {
-    alert(result.mail_enviado ? `Usuario creado y mail de bienvenida enviado a ${email}.`
-                               : `Usuario creado, pero no se pudo enviar el mail de bienvenida.\n\nMotivo: ${result.mail_error || 'desconocido'}`);
-  }
 }
 async function deleteUsuario(id) {
   if(!confirm('¿Confirmar eliminación? Esa cuenta perderá el acceso a la app.')) return;
