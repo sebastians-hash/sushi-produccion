@@ -2626,11 +2626,13 @@ async function handleImportarRecetasFiles(files, defaultTipo) {
 }
 
 function catalogoInsumosOptions(matchKey) {
-  let h = '';
+  let h = '<optgroup label="Insumos">';
   ST.insumosMaster.forEach(i => { h += `<option value="${i.key}" ${i.key===matchKey?'selected':''}>${i.label}</option>`; });
+  h += '</optgroup>';
   if (ST.semielaborados.length) {
-    h += '</optgroup><optgroup label="Semielaborados">';
+    h += '<optgroup label="Semielaborados">';
     ST.semielaborados.forEach(s => { h += `<option value="${s.insumo_key}" ${s.insumo_key===matchKey?'selected':''}>${s.name}</option>`; });
+    h += '</optgroup>';
   }
   return h;
 }
@@ -2654,7 +2656,7 @@ function renderImportarRecetasReview() {
         <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
           <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
           <option value="excluir">No incluir este ingrediente</option>
-          <optgroup label="Vincular a insumo existente">${catalogoInsumosOptions(sugerido?sugerido.key:null)}</optgroup>
+          ${catalogoInsumosOptions(sugerido?sugerido.key:null)}
         </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
       </tr>`;
     });
