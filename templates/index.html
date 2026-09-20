@@ -2902,7 +2902,7 @@ async function saveUsuario(id) {
   closeModal(); await loadConfig(); renderUsuarioCfg();
   if (!id && data.enviar_bienvenida) {
     alert(result.mail_enviado ? `Usuario creado y mail de bienvenida enviado a ${email}.`
-                               : `Usuario creado, pero no se pudo enviar el mail de bienvenida (revisá la configuración de Resend).`);
+                               : `Usuario creado, pero no se pudo enviar el mail de bienvenida.\n\nMotivo: ${result.mail_error || 'desconocido'}`);
   }
 }
 async function deleteUsuario(id) {
