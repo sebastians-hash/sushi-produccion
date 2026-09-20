@@ -2655,6 +2655,7 @@ function renderImportarRecetasReview() {
         <td><input type="number" class="ing-peso" data-r="${ri}" data-i="${ii}" value="${ing.peso_neto ?? ''}" style="width:70px"> ${ing.unidad_sugerida}</td>
         <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
           <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="crear_semi_nuevo">+ Crear semielaborado nuevo "${ing.nombre}"</option>
           <option value="excluir">No incluir este ingrediente</option>
           ${catalogoInsumosOptions(sugerido?sugerido.key:null)}
         </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
@@ -2691,6 +2692,12 @@ function renderImportarRecetasReview() {
         ${headerFields}
       </div>
       ${(!esSemi && !r.tipo_sugerido) ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">No reconocí la categoría "${r.categoria}" — elegí el tipo correcto arriba.</div>` : ''}
+      ${r.ya_existe ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" class="receta-actualizar" data-r="${ri}" ${!r.ya_existe_tiene_receta?'checked':''}>
+            Ya existe ${esSemi?'un semielaborado':'un producto'} llamado "${r.titulo}"${r.ya_existe_tiene_receta?' (con receta cargada)':' (sin receta cargada todavía)'} — actualizar sus datos con lo de este PDF en vez de omitirlo
+          </label>
+        </div>` : ''}
       <table><thead><tr><th>Ingrediente (del PDF)</th><th style="width:110px">Cantidad</th><th>Vincular a</th></tr></thead>
       <tbody>${ingRows}</tbody></table>
     </div>`;
@@ -2712,8 +2719,11 @@ async function confirmarImportacionRecetas() {
       const peso = parseFloat(pesoEl.value) || 0;
       if (matchEl.value === 'excluir') return { nombre: ing.nombre, excluir: true };
       if (matchEl.value === 'crear_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_nuevo: true };
+      if (matchEl.value === 'crear_semi_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_semi_nuevo: true };
       return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, insumo_key: matchEl.value };
     });
+    const actualizarEl = document.querySelector(`.receta-actualizar[data-r="${ri}"]`);
+    const actualizarExistente = actualizarEl ? actualizarEl.checked : false;
     if (r.es_semielaborado) {
       const rendCant = parseFloat(document.querySelector(`.semi-rend-cant[data-r="${ri}"]`).value) || 0;
       const rendUnid = document.querySelector(`.semi-rend-unid[data-r="${ri}"]`).value;
@@ -2721,11 +2731,12 @@ async function confirmarImportacionRecetas() {
       recetas.push({
         nombre, es_semielaborado: true, ingredientes, procedimiento_pasos: r.procedimiento_pasos,
         rendimiento_cantidad: rendCant, rendimiento_unidad: rendUnid,
-        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null
+        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null,
+        actualizar_existente: actualizarExistente
       });
     } else {
       const tipo = document.querySelector(`.receta-tipo[data-r="${ri}"]`).value;
-      recetas.push({ nombre, tipo, familia: '', ingredientes, procedimiento_pasos: r.procedimiento_pasos });
+      recetas.push({ nombre, tipo, familia: '', ingredientes, procedimiento_pasos: r.procedimiento_pasos, actualizar_existente: actualizarExistente });
     }
   });
 
@@ -2735,7 +2746,7 @@ async function confirmarImportacionRecetas() {
   const result = await res.json();
   if (!res.ok) { alert(result.error || 'Error al confirmar la importación'); return; }
 
-  let msg = `Listo: ${result.creados_productos} producto(s) y ${result.creados_insumos} insumo(s) nuevo(s) creados.`;
+  let msg = `Listo: ${result.creados_productos} creado(s), ${result.actualizados} actualizado(s), ${result.creados_insumos} insumo(s) nuevo(s) y ${result.creados_semis_placeholder} semielaborado(s) nuevo(s) (sin receta todavía) creados.`;
   if (result.errores.length) msg += `\n\nAvisos:\n` + result.errores.join('\n');
   alert(msg);
   await loadConfig();
