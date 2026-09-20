@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
 import json, os, tempfile, functools
-import requests
 import psycopg2
 import psycopg2.extras
 from datetime import datetime
@@ -182,6 +181,18 @@ def init_db():
             marca TEXT,
             factor REAL NOT NULL DEFAULT 1.0,
             UNIQUE(tipo, nombre_alias)
+        );
+        CREATE TABLE IF NOT EXISTS sugerencias (
+            id SERIAL PRIMARY KEY,
+            tipo TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'nueva',
+            respuesta_admin TEXT,
+            creado_por TEXT NOT NULL,
+            creado_por_nombre TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS locales (
             id SERIAL PRIMARY KEY,
@@ -430,9 +441,6 @@ def debug_env():
         "",
         f"ADMIN_EMAIL: {admin_email if admin_email else 'NO CONFIGURADA'}",
         "",
-        f"RESEND_API_KEY: {mask(os.environ.get('RESEND_API_KEY'), keep_start=6, keep_end=4)}",
-        f"RESEND_FROM_EMAIL: {os.environ.get('RESEND_FROM_EMAIL') or '(no configurada, usa onboarding@resend.dev por defecto)'}",
-        "",
         f"URL de callback que la app va a pedirle a Google: {url_for('auth_callback', _external=True)}",
     ]
     return "<pre style='font-family:monospace;font-size:14px;padding:20px'>" + "\n".join(lines) + "</pre>"
@@ -485,49 +493,6 @@ def index():
         user_email=session.get('user_email',''),
         user_picture=session.get('user_picture',''))
 
-# ── Mail de bienvenida (vía Resend) ──
-def enviar_mail_bienvenida(email, nombre, app_url):
-    """Envía un mail de bienvenida vía Resend. Si no está configurado (falta la
-    API key) o falla el envío, no rompe la creación del usuario — devuelve
-    (ok, mensaje_error) para que el admin vea el motivo exacto sin tener que
-    mirar los logs del servidor."""
-    api_key = os.environ.get('RESEND_API_KEY')
-    if not api_key:
-        return False, 'Falta configurar la variable RESEND_API_KEY en el servidor'
-    from_email = os.environ.get('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
-    saludo = f'Hola {nombre}' if nombre else 'Hola'
-    html = f'''
-    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;color:#1a1a18">
-      <h2 style="color:#1a1a18">¡Bienvenido/a a Kata!</h2>
-      <p>{saludo},</p>
-      <p>Ya tenés acceso a la app de planificación de producción. Para entrar:</p>
-      <ol>
-        <li>Ingresá a <a href="{app_url}">{app_url}</a></li>
-        <li>Iniciá sesión con tu cuenta de Google (<strong>{email}</strong>)</li>
-      </ol>
-      <p style="margin-top:24px"><a href="{app_url}" style="background:#1a1a18;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">Entrar a la app</a></p>
-      <p style="color:#666662;font-size:13px;margin-top:24px">Si no esperabas este mail, podés ignorarlo.</p>
-    </div>
-    '''
-    try:
-        resp = requests.post(
-            'https://api.resend.com/emails',
-            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-            json={'from': from_email, 'to': [email], 'subject': 'Bienvenido/a a Kata', 'html': html},
-            timeout=10,
-        )
-        if resp.status_code >= 300:
-            print(f'[mail bienvenida] Resend devolvió error {resp.status_code}: {resp.text}')
-            try:
-                detalle = resp.json().get('message', resp.text)
-            except ValueError:
-                detalle = resp.text
-            return False, f'Resend devolvió un error ({resp.status_code}): {detalle}'
-        return True, None
-    except requests.RequestException as e:
-        print(f'[mail bienvenida] Error de conexión al enviar: {e}')
-        return False, f'Error de conexión: {e}'
-
 # ── Usuarios (solo admin) ──
 @app.route('/api/usuarios', methods=['GET'])
 @admin_required
@@ -566,11 +531,7 @@ def create_usuario():
         conn.close()
         return jsonify({'error': 'Ese email ya está registrado'}), 400
     conn.close()
-    mail_enviado = False
-    mail_error = None
-    if data.get('enviar_bienvenida'):
-        mail_enviado, mail_error = enviar_mail_bienvenida(email, data.get('nombre', ''), request.host_url.rstrip('/'))
-    return jsonify({'ok': True, 'mail_enviado': mail_enviado, 'mail_error': mail_error})
+    return jsonify({'ok': True})
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 @admin_required
@@ -601,6 +562,69 @@ def delete_usuario(usuario_id):
         return jsonify({'error': 'No podés eliminar tu propio usuario mientras estás conectado'}), 400
     conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
     conn.execute('DELETE FROM usuarios WHERE id=?', (usuario_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Sugerencias (mejoras, correcciones de recetas, nuevas herramientas) ──
+@app.route('/api/sugerencias', methods=['GET'])
+@login_required
+def get_sugerencias():
+    conn = get_db()
+    if session.get('user_role') == 'admin':
+        rows = conn.execute('SELECT * FROM sugerencias ORDER BY created_at DESC').fetchall()
+    else:
+        rows = conn.execute('SELECT * FROM sugerencias WHERE creado_por=? ORDER BY created_at DESC',
+                             (session['user_email'],)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'titulo': r['titulo'], 'descripcion': r['descripcion'],
+                     'estado': r['estado'], 'respuesta_admin': r['respuesta_admin'],
+                     'creado_por': r['creado_por'], 'creado_por_nombre': r['creado_por_nombre'],
+                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+
+@app.route('/api/sugerencias', methods=['POST'])
+@login_required
+def create_sugerencia():
+    data = request.json
+    titulo = (data.get('titulo') or '').strip()
+    descripcion = (data.get('descripcion') or '').strip()
+    tipo = data.get('tipo')
+    if not titulo or not descripcion or tipo not in ('mejora', 'correccion_receta', 'nueva_herramienta'):
+        return jsonify({'error': 'Completá el tipo, el título y la descripción'}), 400
+    conn = get_db()
+    conn.execute('''INSERT INTO sugerencias (tipo, titulo, descripcion, creado_por, creado_por_nombre)
+                    VALUES (?,?,?,?,?)''',
+                 (tipo, titulo, descripcion, session['user_email'], session.get('user_name', '')))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sugerencias/<int:sug_id>', methods=['PUT'])
+@admin_required
+def update_sugerencia(sug_id):
+    data = request.json
+    estado = data.get('estado')
+    if estado not in ('nueva', 'en_revision', 'aceptada', 'rechazada', 'implementada'):
+        return jsonify({'error': 'Estado inválido'}), 400
+    conn = get_db()
+    conn.execute('''UPDATE sugerencias SET estado=?, respuesta_admin=?, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 (estado, data.get('respuesta_admin') or None, sug_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sugerencias/<int:sug_id>', methods=['DELETE'])
+@login_required
+def delete_sugerencia(sug_id):
+    conn = get_db()
+    row = conn.execute('SELECT creado_por FROM sugerencias WHERE id=?', (sug_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if session.get('user_role') != 'admin' and row['creado_por'] != session['user_email']:
+        conn.close()
+        return jsonify({'error': 'No podés borrar una sugerencia de otro usuario'}), 403
+    conn.execute('DELETE FROM sugerencias WHERE id=?', (sug_id,))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
