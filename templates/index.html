@@ -185,7 +185,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
-    <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias</div>
+    <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     {% if is_admin %}
     <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
     {% endif %}
@@ -859,6 +859,7 @@ async function loadConfig() {
     if (IS_ADMIN) {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
     }
+    refreshSugerenciasBadge();
   } catch(e){ console.error('loadConfig',e); }
 }
 
@@ -2470,12 +2471,25 @@ const TIPO_SUGERENCIA_LABELS = { mejora: 'Mejora', correccion_receta: 'Correcci�
 const ESTADO_SUGERENCIA_LABELS = { nueva: 'Nueva', en_revision: 'En revisión', aceptada: 'Aceptada', rechazada: 'Rechazada', implementada: 'Implementada' };
 const ESTADO_SUGERENCIA_BADGE = { nueva: 'b-blue', en_revision: 'b-warn', aceptada: 'b-green', rechazada: 'b-red', implementada: 'b-green' };
 
+async function refreshSugerenciasBadge() {
+  try {
+    const res = await fetch('/api/sugerencias/pendientes-count');
+    const { count } = await res.json();
+    const badge = document.getElementById('sugerenciasBadge');
+    badge.textContent = count > 9 ? '9+' : count;
+    badge.classList.toggle('hidden', !count);
+  } catch(e) { /* no molestar al usuario si esto falla */ }
+}
+
+const REFERENCIA_TIPO_LABELS = { roll: 'Roll', semielaborado: 'Semielaborado', combo: 'Combo', otro_producto: 'Producto' };
+
 async function renderSugerenciasCfg() {
   document.querySelector('#sugerenciasInfoAlert span').textContent = IS_ADMIN
     ? 'Acá ves las sugerencias de todos los usuarios. Podés cambiar el estado y dejarles una respuesta.'
     : 'Contanos qué mejorarías, qué receta te parece que está mal, o qué herramienta nueva te gustaría que tenga la app. Solo vos vas a ver tus propias sugerencias (y nosotros).';
   const res = await fetch('/api/sugerencias');
   ST.sugerencias = await res.json();
+  refreshSugerenciasBadge();
   const cont = document.getElementById('sugerenciasCfg');
   if (!ST.sugerencias.length) { cont.innerHTML = '<div class="empty">No hay sugerencias todavía.</div>'; return; }
   let h = '';
@@ -2487,6 +2501,7 @@ async function renderSugerenciasCfg() {
           <div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">
             <span class="badge b-blue">${TIPO_SUGERENCIA_LABELS[s.tipo] || s.tipo}</span>
             <span class="badge ${ESTADO_SUGERENCIA_BADGE[s.estado]}">${ESTADO_SUGERENCIA_LABELS[s.estado]}</span>
+            ${s.referencia_tipo ? `<span class="badge" style="background:var(--bg2);color:var(--text2)"><i class="ti ti-link"></i> ${REFERENCIA_TIPO_LABELS[s.referencia_tipo]}: ${s.referencia_nombre}</span>` : ''}
             ${IS_ADMIN ? `<span style="font-size:12px;color:var(--text3)">${s.creado_por_nombre || s.creado_por}</span>` : ''}
             <span style="font-size:12px;color:var(--text3)">${new Date(s.created_at).toLocaleDateString('es-AR')}</span>
           </div>
@@ -2506,11 +2521,21 @@ async function renderSugerenciasCfg() {
   cont.innerHTML = h;
 }
 
-function openSugerenciaModal() {
+function botonSugerirMejora(tipo, id, nombre) {
+  if (!id) return '';
+  return `<button class="btn btn-sm" onclick='openSugerenciaModal({tipo:"${tipo}",id:${id},nombre:${JSON.stringify(nombre)}})' title="Sugerir una mejora o corrección para esto"><i class="ti ti-bulb"></i> Sugerir mejora</button>`;
+}
+
+function openSugerenciaModal(referencia) {
+  ST._sugerenciaReferencia = referencia || null;
   openModal('Nueva sugerencia', `
+    ${referencia ? `<div class="alert alert-info" style="margin-bottom:1rem">
+      <i class="ti ti-link"></i>
+      <span>Esta sugerencia va a quedar vinculada a: <strong>${REFERENCIA_TIPO_LABELS[referencia.tipo]} — ${referencia.nombre}</strong></span>
+    </div>` : ''}
     <div style="margin-bottom:1rem"><label class="form-lbl">Tipo</label><select id="m_tipoSugerencia" class="w-full">
       <option value="mejora">Mejora</option>
-      <option value="correccion_receta">Corrección de receta</option>
+      <option value="correccion_receta" ${referencia?'selected':''}>Corrección de receta</option>
       <option value="nueva_herramienta">Nueva herramienta</option>
     </select></div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Título</label><input type="text" id="m_tituloSugerencia" class="w-full" placeholder="Resumilo en pocas palabras"></div>
@@ -2524,7 +2549,10 @@ async function saveSugerencia() {
   const titulo = document.getElementById('m_tituloSugerencia').value.trim();
   const descripcion = document.getElementById('m_descSugerencia').value.trim();
   if (!titulo || !descripcion) { alert('Completá el título y la descripción'); return; }
-  const res = await fetch('/api/sugerencias', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tipo, titulo, descripcion})});
+  const ref = ST._sugerenciaReferencia;
+  const payload = { tipo, titulo, descripcion };
+  if (ref) { payload.referencia_tipo = ref.tipo; payload.referencia_id = ref.id; payload.referencia_nombre = ref.nombre; }
+  const res = await fetch('/api/sugerencias', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal();
@@ -2697,8 +2725,8 @@ function openOtroProductoModal(id, dup, defaultTipo, readOnly) {
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
     ${ro ? '' : codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
-    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
-       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('otro_producto', id, prod?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`)
   );
   if (ro) document.querySelectorAll('#otroProdMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('otroProdIngRows');
@@ -3389,8 +3417,8 @@ function openRollModal(id, dup, readOnly) {
     <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
-    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
-       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('roll', id, roll?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`)
   );
   if (ro) document.querySelectorAll('#rollMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('rollIngRows');
@@ -3480,8 +3508,8 @@ function openComboModal(id, readOnly) {
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
     ${ro ? '' : codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
-    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
-       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('combo', id, combo?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`)
   );
   if (ro) document.querySelectorAll('#comboMarcaChecks input').forEach(cb=>cb.disabled=true);
 }
@@ -3673,8 +3701,8 @@ function openSemiModal(id, dup, readOnly) {
 
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
-    ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
-       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('semielaborado', id, semi?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`)
   );
   if (ro) {
     document.querySelectorAll('#semiMarcaChecks input').forEach(cb=>cb.disabled=true);
