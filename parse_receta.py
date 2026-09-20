@@ -40,6 +40,16 @@ def es_categoria_semielaborado(categoria):
     return 'ELABORADO' in key  # cubre "ELABORADOS", "SEMIELABORADOS", "SEMI ELABORADOS"
 
 
+STOPWORDS_MINUSCULA = {'de', 'del', 'la', 'las', 'el', 'los', 'y', 'con', 'en', 'a', 'al', 'o', 'para', 'sin'}
+
+
+def _titulo_natural(texto):
+    """Como .title() pero sin poner en mayúscula preposiciones/artículos
+    (ej: 'Cebolla De Verdeo' -> 'Cebolla de Verdeo')."""
+    palabras = texto.strip().title().split()
+    return ' '.join(p if p.lower() not in STOPWORDS_MINUSCULA else p.lower() for p in palabras)
+
+
 def _norm(s):
     if not s:
         return ''
@@ -232,7 +242,7 @@ def parse_receta_pdf(path):
                     pass
 
     return {
-        'titulo': titulo.strip().title(),
+        'titulo': _titulo_natural(titulo),
         'categoria': categoria,
         'es_semielaborado': es_semi,
         'tipo': tipo,
