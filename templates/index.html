@@ -185,6 +185,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias</div>
     {% if is_admin %}
     <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
     {% endif %}
@@ -652,6 +653,20 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
   </div>
 
+  <div id="mainSugerencias" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Sugerencias</div>
+        <button class="btn btn-sm btn-primary" onclick="openSugerenciaModal()"><i class="ti ti-plus"></i> Nueva sugerencia</button>
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1rem" id="sugerenciasInfoAlert">
+        <i class="ti ti-info-circle"></i>
+        <span></span>
+      </div>
+      <div id="sugerenciasCfg"></div>
+    </div>
+  </div>
+
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
@@ -851,7 +866,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',admin:'mainAdmin'};
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',sugerencias:'mainSugerencias',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -861,6 +876,7 @@ function goMainSection(name) {
   if(name==='recetas') renderRollCfg();
   if(name==='insumos') renderInsumoCfg();
   if(name==='equivalencias'){ renderEquivalenciaCfg(); }
+  if(name==='sugerencias'){ renderSugerenciasCfg(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -2448,6 +2464,102 @@ function listaPorTipo(tipo) {
 }
 function equivalenciaProductoOptions(tipo, selected) {
   return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
+}
+
+const TIPO_SUGERENCIA_LABELS = { mejora: 'Mejora', correccion_receta: 'Corrección de receta', nueva_herramienta: 'Nueva herramienta' };
+const ESTADO_SUGERENCIA_LABELS = { nueva: 'Nueva', en_revision: 'En revisión', aceptada: 'Aceptada', rechazada: 'Rechazada', implementada: 'Implementada' };
+const ESTADO_SUGERENCIA_BADGE = { nueva: 'b-blue', en_revision: 'b-warn', aceptada: 'b-green', rechazada: 'b-red', implementada: 'b-green' };
+
+async function renderSugerenciasCfg() {
+  document.querySelector('#sugerenciasInfoAlert span').textContent = IS_ADMIN
+    ? 'Acá ves las sugerencias de todos los usuarios. Podés cambiar el estado y dejarles una respuesta.'
+    : 'Contanos qué mejorarías, qué receta te parece que está mal, o qué herramienta nueva te gustaría que tenga la app. Solo vos vas a ver tus propias sugerencias (y nosotros).';
+  const res = await fetch('/api/sugerencias');
+  ST.sugerencias = await res.json();
+  const cont = document.getElementById('sugerenciasCfg');
+  if (!ST.sugerencias.length) { cont.innerHTML = '<div class="empty">No hay sugerencias todavía.</div>'; return; }
+  let h = '';
+  ST.sugerencias.forEach(s => {
+    h += `<div class="card" style="margin-bottom:10px;border:1px solid var(--border)">
+      <div class="row-between" style="margin-bottom:6px;align-items:flex-start">
+        <div>
+          <div style="font-weight:700;font-size:15px">${s.titulo}</div>
+          <div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge b-blue">${TIPO_SUGERENCIA_LABELS[s.tipo] || s.tipo}</span>
+            <span class="badge ${ESTADO_SUGERENCIA_BADGE[s.estado]}">${ESTADO_SUGERENCIA_LABELS[s.estado]}</span>
+            ${IS_ADMIN ? `<span style="font-size:12px;color:var(--text3)">${s.creado_por_nombre || s.creado_por}</span>` : ''}
+            <span style="font-size:12px;color:var(--text3)">${new Date(s.created_at).toLocaleDateString('es-AR')}</span>
+          </div>
+        </div>
+        <div class="row" style="gap:4px">
+          ${IS_ADMIN ? `<button class="btn btn-sm" onclick="openResponderSugerenciaModal(${s.id})" title="Responder"><i class="ti ti-message-circle"></i> Responder</button>` : ''}
+          <button class="btn btn-sm btn-danger" onclick="deleteSugerencia(${s.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text2);white-space:pre-wrap">${s.descripcion}</div>
+      ${s.respuesta_admin ? `<div style="margin-top:10px;background:var(--bg);border-left:3px solid var(--blue);border-radius:var(--rsm);padding:8px 12px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Respuesta</div>
+        <div style="font-size:13px;white-space:pre-wrap">${s.respuesta_admin}</div>
+      </div>` : ''}
+    </div>`;
+  });
+  cont.innerHTML = h;
+}
+
+function openSugerenciaModal() {
+  openModal('Nueva sugerencia', `
+    <div style="margin-bottom:1rem"><label class="form-lbl">Tipo</label><select id="m_tipoSugerencia" class="w-full">
+      <option value="mejora">Mejora</option>
+      <option value="correccion_receta">Corrección de receta</option>
+      <option value="nueva_herramienta">Nueva herramienta</option>
+    </select></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Título</label><input type="text" id="m_tituloSugerencia" class="w-full" placeholder="Resumilo en pocas palabras"></div>
+    <div><label class="form-lbl">Descripción</label><textarea id="m_descSugerencia" class="w-full" rows="5" placeholder="Contanos con el mayor detalle posible..."></textarea></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSugerencia()">Enviar</button>`
+  );
+}
+
+async function saveSugerencia() {
+  const tipo = document.getElementById('m_tipoSugerencia').value;
+  const titulo = document.getElementById('m_tituloSugerencia').value.trim();
+  const descripcion = document.getElementById('m_descSugerencia').value.trim();
+  if (!titulo || !descripcion) { alert('Completá el título y la descripción'); return; }
+  const res = await fetch('/api/sugerencias', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tipo, titulo, descripcion})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal();
+  await renderSugerenciasCfg();
+}
+
+function openResponderSugerenciaModal(id) {
+  const s = ST.sugerencias.find(x=>x.id===id);
+  openModal('Responder sugerencia', `
+    <div style="margin-bottom:1rem;font-size:13px;color:var(--text2)"><strong>${s.titulo}</strong><br>${s.descripcion}</div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Estado</label><select id="m_estadoSugerencia" class="w-full">
+      ${Object.entries(ESTADO_SUGERENCIA_LABELS).map(([k,label])=>`<option value="${k}" ${s.estado===k?'selected':''}>${label}</option>`).join('')}
+    </select></div>
+    <div><label class="form-lbl">Respuesta <span style="font-weight:400;color:var(--text3);text-transform:none">(el usuario la va a poder ver)</span></label>
+      <textarea id="m_respuestaSugerencia" class="w-full" rows="4">${s.respuesta_admin || ''}</textarea></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSugerenciaRespuesta(${id})">Guardar</button>`
+  );
+}
+
+async function saveSugerenciaRespuesta(id) {
+  const estado = document.getElementById('m_estadoSugerencia').value;
+  const respuesta_admin = document.getElementById('m_respuestaSugerencia').value.trim();
+  const res = await fetch(`/api/sugerencias/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({estado, respuesta_admin})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal();
+  await renderSugerenciasCfg();
+}
+
+async function deleteSugerencia(id) {
+  if (!confirm('¿Eliminar esta sugerencia?')) return;
+  const res = await fetch(`/api/sugerencias/${id}`, {method:'DELETE'});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await renderSugerenciasCfg();
 }
 
 function renderEquivalenciaCfg() {
