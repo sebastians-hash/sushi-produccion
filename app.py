@@ -897,6 +897,7 @@ def importar_recetas_pdf():
                 'formato': ing['formato'],
                 'unidad_sugerida': ing['unidad'],
                 'match_sugerido': match,  # {'key','label','score'} o None
+                'es_semielaborado_sugerido': ing.get('es_semielaborado_sugerido', False),
             })
 
         # Verificar si ya existe un producto/semielaborado con este mismo nombre,
