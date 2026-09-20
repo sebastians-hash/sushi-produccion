@@ -870,7 +870,6 @@ def importar_recetas_pdf():
     conn = get_db()
     insumos_rows = conn.execute('SELECT key, label FROM insumos').fetchall()
     semis_rows = conn.execute('SELECT insumo_key AS key, name AS label FROM semielaborados').fetchall()
-    conn.close()
     catalogo = [dict(r) for r in insumos_rows] + [dict(r) for r in semis_rows]
 
     resultados = []
@@ -900,6 +899,21 @@ def importar_recetas_pdf():
                 'match_sugerido': match,  # {'key','label','score'} o None
             })
 
+        # Verificar si ya existe un producto/semielaborado con este mismo nombre,
+        # y si ese existente ya tiene una receta cargada (para no pisar datos buenos sin avisar)
+        ya_existe = False
+        ya_existe_tiene_receta = False
+        if parsed['es_semielaborado']:
+            existente = conn.execute('SELECT receta FROM semielaborados WHERE LOWER(name)=LOWER(?)', (parsed['titulo'],)).fetchone()
+            if existente:
+                ya_existe = True
+                ya_existe_tiene_receta = bool(json.loads(existente['receta'] or '[]'))
+        else:
+            existente = conn.execute('SELECT insumos FROM otros_productos WHERE LOWER(name)=LOWER(?)', (parsed['titulo'],)).fetchone()
+            if existente:
+                ya_existe = True
+                ya_existe_tiene_receta = bool(json.loads(existente['insumos'] or '{}'))
+
         resultados.append({
             'archivo': f.filename,
             'titulo': parsed['titulo'],
@@ -913,8 +927,11 @@ def importar_recetas_pdf():
             'procedimiento_pasos': parsed['procedimiento_pasos'],
             'raciones': parsed['raciones'],
             'cantidad': parsed['cantidad'],
+            'ya_existe': ya_existe,
+            'ya_existe_tiene_receta': ya_existe_tiene_receta,
         })
 
+    conn.close()
     return jsonify({'resultados': resultados})
 
 @app.route('/api/confirmar-importacion-recetas', methods=['POST'])
@@ -922,18 +939,23 @@ def importar_recetas_pdf():
 def confirmar_importacion_recetas():
     """Recibe la lista de recetas ya revisadas/confirmadas por el usuario
     (con el tipo definitivo, familia, y cada ingrediente ya vinculado a un
-    insumo existente o marcado para crear uno nuevo) y las guarda."""
+    insumo o semielaborado existente, o marcado para crear uno nuevo) y las guarda.
+    Si una receta ya existe (mismo nombre) y viene con actualizar_existente=true,
+    actualiza ese registro en lugar de crear uno nuevo — así conserva su id y su
+    insumo_key, y sigue bien vinculado desde cualquier otra receta que ya lo use."""
     data = request.json
     recetas = data.get('recetas', [])
     conn = get_db()
     creados_insumos = 0
+    creados_semis_placeholder = 0
     creados_productos = 0
+    actualizados = 0
     errores = []
 
     def resolver_ingredientes(ingredientes):
-        """Devuelve una lista de (key, cantidad) resolviendo/creando insumos nuevos
-        donde haga falta. Actualiza el contador creados_insumos por closure."""
-        nonlocal creados_insumos
+        """Devuelve una lista de (key, cantidad) resolviendo/creando insumos o
+        semielaborados nuevos donde haga falta. Actualiza los contadores por closure."""
+        nonlocal creados_insumos, creados_semis_placeholder
         resueltos = []
         for ing in ingredientes:
             if ing.get('excluir'):
@@ -952,6 +974,21 @@ def confirmar_importacion_recetas():
                                     VALUES (?,?,?,?,?,?)''',
                                  (key, nueva_label, unidad, unidad_resumen, factor, 'Importado desde PDF'))
                     creados_insumos += 1
+            elif not key and ing.get('crear_semi_nuevo'):
+                nueva_label = (ing.get('nombre') or '').strip()
+                key = _slugify_insumo(nueva_label)
+                ya_existe_insumo = conn.execute('SELECT 1 FROM insumos WHERE key=?', (key,)).fetchone()
+                ya_existe_semi = conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (key,)).fetchone()
+                if not ya_existe_insumo and not ya_existe_semi:
+                    unidad = ing.get('unidad') or 'g'
+                    unit = 'u' if unidad == 'u' else 'g'
+                    # Semielaborado "placeholder": queda creado pero sin receta propia
+                    # todavía — se puede completar más tarde a mano o re-importando su
+                    # propia ficha (que lo va a actualizar en vez de duplicarlo).
+                    conn.execute('''INSERT INTO semielaborados (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
+                                    VALUES (?,?,?,?,?,?,?,?)''',
+                                 (nueva_label, key, unit, json.dumps({}), json.dumps([]), 0, unidad, json.dumps([])))
+                    creados_semis_placeholder += 1
             if key and ing.get('peso_neto') is not None:
                 resueltos.append((key, float(ing['peso_neto'])))
         return resueltos
@@ -963,30 +1000,36 @@ def confirmar_importacion_recetas():
             continue
 
         if receta.get('es_semielaborado'):
-            ya_existe = conn.execute('SELECT 1 FROM semielaborados WHERE name=?', (nombre,)).fetchone()
-            if ya_existe:
-                errores.append(f'"{nombre}": ya existe un semielaborado con ese nombre, se omitió')
+            existente = conn.execute('SELECT id, insumo_key FROM semielaborados WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
+            if existente and not receta.get('actualizar_existente'):
+                errores.append(f'"{nombre}": ya existe un semielaborado con ese nombre, se omitió (no se marcó para actualizar)')
                 continue
 
             resueltos = resolver_ingredientes(receta.get('ingredientes', []))
             receta_lista = [{'key': k, 'cantidad': c} for k, c in resueltos]
-
-            insumo_key = _slugify_insumo(nombre)
-            ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
-                             conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (insumo_key,)).fetchone()
-            if ya_existe_key:
-                insumo_key = f'{insumo_key}_2'
-
             rend_unidad = receta.get('rendimiento_unidad') or 'g'
             unit = 'u' if rend_unidad == 'u' else 'g'
 
-            conn.execute('''INSERT INTO semielaborados
-                            (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas, vida_util_dias)
-                            VALUES (?,?,?,?,?,?,?,?,?)''',
-                         (nombre, insumo_key, unit, json.dumps({}), json.dumps(receta_lista),
-                          receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
-                          receta.get('vida_util_dias')))
-            creados_productos += 1
+            if existente:
+                # Actualiza el registro existente MANTENIENDO su id e insumo_key,
+                # para que las recetas que ya lo usaban sigan bien vinculadas.
+                conn.execute('''UPDATE semielaborados SET unit=?, receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, vida_util_dias=? WHERE id=?''',
+                             (unit, json.dumps(receta_lista), receta.get('rendimiento_cantidad') or 0,
+                              rend_unidad, receta.get('vida_util_dias'), existente['id']))
+                actualizados += 1
+            else:
+                insumo_key = _slugify_insumo(nombre)
+                ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
+                                 conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (insumo_key,)).fetchone()
+                if ya_existe_key:
+                    insumo_key = f'{insumo_key}_2'
+                conn.execute('''INSERT INTO semielaborados
+                                (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas, vida_util_dias)
+                                VALUES (?,?,?,?,?,?,?,?,?)''',
+                             (nombre, insumo_key, unit, json.dumps({}), json.dumps(receta_lista),
+                              receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
+                              receta.get('vida_util_dias')))
+                creados_productos += 1
             continue
 
         tipo = receta.get('tipo')
@@ -994,9 +1037,9 @@ def confirmar_importacion_recetas():
             errores.append(f'"{nombre}": tipo inválido, se omitió')
             continue
 
-        ya_existe_producto = conn.execute('SELECT 1 FROM otros_productos WHERE name=?', (nombre,)).fetchone()
-        if ya_existe_producto:
-            errores.append(f'"{nombre}": ya existe un producto con ese nombre, se omitió')
+        existente = conn.execute('SELECT id FROM otros_productos WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
+        if existente and not receta.get('actualizar_existente'):
+            errores.append(f'"{nombre}": ya existe un producto con ese nombre, se omitió (no se marcó para actualizar)')
             continue
 
         resueltos = resolver_ingredientes(receta.get('ingredientes', []))
@@ -1004,16 +1047,24 @@ def confirmar_importacion_recetas():
         for key, cantidad in resueltos:
             insumos_dict[key] = insumos_dict.get(key, 0) + cantidad
 
-        conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
-                        VALUES (?,?,?,?,?,?,?)''',
-                     (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
-                      json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
-        creados_productos += 1
+        if existente:
+            conn.execute('''UPDATE otros_productos SET tipo=?, familia=?, insumos=?, procedimiento=? WHERE id=?''',
+                         (tipo, receta.get('familia', ''), json.dumps(insumos_dict),
+                          json.dumps(receta.get('procedimiento_pasos', [])), existente['id']))
+            actualizados += 1
+        else:
+            conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
+                            VALUES (?,?,?,?,?,?,?)''',
+                         (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
+                          json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
+            creados_productos += 1
 
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'creados_insumos': creados_insumos,
-                     'creados_productos': creados_productos, 'errores': errores})
+                     'creados_semis_placeholder': creados_semis_placeholder,
+                     'creados_productos': creados_productos, 'actualizados': actualizados,
+                     'errores': errores})
 
 # ── Equivalencias (mismo producto, distinto nombre por marca) ──
 @app.route('/api/equivalencias', methods=['GET'])
