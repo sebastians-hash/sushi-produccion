@@ -191,6 +191,10 @@ def init_db():
             respuesta_admin TEXT,
             creado_por TEXT NOT NULL,
             creado_por_nombre TEXT,
+            referencia_tipo TEXT,
+            referencia_id INTEGER,
+            referencia_nombre TEXT,
+            visto BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
@@ -292,6 +296,17 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
     if 'rollo_blanco_grupo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
+
+    sug_cols = get_columns('sugerencias')
+    if 'referencia_tipo' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_tipo TEXT")
+    if 'referencia_id' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_id INTEGER")
+    if 'referencia_nombre' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_nombre TEXT")
+    if 'visto' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN visto BOOLEAN NOT NULL DEFAULT TRUE")
+    conn.commit()
 
     sm_cols = get_columns('sushimanes')
     if 'dias_franco' not in sm_cols:
@@ -576,11 +591,29 @@ def get_sugerencias():
     else:
         rows = conn.execute('SELECT * FROM sugerencias WHERE creado_por=? ORDER BY created_at DESC',
                              (session['user_email'],)).fetchall()
+        # Al entrar a ver su propia lista, el usuario ya "vio" las respuestas/cambios de estado
+        conn.execute('UPDATE sugerencias SET visto=TRUE WHERE creado_por=? AND visto=FALSE',
+                     (session['user_email'],))
+        conn.commit()
     conn.close()
     return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'titulo': r['titulo'], 'descripcion': r['descripcion'],
                      'estado': r['estado'], 'respuesta_admin': r['respuesta_admin'],
                      'creado_por': r['creado_por'], 'creado_por_nombre': r['creado_por_nombre'],
+                     'referencia_tipo': r['referencia_tipo'], 'referencia_id': r['referencia_id'],
+                     'referencia_nombre': r['referencia_nombre'],
                      'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+
+@app.route('/api/sugerencias/pendientes-count', methods=['GET'])
+@login_required
+def get_sugerencias_pendientes_count():
+    conn = get_db()
+    if session.get('user_role') == 'admin':
+        count = conn.execute("SELECT COUNT(*) AS cnt FROM sugerencias WHERE estado='nueva'").fetchone()['cnt']
+    else:
+        count = conn.execute('SELECT COUNT(*) AS cnt FROM sugerencias WHERE creado_por=? AND visto=FALSE',
+                             (session['user_email'],)).fetchone()['cnt']
+    conn.close()
+    return jsonify({'count': count})
 
 @app.route('/api/sugerencias', methods=['POST'])
 @login_required
@@ -591,10 +624,16 @@ def create_sugerencia():
     tipo = data.get('tipo')
     if not titulo or not descripcion or tipo not in ('mejora', 'correccion_receta', 'nueva_herramienta'):
         return jsonify({'error': 'Completá el tipo, el título y la descripción'}), 400
+    ref_tipo = data.get('referencia_tipo')
+    if ref_tipo not in ('roll', 'semielaborado', 'combo', 'otro_producto'):
+        ref_tipo = None
     conn = get_db()
-    conn.execute('''INSERT INTO sugerencias (tipo, titulo, descripcion, creado_por, creado_por_nombre)
-                    VALUES (?,?,?,?,?)''',
-                 (tipo, titulo, descripcion, session['user_email'], session.get('user_name', '')))
+    conn.execute('''INSERT INTO sugerencias (tipo, titulo, descripcion, creado_por, creado_por_nombre,
+                    referencia_tipo, referencia_id, referencia_nombre)
+                    VALUES (?,?,?,?,?,?,?,?)''',
+                 (tipo, titulo, descripcion, session['user_email'], session.get('user_name', ''),
+                  ref_tipo, data.get('referencia_id') if ref_tipo else None,
+                  data.get('referencia_nombre') if ref_tipo else None))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -607,7 +646,7 @@ def update_sugerencia(sug_id):
     if estado not in ('nueva', 'en_revision', 'aceptada', 'rechazada', 'implementada'):
         return jsonify({'error': 'Estado inválido'}), 400
     conn = get_db()
-    conn.execute('''UPDATE sugerencias SET estado=?, respuesta_admin=?, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+    conn.execute('''UPDATE sugerencias SET estado=?, respuesta_admin=?, visto=FALSE, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
                  (estado, data.get('respuesta_admin') or None, sug_id))
     conn.commit()
     conn.close()
