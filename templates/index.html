@@ -2650,12 +2650,14 @@ function renderImportarRecetasReview() {
     let ingRows = '';
     r.ingredientes.forEach((ing, ii) => {
       const sugerido = ing.match_sugerido;
+      const esNegrita = ing.es_semielaborado_sugerido;
+      const defaultOpt = sugerido ? sugerido.key : (esNegrita ? 'crear_semi_nuevo' : 'crear_nuevo');
       ingRows += `<tr>
-        <td>${ing.nombre}</td>
+        <td>${ing.nombre}${esNegrita ? ` <span class="badge b-green" style="font-size:10px" title="Estaba en negrita en el PDF — el sistema de origen lo marca como semielaborado">negrita → semielaborado</span>` : ''}</td>
         <td><input type="number" class="ing-peso" data-r="${ri}" data-i="${ii}" value="${ing.peso_neto ?? ''}" style="width:70px"> ${ing.unidad_sugerida}</td>
         <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
-          <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
-          <option value="crear_semi_nuevo">+ Crear semielaborado nuevo "${ing.nombre}"</option>
+          <option value="crear_nuevo" ${defaultOpt==='crear_nuevo'?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="crear_semi_nuevo" ${defaultOpt==='crear_semi_nuevo'?'selected':''}>+ Crear semielaborado nuevo "${ing.nombre}"</option>
           <option value="excluir">No incluir este ingrediente</option>
           ${catalogoInsumosOptions(sugerido?sugerido.key:null)}
         </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
