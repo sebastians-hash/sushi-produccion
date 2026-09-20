@@ -155,7 +155,7 @@ def parse_receta_pdf(path):
             peso = float(peso_txt.replace(',', '.'))
         except ValueError:
             peso = None
-        ingredientes.append({'nombre': name, 'peso_neto': peso, 'formato': formato,
+        ingredientes.append({'nombre': _titulo_natural(name), 'peso_neto': peso, 'formato': formato,
                               'unidad': formato_to_unidad(formato)})
 
     # Procedimiento
