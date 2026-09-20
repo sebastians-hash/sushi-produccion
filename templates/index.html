@@ -115,6 +115,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
   align-items:center;justify-content:center;z-index:1000;padding:1rem}
 .modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:560px;
   max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal-wide{max-width:920px}
 .modal-hdr{display:flex;justify-content:space-between;align-items:center;
   padding:1rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
 .modal-title{font-size:15px;font-weight:700}
@@ -451,7 +452,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Porciones</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="porcionCfg"></div>
       </div>
@@ -460,7 +462,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Ensaladas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="ensaladaCfg"></div>
       </div>
@@ -469,7 +472,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Entradas</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="entradaCfg"></div>
       </div>
@@ -478,7 +482,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Platos Calientes</div>
-          <button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
         </div>
         <div id="platoCalienteCfg"></div>
       </div>
@@ -517,7 +522,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Semielaborados</div>
-          <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          <div class="row" style="gap:8px">
+            <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
+            <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
+          </div>
         </div>
         <div id="semiCfg"></div>
       </div>
@@ -748,6 +756,16 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+<div class="modal-bg hidden" id="modalW" onclick="if(event.target===this)closeModalW()">
+  <div class="modal modal-wide">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modalWTitle"></div>
+      <button class="modal-close-btn" onclick="closeModalW()" title="Cerrar" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" id="modalWBody"></div>
+    <div class="modal-foot" id="modalWFoot"></div>
   </div>
 </div>
 
@@ -2561,6 +2579,169 @@ function addOtroProdRollRow(){
 }
 function renderOtroProductoCfg(){ renderPorcionesCfg(); renderEnsaladasCfg(); renderEntradasCfg(); renderPlatosCalientesCfg(); }
 
+// ── Importar recetas desde PDF (fichas técnicas de otro sistema) ──
+let ST_importRecetas = [];
+
+function openImportarRecetasModal(defaultTipo) {
+  openModalW('Importar recetas desde PDF', `
+    <div class="alert alert-info" style="margin-bottom:1rem">
+      <i class="ti ti-info-circle"></i>
+      <span>Subí una o más fichas técnicas en PDF (mismo formato: título, categoría, tabla de ingredientes con peso/formato, procedimiento). Vas a poder revisar y corregir todo antes de que se guarde nada.</span>
+    </div>
+    <div class="drop" id="importarRecetasDropZone" onclick="document.getElementById('importarRecetasFi').click()"
+      ondrop="handleImportarRecetasDrop(event,'${defaultTipo}')" ondragover="event.preventDefault();this.classList.add('over')"
+      ondragleave="this.classList.remove('over')">
+      <i class="ti ti-file-type-pdf"></i>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">Subí las fichas en PDF</div>
+      <div>Arrastrá uno o varios archivos acá, o hacé click para elegir</div>
+    </div>
+    <input type="file" id="importarRecetasFi" class="hidden" accept=".pdf" multiple onchange="handleImportarRecetasFiles([...this.files],'${defaultTipo}')">
+    <div id="importarRecetasStatus" style="margin-top:1rem"></div>
+    <div id="importarRecetasReview"></div>`,
+    `<button class="btn" onclick="closeModalW()">Cerrar</button>`
+  );
+}
+function handleImportarRecetasDrop(e, defaultTipo) {
+  e.preventDefault();
+  document.getElementById('importarRecetasDropZone').classList.remove('over');
+  if (e.dataTransfer.files.length) handleImportarRecetasFiles([...e.dataTransfer.files], defaultTipo);
+}
+
+async function handleImportarRecetasFiles(files, defaultTipo) {
+  document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-info"><span class="loader"></span> Leyendo ${files.length} archivo(s)...</div>`;
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  try {
+    const res = await fetch('/api/importar-recetas-pdf', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-warn">${data.error || 'Error al procesar los archivos'}</div>`; return; }
+    ST_importRecetas = data.resultados.map(r => ({ ...r, tipo: r.es_semielaborado ? null : (r.tipo_sugerido || defaultTipo || 'porcion'), incluir: !r.error }));
+    const conError = ST_importRecetas.filter(r => r.error).length;
+    const ok = ST_importRecetas.length - conError;
+    document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert ${conError ? 'alert-warn' : 'alert-success'}">${ok} receta(s) leídas correctamente${conError ? `, ${conError} con error` : ''}. Revisá abajo antes de confirmar.</div>`;
+    renderImportarRecetasReview();
+  } catch (err) {
+    document.getElementById('importarRecetasStatus').innerHTML = `<div class="alert alert-warn">Error de conexión al procesar los archivos.</div>`;
+  }
+}
+
+function catalogoInsumosOptions(matchKey) {
+  let h = '';
+  ST.insumosMaster.forEach(i => { h += `<option value="${i.key}" ${i.key===matchKey?'selected':''}>${i.label}</option>`; });
+  if (ST.semielaborados.length) {
+    h += '</optgroup><optgroup label="Semielaborados">';
+    ST.semielaborados.forEach(s => { h += `<option value="${s.insumo_key}" ${s.insumo_key===matchKey?'selected':''}>${s.name}</option>`; });
+  }
+  return h;
+}
+
+function renderImportarRecetasReview() {
+  let h = '';
+  ST_importRecetas.forEach((r, ri) => {
+    if (r.error) {
+      h += `<div class="card" style="border-color:var(--red-bg);background:var(--red-bg);margin-top:1rem">
+        <div style="font-weight:700;color:var(--red)">${r.archivo}</div>
+        <div style="font-size:13px;color:var(--red)">${r.error}</div>
+      </div>`;
+      return;
+    }
+    let ingRows = '';
+    r.ingredientes.forEach((ing, ii) => {
+      const sugerido = ing.match_sugerido;
+      ingRows += `<tr>
+        <td>${ing.nombre}</td>
+        <td><input type="number" class="ing-peso" data-r="${ri}" data-i="${ii}" value="${ing.peso_neto ?? ''}" style="width:70px"> ${ing.unidad_sugerida}</td>
+        <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
+          <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="excluir">No incluir este ingrediente</option>
+          <optgroup label="Vincular a insumo existente">${catalogoInsumosOptions(sugerido?sugerido.key:null)}</optgroup>
+        </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
+      </tr>`;
+    });
+    const esSemi = r.es_semielaborado;
+    const headerFields = esSemi ? `
+        <div class="row" style="gap:8px;align-items:center">
+          <span class="badge b-green">Semielaborado</span>
+          <input type="number" class="semi-rend-cant" data-r="${ri}" value="${r.rendimiento_cantidad ?? ''}" style="width:70px" placeholder="Cant.">
+          <select class="semi-rend-unid" data-r="${ri}" style="width:80px">
+            <option value="g" ${r.rendimiento_unidad==='g'?'selected':''}>g</option>
+            <option value="kg" ${r.rendimiento_unidad==='kg'?'selected':''}>kg</option>
+            <option value="ml" ${r.rendimiento_unidad==='ml'?'selected':''}>ml</option>
+            <option value="l" ${r.rendimiento_unidad==='l'?'selected':''}>l</option>
+            <option value="u" ${r.rendimiento_unidad==='u'?'selected':''}>u</option>
+          </select>
+          <span style="font-size:12px;color:var(--text3)">Vida útil</span>
+          <input type="number" class="semi-vida-util" data-r="${ri}" value="${r.vida_util_dias ?? ''}" style="width:55px" placeholder="días">
+          <span style="font-size:12px;color:var(--text3)">días</span>
+        </div>` : `
+        <select class="receta-tipo" data-r="${ri}" style="width:160px">
+          <option value="porcion" ${r.tipo==='porcion'?'selected':''}>Porción</option>
+          <option value="ensalada" ${r.tipo==='ensalada'?'selected':''}>Ensalada</option>
+          <option value="entrada" ${r.tipo==='entrada'?'selected':''}>Entrada</option>
+          <option value="plato_caliente" ${r.tipo==='plato_caliente'?'selected':''}>Plato Caliente</option>
+        </select>`;
+    h += `<div class="card import-receta-card" data-ri="${ri}" style="margin-top:1rem">
+      <div class="row-between" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;flex:1">
+          <input type="checkbox" class="receta-incluir" data-r="${ri}" ${r.incluir?'checked':''}>
+          <input type="text" class="receta-nombre" data-r="${ri}" value="${r.titulo}" style="font-weight:700;font-size:15px;border:1px solid var(--border);border-radius:var(--rsm);padding:6px 8px;flex:1">
+        </label>
+        ${headerFields}
+      </div>
+      ${(!esSemi && !r.tipo_sugerido) ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">No reconocí la categoría "${r.categoria}" — elegí el tipo correcto arriba.</div>` : ''}
+      <table><thead><tr><th>Ingrediente (del PDF)</th><th style="width:110px">Cantidad</th><th>Vincular a</th></tr></thead>
+      <tbody>${ingRows}</tbody></table>
+    </div>`;
+  });
+  h += `<div class="flex-end" style="margin-top:1.25rem"><button class="btn btn-primary" onclick="confirmarImportacionRecetas()"><i class="ti ti-check"></i> Confirmar importación</button></div>`;
+  document.getElementById('importarRecetasReview').innerHTML = h;
+}
+
+async function confirmarImportacionRecetas() {
+  const recetas = [];
+  ST_importRecetas.forEach((r, ri) => {
+    if (r.error) return;
+    const incluirEl = document.querySelector(`.receta-incluir[data-r="${ri}"]`);
+    if (!incluirEl.checked) return;
+    const nombre = document.querySelector(`.receta-nombre[data-r="${ri}"]`).value.trim();
+    const ingredientes = r.ingredientes.map((ing, ii) => {
+      const pesoEl = document.querySelector(`.ing-peso[data-r="${ri}"][data-i="${ii}"]`);
+      const matchEl = document.querySelector(`.ing-match[data-r="${ri}"][data-i="${ii}"]`);
+      const peso = parseFloat(pesoEl.value) || 0;
+      if (matchEl.value === 'excluir') return { nombre: ing.nombre, excluir: true };
+      if (matchEl.value === 'crear_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_nuevo: true };
+      return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, insumo_key: matchEl.value };
+    });
+    if (r.es_semielaborado) {
+      const rendCant = parseFloat(document.querySelector(`.semi-rend-cant[data-r="${ri}"]`).value) || 0;
+      const rendUnid = document.querySelector(`.semi-rend-unid[data-r="${ri}"]`).value;
+      const vidaUtilVal = document.querySelector(`.semi-vida-util[data-r="${ri}"]`).value;
+      recetas.push({
+        nombre, es_semielaborado: true, ingredientes, procedimiento_pasos: r.procedimiento_pasos,
+        rendimiento_cantidad: rendCant, rendimiento_unidad: rendUnid,
+        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null
+      });
+    } else {
+      const tipo = document.querySelector(`.receta-tipo[data-r="${ri}"]`).value;
+      recetas.push({ nombre, tipo, familia: '', ingredientes, procedimiento_pasos: r.procedimiento_pasos });
+    }
+  });
+
+  if (!recetas.length) { alert('No hay ninguna receta marcada para importar'); return; }
+
+  const res = await fetch('/api/confirmar-importacion-recetas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ recetas }) });
+  const result = await res.json();
+  if (!res.ok) { alert(result.error || 'Error al confirmar la importación'); return; }
+
+  let msg = `Listo: ${result.creados_productos} producto(s) y ${result.creados_insumos} insumo(s) nuevo(s) creados.`;
+  if (result.errores.length) msg += `\n\nAvisos:\n` + result.errores.join('\n');
+  alert(msg);
+  await loadConfig();
+  renderOtroProductoCfg();
+  renderSemiCfg();
+  closeModalW();
+}
+
 function duplicateOtroProducto(id) {
   const prod = ST.otrosProductos.find(p=>p.id===id);
   if(!prod) return;
@@ -2736,6 +2917,14 @@ function openModal(title,body,footer){
   legacyLinkTarget = null;
 }
 function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; }
+
+function openModalW(title,body,footer){
+  document.getElementById('modalWTitle').textContent=title;
+  document.getElementById('modalWBody').innerHTML=body;
+  document.getElementById('modalWFoot').innerHTML=footer;
+  document.getElementById('modalW').classList.remove('hidden');
+}
+function closeModalW(){ document.getElementById('modalW').classList.add('hidden'); }
 
 // ── Sushiman modal ──
 function openSmModal(id) {
