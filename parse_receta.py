@@ -80,7 +80,7 @@ def parse_receta_pdf(path):
         with pdfplumber.open(path) as pdf:
             all_words = []
             for page in pdf.pages:
-                all_words.extend(page.extract_words())
+                all_words.extend(page.extract_words(extra_attrs=['fontname']))
     except Exception as e:
         return {'error': f'No se pudo abrir el PDF: {e}'}
 
@@ -143,7 +143,8 @@ def parse_receta_pdf(path):
 
     ingredientes = []
     for row in rows:
-        name_parts = [w['text'] for w in row['words'] if w['x0'] < x_peso - 5]
+        name_words = [w for w in row['words'] if w['x0'] < x_peso - 5]
+        name_parts = [w['text'] for w in name_words]
         peso_parts = [w['text'] for w in row['words'] if x_peso - 5 <= w['x0'] < x_formato - 5]
         formato_parts = [w['text'] for w in row['words'] if w['x0'] >= x_formato - 5]
         name = ' '.join(name_parts).strip()
@@ -155,7 +156,11 @@ def parse_receta_pdf(path):
             peso = float(peso_txt.replace(',', '.'))
         except ValueError:
             peso = None
+        # En la ficha, los ingredientes en NEGRITA son semielaborados (se preparan
+        # adentro), y los de texto normal son insumos comprados/crudos.
+        es_negrita = bool(name_words) and all('bold' in (w.get('fontname') or '').lower() for w in name_words)
         ingredientes.append({'nombre': _titulo_natural(name), 'peso_neto': peso, 'formato': formato,
+                              'es_semielaborado_sugerido': es_negrita,
                               'unidad': formato_to_unidad(formato)})
 
     # Procedimiento
