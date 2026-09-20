@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
 import json, os, tempfile, functools
+import requests
 import psycopg2
 import psycopg2.extras
 from datetime import datetime
@@ -480,6 +481,45 @@ def index():
         user_email=session.get('user_email',''),
         user_picture=session.get('user_picture',''))
 
+# ── Mail de bienvenida (vía Resend) ──
+def enviar_mail_bienvenida(email, nombre, app_url):
+    """Envía un mail de bienvenida vía Resend. Si no está configurado (falta la
+    API key) o falla el envío, no rompe la creación del usuario — solo lo avisa
+    por consola. RESEND_API_KEY y RESEND_FROM_EMAIL son variables de entorno."""
+    api_key = os.environ.get('RESEND_API_KEY')
+    if not api_key:
+        print('[mail bienvenida] RESEND_API_KEY no configurada, se omite el envío')
+        return False
+    from_email = os.environ.get('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
+    saludo = f'Hola {nombre}' if nombre else 'Hola'
+    html = f'''
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;color:#1a1a18">
+      <h2 style="color:#1a1a18">¡Bienvenido/a a Kata!</h2>
+      <p>{saludo},</p>
+      <p>Ya tenés acceso a la app de planificación de producción. Para entrar:</p>
+      <ol>
+        <li>Ingresá a <a href="{app_url}">{app_url}</a></li>
+        <li>Iniciá sesión con tu cuenta de Google (<strong>{email}</strong>)</li>
+      </ol>
+      <p style="margin-top:24px"><a href="{app_url}" style="background:#1a1a18;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">Entrar a la app</a></p>
+      <p style="color:#666662;font-size:13px;margin-top:24px">Si no esperabas este mail, podés ignorarlo.</p>
+    </div>
+    '''
+    try:
+        resp = requests.post(
+            'https://api.resend.com/emails',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={'from': from_email, 'to': [email], 'subject': 'Bienvenido/a a Kata', 'html': html},
+            timeout=10,
+        )
+        if resp.status_code >= 300:
+            print(f'[mail bienvenida] Resend devolvió error {resp.status_code}: {resp.text}')
+            return False
+        return True
+    except requests.RequestException as e:
+        print(f'[mail bienvenida] Error de conexión al enviar: {e}')
+        return False
+
 # ── Usuarios (solo admin) ──
 @app.route('/api/usuarios', methods=['GET'])
 @admin_required
@@ -518,7 +558,10 @@ def create_usuario():
         conn.close()
         return jsonify({'error': 'Ese email ya está registrado'}), 400
     conn.close()
-    return jsonify({'ok': True})
+    mail_enviado = False
+    if data.get('enviar_bienvenida'):
+        mail_enviado = enviar_mail_bienvenida(email, data.get('nombre', ''), request.host_url.rstrip('/'))
+    return jsonify({'ok': True, 'mail_enviado': mail_enviado})
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 @admin_required
