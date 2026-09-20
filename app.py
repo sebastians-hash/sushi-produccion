@@ -484,12 +484,12 @@ def index():
 # ── Mail de bienvenida (vía Resend) ──
 def enviar_mail_bienvenida(email, nombre, app_url):
     """Envía un mail de bienvenida vía Resend. Si no está configurado (falta la
-    API key) o falla el envío, no rompe la creación del usuario — solo lo avisa
-    por consola. RESEND_API_KEY y RESEND_FROM_EMAIL son variables de entorno."""
+    API key) o falla el envío, no rompe la creación del usuario — devuelve
+    (ok, mensaje_error) para que el admin vea el motivo exacto sin tener que
+    mirar los logs del servidor."""
     api_key = os.environ.get('RESEND_API_KEY')
     if not api_key:
-        print('[mail bienvenida] RESEND_API_KEY no configurada, se omite el envío')
-        return False
+        return False, 'Falta configurar la variable RESEND_API_KEY en el servidor'
     from_email = os.environ.get('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
     saludo = f'Hola {nombre}' if nombre else 'Hola'
     html = f'''
@@ -514,11 +514,15 @@ def enviar_mail_bienvenida(email, nombre, app_url):
         )
         if resp.status_code >= 300:
             print(f'[mail bienvenida] Resend devolvió error {resp.status_code}: {resp.text}')
-            return False
-        return True
+            try:
+                detalle = resp.json().get('message', resp.text)
+            except ValueError:
+                detalle = resp.text
+            return False, f'Resend devolvió un error ({resp.status_code}): {detalle}'
+        return True, None
     except requests.RequestException as e:
         print(f'[mail bienvenida] Error de conexión al enviar: {e}')
-        return False
+        return False, f'Error de conexión: {e}'
 
 # ── Usuarios (solo admin) ──
 @app.route('/api/usuarios', methods=['GET'])
@@ -559,9 +563,10 @@ def create_usuario():
         return jsonify({'error': 'Ese email ya está registrado'}), 400
     conn.close()
     mail_enviado = False
+    mail_error = None
     if data.get('enviar_bienvenida'):
-        mail_enviado = enviar_mail_bienvenida(email, data.get('nombre', ''), request.host_url.rstrip('/'))
-    return jsonify({'ok': True, 'mail_enviado': mail_enviado})
+        mail_enviado, mail_error = enviar_mail_bienvenida(email, data.get('nombre', ''), request.host_url.rstrip('/'))
+    return jsonify({'ok': True, 'mail_enviado': mail_enviado, 'mail_error': mail_error})
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 @admin_required
