@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime
 from gen_pdf import build_pdf
+from parse_receta import parse_receta_pdf, match_insumo, formato_to_unidad
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -260,6 +261,8 @@ def init_db():
     otro_cols = get_columns('otros_productos')
     if 'rolls' not in otro_cols:
         c.execute("ALTER TABLE otros_productos ADD COLUMN rolls TEXT NOT NULL DEFAULT '{}'")
+    if 'procedimiento' not in otro_cols:
+        c.execute("ALTER TABLE otros_productos ADD COLUMN procedimiento TEXT NOT NULL DEFAULT '[]'")
 
     equiv_cols = get_columns('equivalencias')
     if 'factor' not in equiv_cols:
@@ -693,8 +696,10 @@ def restore_data():
     for p in data.get('otros_productos', []):
         if p.get('rolls') is None:
             p['rolls'] = '{}'
+        if p.get('procedimiento') is None:
+            p['procedimiento'] = '[]'
     counts['otros_productos'] = upsert('otros_productos', data.get('otros_productos', []), 'name',
-                              ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls'])
+                              ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls', 'procedimiento'])
     counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
@@ -795,7 +800,8 @@ def get_otros_productos():
     return jsonify([{'id': r['id'], 'name': r['name'], 'tipo': r['tipo'],
                      'familia': r['familia'], 'insumos': json.loads(r['insumos']),
                      'marcas': json.loads(r['marcas'] or '[]'),
-                     'rolls': json.loads(r['rolls'] or '{}')} for r in rows])
+                     'rolls': json.loads(r['rolls'] or '{}'),
+                     'procedimiento': json.loads(r['procedimiento'] or '[]')} for r in rows])
 
 @app.route('/api/otros-productos', methods=['POST'])
 @admin_required
@@ -803,10 +809,10 @@ def create_otro_producto():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls) VALUES (?,?,?,?,?,?)',
+        conn.execute('INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento) VALUES (?,?,?,?,?,?,?)',
                      (data['name'], data.get('tipo','porcion'), data.get('familia',''),
                       json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
-                      json.dumps(data.get('rolls', {}))))
+                      json.dumps(data.get('rolls', {})), json.dumps(data.get('procedimiento', []))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -821,10 +827,10 @@ def update_otro_producto(producto_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=?, rolls=? WHERE id=?',
+        conn.execute('UPDATE otros_productos SET name=?, tipo=?, familia=?, insumos=?, marcas=?, rolls=?, procedimiento=? WHERE id=?',
                      (data['name'], data.get('tipo','porcion'), data.get('familia',''),
                       json.dumps(data.get('insumos', {})), json.dumps(data.get('marcas', [])),
-                      json.dumps(data.get('rolls', {})), producto_id))
+                      json.dumps(data.get('rolls', {})), json.dumps(data.get('procedimiento', [])), producto_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -841,6 +847,173 @@ def delete_otro_producto(producto_id):
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
+
+# ── Importar recetas desde PDF (fichas técnicas de otro sistema) ──
+def _slugify_insumo(nombre):
+    key = nombre.strip().lower()
+    key = ''.join(c if c.isalnum() or c in ' -_' else ' ' for c in key)
+    key = '_'.join(key.split())
+    return key or 'insumo'
+
+@app.route('/api/importar-recetas-pdf', methods=['POST'])
+@admin_required
+def importar_recetas_pdf():
+    """Parsea uno o más PDFs de fichas técnicas y devuelve una vista previa
+    con los ingredientes ya emparejados (o no) contra el catálogo existente.
+    NO guarda nada todavía — eso lo hace /api/confirmar-importacion-recetas."""
+    if 'files' not in request.files:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    files = request.files.getlist('files')
+    if not files:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+
+    conn = get_db()
+    insumos_rows = conn.execute('SELECT key, label FROM insumos').fetchall()
+    semis_rows = conn.execute('SELECT insumo_key AS key, name AS label FROM semielaborados').fetchall()
+    conn.close()
+    catalogo = [dict(r) for r in insumos_rows] + [dict(r) for r in semis_rows]
+
+    resultados = []
+    for f in files:
+        tmp_path = os.path.join(tempfile.gettempdir(), f'import_receta_{os.urandom(6).hex()}.pdf')
+        f.save(tmp_path)
+        try:
+            parsed = parse_receta_pdf(tmp_path)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+        if 'error' in parsed:
+            resultados.append({'archivo': f.filename, 'error': parsed['error']})
+            continue
+
+        ingredientes_anotados = []
+        for ing in parsed['ingredientes']:
+            match = match_insumo(ing['nombre'], catalogo)
+            ingredientes_anotados.append({
+                'nombre': ing['nombre'],
+                'peso_neto': ing['peso_neto'],
+                'formato': ing['formato'],
+                'unidad_sugerida': ing['unidad'],
+                'match_sugerido': match,  # {'key','label','score'} o None
+            })
+
+        resultados.append({
+            'archivo': f.filename,
+            'titulo': parsed['titulo'],
+            'categoria': parsed['categoria'],
+            'es_semielaborado': parsed['es_semielaborado'],
+            'tipo_sugerido': parsed['tipo'],  # puede ser None si no se reconoció la categoria
+            'rendimiento_cantidad': parsed.get('rendimiento_cantidad'),
+            'rendimiento_unidad': parsed.get('rendimiento_unidad'),
+            'vida_util_dias': parsed.get('vida_util_dias'),
+            'ingredientes': ingredientes_anotados,
+            'procedimiento_pasos': parsed['procedimiento_pasos'],
+            'raciones': parsed['raciones'],
+            'cantidad': parsed['cantidad'],
+        })
+
+    return jsonify({'resultados': resultados})
+
+@app.route('/api/confirmar-importacion-recetas', methods=['POST'])
+@admin_required
+def confirmar_importacion_recetas():
+    """Recibe la lista de recetas ya revisadas/confirmadas por el usuario
+    (con el tipo definitivo, familia, y cada ingrediente ya vinculado a un
+    insumo existente o marcado para crear uno nuevo) y las guarda."""
+    data = request.json
+    recetas = data.get('recetas', [])
+    conn = get_db()
+    creados_insumos = 0
+    creados_productos = 0
+    errores = []
+
+    def resolver_ingredientes(ingredientes):
+        """Devuelve una lista de (key, cantidad) resolviendo/creando insumos nuevos
+        donde haga falta. Actualiza el contador creados_insumos por closure."""
+        nonlocal creados_insumos
+        resueltos = []
+        for ing in ingredientes:
+            if ing.get('excluir'):
+                continue
+            key = ing.get('insumo_key')
+            if not key and ing.get('crear_nuevo'):
+                nueva_label = (ing.get('nombre') or '').strip()
+                key = _slugify_insumo(nueva_label)
+                ya_existe_insumo = conn.execute('SELECT 1 FROM insumos WHERE key=?', (key,)).fetchone()
+                ya_existe_semi = conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (key,)).fetchone()
+                if not ya_existe_insumo and not ya_existe_semi:
+                    unidad = ing.get('unidad') or 'g'
+                    unidad_resumen = 'kg' if unidad == 'g' else ('l' if unidad == 'ml' else unidad)
+                    factor = 0.001 if unidad in ('g', 'ml') else 1
+                    conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,categoria)
+                                    VALUES (?,?,?,?,?,?)''',
+                                 (key, nueva_label, unidad, unidad_resumen, factor, 'Importado desde PDF'))
+                    creados_insumos += 1
+            if key and ing.get('peso_neto') is not None:
+                resueltos.append((key, float(ing['peso_neto'])))
+        return resueltos
+
+    for receta in recetas:
+        nombre = (receta.get('nombre') or '').strip()
+        if not nombre:
+            errores.append('(sin nombre): se omitió')
+            continue
+
+        if receta.get('es_semielaborado'):
+            ya_existe = conn.execute('SELECT 1 FROM semielaborados WHERE name=?', (nombre,)).fetchone()
+            if ya_existe:
+                errores.append(f'"{nombre}": ya existe un semielaborado con ese nombre, se omitió')
+                continue
+
+            resueltos = resolver_ingredientes(receta.get('ingredientes', []))
+            receta_lista = [{'key': k, 'cantidad': c} for k, c in resueltos]
+
+            insumo_key = _slugify_insumo(nombre)
+            ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
+                             conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (insumo_key,)).fetchone()
+            if ya_existe_key:
+                insumo_key = f'{insumo_key}_2'
+
+            rend_unidad = receta.get('rendimiento_unidad') or 'g'
+            unit = 'u' if rend_unidad == 'u' else 'g'
+
+            conn.execute('''INSERT INTO semielaborados
+                            (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas, vida_util_dias)
+                            VALUES (?,?,?,?,?,?,?,?,?)''',
+                         (nombre, insumo_key, unit, json.dumps({}), json.dumps(receta_lista),
+                          receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
+                          receta.get('vida_util_dias')))
+            creados_productos += 1
+            continue
+
+        tipo = receta.get('tipo')
+        if tipo not in ('porcion', 'ensalada', 'entrada', 'plato_caliente'):
+            errores.append(f'"{nombre}": tipo inválido, se omitió')
+            continue
+
+        ya_existe_producto = conn.execute('SELECT 1 FROM otros_productos WHERE name=?', (nombre,)).fetchone()
+        if ya_existe_producto:
+            errores.append(f'"{nombre}": ya existe un producto con ese nombre, se omitió')
+            continue
+
+        resueltos = resolver_ingredientes(receta.get('ingredientes', []))
+        insumos_dict = {}
+        for key, cantidad in resueltos:
+            insumos_dict[key] = insumos_dict.get(key, 0) + cantidad
+
+        conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
+                        VALUES (?,?,?,?,?,?,?)''',
+                     (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
+                      json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
+        creados_productos += 1
+
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'creados_insumos': creados_insumos,
+                     'creados_productos': creados_productos, 'errores': errores})
 
 # ── Equivalencias (mismo producto, distinto nombre por marca) ──
 @app.route('/api/equivalencias', methods=['GET'])
