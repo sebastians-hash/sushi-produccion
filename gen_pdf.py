@@ -159,40 +159,50 @@ def page1_story(data, cw, label=None):
     story.append(section_header("1  COMBOS A ARMAR", cw))
     story.append(Spacer(1, 2*mm))
 
-    half = (len(combos)+1)//2
-    left_col  = combos[:half]
-    right_col = combos[half:]
-    max_rows  = max(len(left_col), len(right_col)) if combos else 0
-
-    combo_rows = [['Combo', 'Cant.', '', 'Combo', 'Cant.']]
-    for i in range(max_rows):
-        lc = left_col[i]  if i < len(left_col)  else {'name':'','qty':''}
-        rc = right_col[i] if i < len(right_col) else {'name':'','qty':''}
-        combo_rows.append([lc['name'], str(lc['qty']) if lc['qty'] else '',
-                           '', rc['name'], str(rc['qty']) if rc['qty'] else ''])
-
     n_combos = len(combos)
     fs_c = 9 if n_combos <= 20 else 8 if n_combos <= 30 else 7
     gap = 3*mm
     col_name = (cw - gap) * 0.42
     col_qty  = (cw - gap) * 0.08
-    ct = Table(combo_rows, colWidths=[col_name, col_qty, gap, col_name, col_qty], repeatRows=1)
-    ct.setStyle(TableStyle([
-        ('FONTNAME',(0,0),(-1,-1),'Helvetica'), ('FONTSIZE',(0,0),(-1,-1),fs_c),
-        ('LEADING',(0,0),(-1,-1),fs_c+3), ('TOPPADDING',(0,0),(-1,-1),3),
-        ('BOTTOMPADDING',(0,0),(-1,-1),3), ('LEFTPADDING',(0,0),(-1,-1),5),
-        ('RIGHTPADDING',(0,0),(-1,-1),5),
-        ('GRID',(0,0),(1,-1),0.3,colors.HexColor('#CCCCCC')),
-        ('GRID',(3,0),(4,-1),0.3,colors.HexColor('#CCCCCC')),
-        ('BACKGROUND',(0,0),(1,0),ACCENT), ('BACKGROUND',(3,0),(4,0),ACCENT),
-        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
-        ('ROWBACKGROUNDS',(0,1),(1,-1),[WHITE,BG_GRAY]),
-        ('ROWBACKGROUNDS',(3,1),(4,-1),[WHITE,BG_GRAY]),
-        ('ALIGN',(1,0),(1,-1),'CENTER'), ('ALIGN',(4,0),(4,-1),'CENTER'),
-        ('FONTNAME',(1,1),(1,-1),'Helvetica-Bold'), ('FONTNAME',(4,1),(4,-1),'Helvetica-Bold'),
-    ]))
-    story.append(ct)
-    story.append(Spacer(1, 4*mm))
+
+    familias = {}
+    for c in combos:
+        familias.setdefault(c.get('family') or 'Otros', []).append(c)
+
+    for fam in sorted(familias.keys(), key=lambda f: f.lower()):
+        fam_combos = sorted(familias[fam], key=lambda c: c['name'].lower())
+        story.append(Paragraph(fam.upper(), S(f'fh_{fam}', fontName='Helvetica-Bold', fontSize=10,
+                                               textColor=colors.HexColor('#5F5E5A'), spaceBefore=2, spaceAfter=2)))
+
+        half = (len(fam_combos)+1)//2
+        left_col  = fam_combos[:half]
+        right_col = fam_combos[half:]
+        max_rows  = max(len(left_col), len(right_col)) if fam_combos else 0
+
+        combo_rows = [['Combo', 'Cant.', '', 'Combo', 'Cant.']]
+        for i in range(max_rows):
+            lc = left_col[i]  if i < len(left_col)  else {'name':'','qty':''}
+            rc = right_col[i] if i < len(right_col) else {'name':'','qty':''}
+            combo_rows.append([lc['name'], str(lc['qty']) if lc['qty'] else '',
+                               '', rc['name'], str(rc['qty']) if rc['qty'] else ''])
+
+        ct = Table(combo_rows, colWidths=[col_name, col_qty, gap, col_name, col_qty], repeatRows=1)
+        ct.setStyle(TableStyle([
+            ('FONTNAME',(0,0),(-1,-1),'Helvetica'), ('FONTSIZE',(0,0),(-1,-1),fs_c),
+            ('LEADING',(0,0),(-1,-1),fs_c+3), ('TOPPADDING',(0,0),(-1,-1),3),
+            ('BOTTOMPADDING',(0,0),(-1,-1),3), ('LEFTPADDING',(0,0),(-1,-1),5),
+            ('RIGHTPADDING',(0,0),(-1,-1),5),
+            ('GRID',(0,0),(1,-1),0.3,colors.HexColor('#CCCCCC')),
+            ('GRID',(3,0),(4,-1),0.3,colors.HexColor('#CCCCCC')),
+            ('BACKGROUND',(0,0),(1,0),ACCENT), ('BACKGROUND',(3,0),(4,0),ACCENT),
+            ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+            ('ROWBACKGROUNDS',(0,1),(1,-1),[WHITE,BG_GRAY]),
+            ('ROWBACKGROUNDS',(3,1),(4,-1),[WHITE,BG_GRAY]),
+            ('ALIGN',(1,0),(1,-1),'CENTER'), ('ALIGN',(4,0),(4,-1),'CENTER'),
+            ('FONTNAME',(1,1),(1,-1),'Helvetica-Bold'), ('FONTNAME',(4,1),(4,-1),'Helvetica-Bold'),
+        ]))
+        story.append(ct)
+        story.append(Spacer(1, 3*mm))
 
     story.append(section_header("2  ROLLOS A PRODUCIR", cw))
     story.append(Spacer(1, 2*mm))
