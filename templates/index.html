@@ -1567,15 +1567,20 @@ function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
   // a alguien le toco una tanda mas grande que su promedio habitual.
   const hourlyTarget={};
   avail.forEach(sm=>{
+    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
     const actualTotal=assignedTandas[sm.id].reduce((s,t)=>s+t.qty,0);
     const idxs=workedIdx[sm.id];
-    const n=idxs.length;
     const targets=new Array(hours.length).fill(0);
-    if(n>0 && actualTotal>0){
-      const base=Math.floor(actualTotal/n);
-      let remainder=actualTotal-base*n;
-      idxs.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
-    }
+    // El objetivo de cada hora nunca puede superar la productividad real de esa
+    // persona (rolls/hora) — si le tocó más de lo que puede hacer en las horas
+    // simuladas, el excedente queda sin asignar en esta pasada, y calcSchedule()
+    // se encarga de sumar más horas hasta que alcance.
+    let remaining=actualTotal;
+    idxs.forEach(hi=>{
+      const take=Math.min(prod, remaining);
+      targets[hi]=take;
+      remaining-=take;
+    });
     hourlyTarget[sm.id]=targets;
   });
 
@@ -1930,7 +1935,7 @@ function toggleEditGrid() {
   g+='</tr></thead><tbody>';
 
   sushimanes.forEach((sm,si)=>{
-    g+=`<tr><th style="vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3);text-transform:none">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></th>`;
+    g+=`<tr><th style="vertical-align:top;padding:8px">${sm.name}<br><span id="promLabel_${si}" style="font-weight:400;font-size:11px;color:var(--text3);text-transform:none">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></th>`;
     hours.forEach((h,hi)=>{
       const tasks=h.tasks[sm.id]||[];
       const cellId=`cell_${si}_${hi}`;
@@ -1961,7 +1966,14 @@ function toggleEditGrid() {
   validateAndHighlight();
 }
 
-function onGridChange() { validateAndHighlight(); }
+function onGridChange() {
+  syncGridStateFromDOM();
+  ST.schedule.sushimanes.forEach((sm,si)=>{
+    const label=document.getElementById(`promLabel_${si}`);
+    if(label) label.textContent=`${getPromedioRollosPorHora(sm.id)} rolls/h prom.`;
+  });
+  validateAndHighlight();
+}
 
 // ── Drag & drop: mover una tarea de una celda (sushiman+hora) a otra ──
 let draggedTaskInfo = null;
@@ -1996,9 +2008,8 @@ function onCellDrop(e, toSi, toHi) {
 function addGridTask(smIdx, hIdx) {
   syncGridStateFromDOM();
   const smId=ST.schedule.sushimanes[smIdx].id;
-  const firstRoll=ST.production[0]?.name||'';
   if(!ST.schedule.hours[hIdx].tasks[smId]) ST.schedule.hours[hIdx].tasks[smId]=[];
-  ST.schedule.hours[hIdx].tasks[smId].push({name:firstRoll,qty:1});
+  ST.schedule.hours[hIdx].tasks[smId].push({name:'Corte de rolls',qty:1});
   toggleEditGrid();
 }
 
