@@ -20,6 +20,8 @@ BG_GRAY = colors.HexColor('#F4F4F4')
 BG_DARK = colors.HexColor('#5F5E5A')
 WHITE   = colors.white
 ACCENT  = colors.HexColor('#E8E0D0')
+PURPLE  = colors.HexColor('#6b3fa0')
+PURPLE_BG = colors.HexColor('#f5f0fc')
 WARN_BG = colors.HexColor('#FFF3CD')
 
 def S(name, **kw):
@@ -39,7 +41,7 @@ def section_header(title, width):
     ]))
     return t
 
-def cover_band(date_str, global_pct, width):
+def cover_band(date_str, global_pct, width, label=None):
     title_style = S('dt', fontName='Helvetica-Bold', fontSize=18,
                     textColor=WHITE, leading=22)
     sub_style   = S('ds', fontSize=10, textColor=colors.HexColor('#DDDDDD'),
@@ -70,6 +72,23 @@ def cover_band(date_str, global_pct, width):
         ('LEFTPADDING',   (1,0),(1,0),  10),
         ('VALIGN',        (0,0),(-1,-1),'MIDDLE'),
     ]))
+    if not label:
+        return t
+
+    label_style = S('lb', fontName='Helvetica-Bold', fontSize=11, textColor=PURPLE, leading=14)
+    lt = Table([[Paragraph(label, label_style)]], colWidths=[width])
+    lt.setStyle(TableStyle([
+        ('BACKGROUND', (0,0),(-1,-1), PURPLE_BG),
+        ('TOPPADDING', (0,0),(-1,-1), 6), ('BOTTOMPADDING', (0,0),(-1,-1), 6),
+        ('LEFTPADDING', (0,0),(-1,-1), 10),
+        ('LINEBELOW', (0,0),(-1,-1), 0.5, PURPLE),
+    ]))
+    wrap = Table([[t],[lt]], colWidths=[width])
+    wrap.setStyle(TableStyle([
+        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
+        ('TOPPADDING',(0,0),(-1,-1),0), ('BOTTOMPADDING',(0,0),(-1,-1),0),
+    ]))
+    return wrap
     return t
 
 def metrics_row(combos_total, rolls_total, piezas_total, global_pct, width):
@@ -119,7 +138,7 @@ def _make_table(data, col_widths, fs, header_bg, stripe):
     return t
 
 # ── PAGE 1 — Combos + Rolls ──
-def page1_story(data, cw):
+def page1_story(data, cw, label=None):
     story = []
     date_str    = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct  = data.get('globalPct', 100)
@@ -130,7 +149,7 @@ def page1_story(data, cw):
     total_combos = sum(c['qty'] for c in combos)
     total_piezas = sum(r.get('piezas', r['qty']*14) for r in production)
 
-    story.append(cover_band(date_str, global_pct, cw))
+    story.append(cover_band(date_str, global_pct, cw, label=label))
     story.append(Spacer(1, 4*mm))
     story.append(metrics_row(total_combos, total_rolls, total_piezas, global_pct, cw))
     story.append(Spacer(1, 4*mm))
@@ -244,14 +263,14 @@ def page1_story(data, cw):
     return story
 
 # ── PAGE 2 — Insumos + Semielaborados ──
-def page2_story(data, cw, start_num=3):
+def page2_story(data, cw, start_num=3, label=None):
     story = []
     date_str   = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct = data.get('globalPct', 100)
     insumos    = data.get('insumos', {})
     semis      = data.get('semis', [])
 
-    story.append(cover_band(date_str, global_pct, cw))
+    story.append(cover_band(date_str, global_pct, cw, label=label))
     story.append(Spacer(1, 5*mm))
 
     story.append(section_header(f"{start_num}  INSUMOS NECESARIOS", cw))
@@ -265,7 +284,7 @@ def page2_story(data, cw, start_num=3):
     story.append(it)
 
     story.append(PageBreak())
-    story.append(cover_band(date_str, global_pct, cw))
+    story.append(cover_band(date_str, global_pct, cw, label=label))
     story.append(Spacer(1, 5*mm))
 
     story.append(section_header(f"{start_num+1}  SEMIELABORADOS", cw))
@@ -402,6 +421,8 @@ def build_pdf(data: dict, out_path: str):
     p1_path = os.path.join(tmp_dir, 'sushi_p1.pdf')
     p2_path = os.path.join(tmp_dir, 'sushi_p2.pdf')
     p3_path = os.path.join(tmp_dir, 'sushi_p3.pdf')
+    p4_path = os.path.join(tmp_dir, 'sushi_p4.pdf')
+    p5_path = os.path.join(tmp_dir, 'sushi_p5.pdf')
 
     def make_doc(path, pagesize):
         return SimpleDocTemplate(path, pagesize=pagesize,
@@ -414,15 +435,30 @@ def build_pdf(data: dict, out_path: str):
     make_doc(p2_path, A4_P).build(page2_story(data, cw_p, start_num=offset))
     make_doc(p3_path, A4_L).build(page3_story(data, cw_l, start_num=offset+2))
 
+    paths = [p1_path, p2_path, p3_path]
+
+    # Planilla 2 — producción restante para más tarde. No tiene grilla de horarios
+    # (esa se arma en el momento, cuando corresponda producirla) — solo las listas
+    # de referencia, igual que la planilla principal pero marcadas bien distintas.
+    segunda = data.get('segundaPlanilla')
+    if segunda:
+        pct2 = segunda.get('pct', '')
+        segunda = {**segunda, 'globalPct': pct2}
+        label2 = f"PLANILLA 2 — PRODUCCIÓN RESTANTE ({pct2}%) — PARA MÁS TARDE"
+        offset2 = 4 if segunda.get('rollosBlancos') else 3
+        make_doc(p4_path, A4_P).build(page1_story(segunda, cw_p, label=label2))
+        make_doc(p5_path, A4_P).build(page2_story(segunda, cw_p, start_num=offset2, label=label2))
+        paths += [p4_path, p5_path]
+
     writer = PdfWriter()
-    for path in [p1_path, p2_path, p3_path]:
+    for path in paths:
         if os.path.exists(path):
             for page in PdfReader(path).pages:
                 writer.add_page(page)
     with open(out_path, 'wb') as f:
         writer.write(f)
 
-    for p in [p1_path, p2_path, p3_path]:
+    for p in paths:
         try: os.remove(p)
         except: pass
 
