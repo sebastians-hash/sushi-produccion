@@ -90,7 +90,8 @@ def init_db():
             name TEXT UNIQUE NOT NULL,
             insumos TEXT NOT NULL,
             piezas_por_rollo INTEGER NOT NULL DEFAULT 14,
-            rollo_blanco_grupo TEXT
+            rollo_blanco_grupo TEXT,
+            cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE
         );
         CREATE TABLE IF NOT EXISTS rollo_blanco_grupos (
             id SERIAL PRIMARY KEY,
@@ -297,6 +298,8 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
     if 'rollo_blanco_grupo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
+    if 'cuenta_productividad' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE")
 
     local_cols = get_columns('locales')
     if 'marcas' not in local_cols:
@@ -789,8 +792,10 @@ def restore_data():
     for r in data.get('rolls', []):
         if r.get('piezas_por_rollo') is None:
             r['piezas_por_rollo'] = 14
+        if r.get('cuenta_productividad') is None:
+            r['cuenta_productividad'] = True
     counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
-                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo'])
+                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo', 'cuenta_productividad'])
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas',
@@ -1525,7 +1530,8 @@ def get_rolls():
                      'insumos': json.loads(r['insumos']),
                      'marcas': json.loads(r['marcas'] or '[]'),
                      'piezas_por_rollo': r['piezas_por_rollo'],
-                     'rollo_blanco_grupo': r['rollo_blanco_grupo']} for r in rows])
+                     'rollo_blanco_grupo': r['rollo_blanco_grupo'],
+                     'cuenta_productividad': bool(r['cuenta_productividad'])} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
 @admin_required
@@ -1533,9 +1539,10 @@ def create_roll():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo, cuenta_productividad) VALUES (?,?,?,?,?,?)',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None,
+                      bool(data.get('cuenta_productividad', True))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1550,9 +1557,10 @@ def update_roll(roll_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=? WHERE id=?',
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=?, cuenta_productividad=? WHERE id=?',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None, roll_id))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None,
+                      bool(data.get('cuenta_productividad', True)), roll_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1933,6 +1941,8 @@ def calcular():
                  for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
     roll_grupo_db = {r['name']: r['rollo_blanco_grupo']
                  for r in conn.execute('SELECT name, rollo_blanco_grupo FROM rolls').fetchall()}
+    roll_cuenta_prod_db = {r['name']: bool(r['cuenta_productividad'])
+                 for r in conn.execute('SELECT name, cuenta_productividad FROM rolls').fetchall()}
     otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos']), 'rolls': json.loads(r['rolls'] or '{}')}
                  for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
@@ -2031,7 +2041,8 @@ def calcular():
 
     production = sorted(
         [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
-          'piezas': v * (roll_piezas_db.get(k, 14) or 14)} for k, v in roll_totals.items() if v > 0],
+          'piezas': v * (roll_piezas_db.get(k, 14) or 14),
+          'cuentaProductividad': roll_cuenta_prod_db.get(k, True)} for k, v in roll_totals.items() if v > 0],
         key=lambda x: -x['qty']
     )
 
