@@ -88,6 +88,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .flex-end{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .form-lbl{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.search-box-wrap{position:relative;margin-bottom:12px;max-width:340px}
+.search-box-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;pointer-events:none}
+.search-box-wrap input{padding-left:32px}
 .w-full{width:100%}
 .drop{border:2px dashed var(--border);border-radius:var(--r);padding:2.5rem;text-align:center;
   cursor:pointer;color:var(--text3);transition:all .12s}
@@ -448,6 +451,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <div class="card-title" style="margin:0">Combos configurados</div>
           {% if is_admin %}<button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_combos" class="w-full" placeholder="Buscar combo..." oninput="renderComboCfg()"></div>
         <div id="comboCfg"></div>
       </div>
     </div>
@@ -458,6 +462,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
                     <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_porciones" class="w-full" placeholder="Buscar porción..." oninput="renderPorcionesCfg()"></div>
         <div id="porcionCfg"></div>
       </div>
     </div>
@@ -468,6 +473,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
                     <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_ensaladas" class="w-full" placeholder="Buscar ensalada..." oninput="renderEnsaladasCfg()"></div>
         <div id="ensaladaCfg"></div>
       </div>
     </div>
@@ -478,6 +484,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
                     <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_entradas" class="w-full" placeholder="Buscar entrada..." oninput="renderEntradasCfg()"></div>
         <div id="entradaCfg"></div>
       </div>
     </div>
@@ -488,6 +495,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
                     <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_platosCalientes" class="w-full" placeholder="Buscar plato..." oninput="renderPlatosCalientesCfg()"></div>
         <div id="platoCalienteCfg"></div>
       </div>
     </div>
@@ -511,6 +519,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <div class="card-title" style="margin:0">Rolls</div>
           {% if is_admin %}<button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_rolls" class="w-full" placeholder="Buscar roll..." oninput="renderRollCfg()"></div>
         <div id="rollCfg"></div>
       </div>
     </div><div id="trbg" class="hidden">
@@ -523,6 +532,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Agrupá los rolls que llevan el mismo relleno y solo cambian de cobertura (ej: Apaltado, Napoli, Buenos Aires, Lango Mex). En la producción del día vas a ver estos rolls sumados como uno solo antes de diferenciarlos.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_rolloBlancoGrupos" class="w-full" placeholder="Buscar grupo..." oninput="renderRolloBlancoGrupoCfg()"></div>
         <div id="rolloBlancoGrupoCfg"></div>
       </div>
     </div><div id="ts" class="hidden">
@@ -534,6 +544,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
             <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
           </div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_semis" class="w-full" placeholder="Buscar semielaborado..." oninput="renderSemiCfg()"></div>
         <div id="semiCfg"></div>
       </div>
     </div><div id="tma" class="hidden">
@@ -546,6 +557,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_marcas" class="w-full" placeholder="Buscar marca..." oninput="renderMarcaCfg()"></div>
         <div id="marcaCfg"></div>
       </div>
     </div><div id="tfa" class="hidden">
@@ -558,6 +570,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Las familias agrupan combos (ej: Alaska, Tokyo, Black). Se usan en el paso de ajuste de venta para organizar todo por categoría. Porciones, ensaladas, entradas y platos calientes ya se agrupan solos por su propio tipo, sin necesitar familia.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_familias" class="w-full" placeholder="Buscar familia..." oninput="renderFamiliaCfg()"></div>
         <div id="familiaCfg"></div>
       </div>
     </div>
@@ -594,6 +607,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           </select>
           <button class="btn btn-sm" onclick="limpiarFiltrosInsumo()" title="Limpiar filtros"><i class="ti ti-filter-x"></i> Limpiar</button>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_insumos" class="w-full" placeholder="Buscar insumo..." oninput="renderInsumoCfg()"></div>
         <div id="insumoCfg"></div>
       </div>
     </div>
@@ -607,6 +621,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Agrupá los insumos por categoría (ej: Verduras, Proteínas, Secos) para organizarlos en la tabla maestra.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_categorias" class="w-full" placeholder="Buscar categoría..." oninput="renderCategoriaCfg()"></div>
         <div id="categoriaCfg"></div>
       </div>
     </div>
@@ -620,6 +635,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Dónde se guarda cada insumo (ej: Cámara de frío, Depósito secos, Heladera). Se asigna al editar cada insumo.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_zonas" class="w-full" placeholder="Buscar zona..." oninput="renderZonaCfg()"></div>
         <div id="zonaCfg"></div>
       </div>
     </div>
@@ -633,6 +649,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Cargá tus proveedores y sus contactos. Después podés asignarle a cada insumo un proveedor principal y hasta dos alternativos, para más adelante calcular compras por proveedor.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_proveedores" class="w-full" placeholder="Buscar proveedor..." oninput="renderProveedorCfg()"></div>
         <div id="proveedorCfg"></div>
       </div>
     </div>
@@ -683,6 +700,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Cada local tiene su propia planilla de producción, sus sushimanes y su historial — pero comparten el mismo catálogo de combos, rolls, recetas e insumos.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_locales" class="w-full" placeholder="Buscar local..." oninput="renderLocalCfg()"></div>
         <div id="localCfg"></div>
       </div>
     </div>
@@ -696,6 +714,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Solo las cuentas de Google registradas acá pueden entrar a la app. <strong>Admin</strong> ve y edita Configuración; <strong>Usuario</strong> solo usa el flujo de producción.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_usuarios" class="w-full" placeholder="Buscar por nombre o email..." oninput="renderUsuarioCfg()"></div>
         <div id="usuarioCfg"></div>
       </div>
     </div>
@@ -815,6 +834,23 @@ const INSUMO_LABELS = {
   spicy:'Salsa spicy',okinawa:'Manga okinawa',salmonCrispy:'Salmón crispy'
 };
 const INSUMO_KEYS = Object.keys(INSUMO_LABELS);
+
+// ── Buscador reutilizable para las tablas de configuración ──
+// Los inputs de búsqueda viven FUERA del contenedor que cada render*Cfg()
+// reemplaza por completo, así no pierden el foco al tipear (si estuvieran
+// dentro del innerHTML que se regenera, se perdería el cursor en cada letra).
+function _normTexto(s) {
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function coincideBusqueda(query, ...campos) {
+  if (!query) return true;
+  const q = _normTexto(query);
+  return campos.some(c => _normTexto(c).includes(q));
+}
+function valorFiltro(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
 
 // ═══════════════════════════════════════════════════════
 // INIT
@@ -1980,8 +2016,10 @@ function marcaBadges(marcas) {
 }
 
 function renderComboCfg() {
+  const filtro = valorFiltro('filtro_combos');
+  const lista = ST.combos.filter(c => coincideBusqueda(filtro, c.name, c.family));
   const byFam={};
-  ST.combos.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
+  lista.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
   let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   for(const [fam,items] of Object.entries(byFam)){
     h+=`<tr class="fam-row"><td colspan="5"><span class="badge b-blue">${fam}</span></td></tr>`;
@@ -2000,12 +2038,15 @@ function renderComboCfg() {
     });
   }
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron combos con ese nombre.' : 'No hay combos configurados todavía.'}</div>`;
   document.getElementById('comboCfg').innerHTML=h;
 }
 
 function renderRollCfg() {
+  const filtro = valorFiltro('filtro_rolls');
+  const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name));
   let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolls.forEach(r=>{
+  lista.forEach(r=>{
     const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
@@ -2023,12 +2064,15 @@ function renderRollCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron rolls con ese nombre.' : 'No hay rolls configurados todavía.'}</div>`;
   document.getElementById('rollCfg').innerHTML=h;
 }
 
 function renderSemiCfg() {
+  const filtro = valorFiltro('filtro_semis');
+  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name));
   let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.semielaborados.forEach(s=>{
+  lista.forEach(s=>{
     const hasReceta = s.receta && s.receta.length > 0;
     const recetaSummary = hasReceta
       ? s.receta.map(i=>{
@@ -2063,6 +2107,7 @@ function renderSemiCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron semielaborados con ese nombre.' : 'No hay semielaborados cargados todavía.'}</div>`;
   document.getElementById('semiCfg').innerHTML=h;
 }
 
@@ -2183,6 +2228,7 @@ function renderInsumoCfg() {
   const fCategoria = document.getElementById('filtroCategoria')?.value || '';
   const fProveedor = document.getElementById('filtroProveedor')?.value || '';
   const f8020 = document.getElementById('filtro8020')?.value || '';
+  const fTexto = valorFiltro('filtro_insumos');
 
   const lista = ST.insumosMaster.filter(i=>{
     if (fCategoria && i.categoria !== fCategoria) return false;
@@ -2193,6 +2239,7 @@ function renderInsumoCfg() {
     }
     if (f8020 === 'si' && !i.es_80_20) return false;
     if (f8020 === 'no' && i.es_80_20) return false;
+    if (!coincideBusqueda(fTexto, i.label)) return false;
     return true;
   });
 
@@ -2215,8 +2262,10 @@ function renderInsumoCfg() {
 }
 
 function renderMarcaCfg() {
+  const filtro = valorFiltro('filtro_marcas');
+  const lista = ST.marcas.filter(m => coincideBusqueda(filtro, m.name));
   let h='<table><thead><tr><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.marcas.forEach(m=>{
+  lista.forEach(m=>{
     h+=`<tr><td style="font-weight:600">${m.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2224,7 +2273,7 @@ function renderMarcaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.marcas.length) h='<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
   document.getElementById('marcaCfg').innerHTML=h;
 }
 
@@ -2244,8 +2293,10 @@ async function saveMarca(id) {
 
 // ── Familias ──
 function renderFamiliaCfg() {
+  const filtro = valorFiltro('filtro_familias');
+  const lista = ST.familias.filter(f => coincideBusqueda(filtro, f.name));
   let h='<table><thead><tr><th>Familia</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.familias.forEach(f=>{
+  lista.forEach(f=>{
     h+=`<tr><td style="font-weight:600">${f.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openFamiliaModal(${f.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2253,7 +2304,7 @@ function renderFamiliaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.familias.length) h='<div class="empty">No hay familias configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay familias configuradas.</div>';
   document.getElementById('familiaCfg').innerHTML=h;
 }
 function openFamiliaModal(id) {
@@ -2274,8 +2325,10 @@ async function saveFamilia(id) {
 
 // ── Categorías de insumos ──
 function renderCategoriaCfg() {
+  const filtro = valorFiltro('filtro_categorias');
+  const lista = ST.categoriasInsumos.filter(c => coincideBusqueda(filtro, c.name));
   let h='<table><thead><tr><th>Categoría</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.categoriasInsumos.forEach(c=>{
+  lista.forEach(c=>{
     h+=`<tr><td style="font-weight:600">${c.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openCategoriaModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2283,7 +2336,7 @@ function renderCategoriaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.categoriasInsumos.length) h='<div class="empty">No hay categorías configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay categorías configuradas.</div>';
   document.getElementById('categoriaCfg').innerHTML=h;
 }
 function openCategoriaModal(id) {
@@ -2308,8 +2361,10 @@ function categoriaOptions(selected) {
 
 // ── Grupos de rollo blanco (rolls que comparten el mismo relleno) ──
 function renderRolloBlancoGrupoCfg() {
+  const filtro = valorFiltro('filtro_rolloBlancoGrupos');
+  const lista = ST.rolloBlancoGrupos.filter(g => coincideBusqueda(filtro, g.name));
   let h='<table><thead><tr><th>Grupo</th><th>Rolls asignados</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolloBlancoGrupos.forEach(g=>{
+  lista.forEach(g=>{
     const rollsDelGrupo = ST.rolls.filter(r=>r.rollo_blanco_grupo===g.name).map(r=>r.name);
     h+=`<tr><td style="font-weight:600">${g.name}</td>
       <td style="font-size:12px;color:var(--text2)">${rollsDelGrupo.length?rollsDelGrupo.join(', '):'<span style="color:var(--text3);font-style:italic">Ningún roll asignado todavía</span>'}</td>
@@ -2319,7 +2374,7 @@ function renderRolloBlancoGrupoCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.rolloBlancoGrupos.length) h='<div class="empty">No hay grupos configurados. Agregá uno para agrupar rolls que comparten relleno.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay grupos configurados. Agregá uno para agrupar rolls que comparten relleno.</div>';
   document.getElementById('rolloBlancoGrupoCfg').innerHTML=h;
 }
 function openRolloBlancoGrupoModal(id) {
@@ -2344,8 +2399,10 @@ function rolloBlancoGrupoOptions(selected) {
 
 // ── Zonas de almacenamiento ──
 function renderZonaCfg() {
+  const filtro = valorFiltro('filtro_zonas');
+  const lista = ST.zonasAlmacenamiento.filter(z => coincideBusqueda(filtro, z.name));
   let h='<table><thead><tr><th>Zona</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.zonasAlmacenamiento.forEach(z=>{
+  lista.forEach(z=>{
     h+=`<tr><td style="font-weight:600">${z.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openZonaModal(${z.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2353,7 +2410,7 @@ function renderZonaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.zonasAlmacenamiento.length) h='<div class="empty">No hay zonas configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay zonas configuradas.</div>';
   document.getElementById('zonaCfg').innerHTML=h;
 }
 function openZonaModal(id) {
@@ -2378,8 +2435,10 @@ function zonaOptions(selected) {
 
 // ── Proveedores (con contactos) ──
 function renderProveedorCfg() {
+  const filtro = valorFiltro('filtro_proveedores');
+  const lista = ST.proveedores.filter(p => coincideBusqueda(filtro, p.name));
   let h='<table><thead><tr><th>Proveedor</th><th>Contactos</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.proveedores.forEach(p=>{
+  lista.forEach(p=>{
     const contactosResumen = p.contactos.length
       ? p.contactos.map(c=>c.nombre).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin contactos cargados</span>';
@@ -2391,7 +2450,7 @@ function renderProveedorCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.proveedores.length) h='<div class="empty">No hay proveedores cargados.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay proveedores cargados.</div>';
   document.getElementById('proveedorCfg').innerHTML=h;
 }
 function contactoRow(c) {
@@ -2665,7 +2724,9 @@ async function saveEquivalenciaMatrix() {
 const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entrada', plato_caliente:'Plato caliente', otro:'Otro'};
 
 function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
-  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
+  const filtroIdPorTipo = { porcion: 'filtro_porciones', ensalada: 'filtro_ensaladas', entrada: 'filtro_entradas', plato_caliente: 'filtro_platosCalientes' };
+  const filtro = valorFiltro(filtroIdPorTipo[tipo]);
+  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo && coincideBusqueda(filtro, p.name));
   let h='<table><thead><tr><th>Producto</th><th>Rolls</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
     const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
@@ -2685,7 +2746,9 @@ function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!lista.length) h=`<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
+  if(!lista.length) h = filtro
+    ? `<div class="empty">No se encontró ninguna coincidencia.</div>`
+    : `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
   document.getElementById(containerId).innerHTML=h;
 }
 function renderPorcionesCfg(){ renderOtroProductoCfgTipo('porcion','porcionCfg',renderPorcionesCfg); }
@@ -2969,8 +3032,10 @@ function readMarcaChecks(containerId) {
 
 // ── Usuarios (admin) ──
 function renderUsuarioCfg() {
+  const filtro = valorFiltro('filtro_usuarios');
+  const lista = ST.usuarios.filter(u => coincideBusqueda(filtro, u.email, u.nombre));
   let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Locales</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.usuarios.forEach(u=>{
+  lista.forEach(u=>{
     const isMe = u.email === (window.CURRENT_USER_EMAIL||'');
     const localesTxt = u.role==='admin' ? '<span style="color:var(--text3);font-style:italic">Todos</span>'
       : (u.locales||[]).map(lid=>ST.locales.find(l=>l.id===lid)?.name).filter(Boolean).join(', ') || '<span style="color:var(--text3);font-style:italic">Sin asignar</span>';
@@ -2985,7 +3050,7 @@ function renderUsuarioCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.usuarios.length) h='<div class="empty">No hay usuarios cargados todavía.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay usuarios cargados todavía.</div>';
   document.getElementById('usuarioCfg').innerHTML=h;
 }
 function onUsuarioRoleChange() {
@@ -3045,8 +3110,10 @@ async function deleteUsuario(id) {
 
 // ── Locales ──
 function renderLocalCfg() {
+  const filtro = valorFiltro('filtro_locales');
+  const lista = ST.locales.filter(l => coincideBusqueda(filtro, l.name));
   let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.locales.forEach(l=>{
+  lista.forEach(l=>{
     h+=`<tr><td style="font-weight:600">${l.name}</td>
       <td><span class="badge ${l.active?'b-green':'b-red'}">${l.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
@@ -3055,7 +3122,7 @@ function renderLocalCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.locales.length) h='<div class="empty">No hay locales cargados todavía.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay locales cargados todavía.</div>';
   document.getElementById('localCfg').innerHTML=h;
 }
 function openLocalModal(id) {
