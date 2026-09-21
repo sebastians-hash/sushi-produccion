@@ -220,9 +220,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div class="steps">
     <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
     <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
-    <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
-    <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
-    <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
+    <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
+    <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
   </div>
 
   <!-- ── STEP 1 ── -->
@@ -279,26 +278,17 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Ver resumen <i class="ti ti-arrow-right"></i></button>
+      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Calcular producción <i class="ti ti-arrow-right"></i></button>
     </div>
   </div>
 
   <!-- ── STEP 3 ── -->
-  <div id="s3" class="hidden">
+  <!-- ── STEP 4 ── -->
+  <div id="s4" class="hidden">
     <div class="card">
       <div class="card-title">Resumen de producción</div>
       <div class="metrics" id="sumMetrics"></div>
-      <div class="sec"><i class="ti ti-list"></i> Rollos a producir</div>
-      <div id="sumRolls"></div>
     </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Ajustar</button>
-      <button class="btn btn-primary" onclick="goStep(4)">Avanzar a producción <i class="ti ti-arrow-right"></i></button>
-    </div>
-  </div>
-
-  <!-- ── STEP 4 ── -->
-  <div id="s4" class="hidden">
     <div class="tabs hidden" id="vistaProdSwitch" style="margin-bottom:1rem">
       <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);margin-right:5px"></span>Separado</div>
       <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
@@ -327,8 +317,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div id="remainingCombosTbl"></div>
     </div>
     <div class="flex-end">
-      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
+      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Planificar <i class="ti ti-arrow-right"></i></button>
     </div>
   </div>
 
@@ -434,7 +424,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       </div>
     </div>
     <div class="flex-end">
-      <button class="btn" onclick="goStep(4)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
     </div>
   </div>
 
@@ -994,20 +984,22 @@ function visibleParaLocalActual(itemMarcas) {
   return itemMarcas.some(m => local.marcas.includes(m));
 }
 
+const STEP_DIV_IDS = [1, 2, 4, 5]; // paso lógico (1..4) -> sufijo real del div/indicador (se salta el 3, que ya no existe)
 function goStep(n) {
-  if(n>1&&n<6&&!ST.sales.length) return;
+  if(n>1&&n<5&&!ST.sales.length) return;
   ST.prevStep=ST.step; ST.step=n;
-  for(let i=1;i<=5;i++){
-    document.getElementById('s'+i).classList.toggle('hidden',i!==n);
-    const si=document.getElementById('si'+i);
-    if(!si) continue;
-    si.className='step'+(i===n?' active':i<n?' done nav':'');
-    if(i<n) si.onclick=()=>goStep(i);
+  STEP_DIV_IDS.forEach((divId, idx)=>{
+    const logicalN = idx+1;
+    document.getElementById('s'+divId).classList.toggle('hidden', logicalN!==n);
+    const si=document.getElementById('si'+divId);
+    if(!si) return;
+    si.className='step'+(logicalN===n?' active':logicalN<n?' done nav':'');
+    if(logicalN<n) si.onclick=()=>goStep(logicalN);
     else si.onclick=null;
-  }
+  });
   if(n===2) renderSales();
-  if(n===4) renderProduction();
-  if(n===5) {
+  if(n===3) renderProduction();
+  if(n===4) {
     renderSmList();
     const fechaInput = document.getElementById('planillaFecha');
     if (fechaInput && !fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
@@ -1333,14 +1325,10 @@ async function doConfirm() {
       <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
       <div class="metric"><div class="metric-lbl">Tiempo estimado de producción</div><div class="metric-val">${tiempoEstimado} hs</div></div>
       <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
-    let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
-    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
-    h+='</tbody></table>';
-    document.getElementById('sumRolls').innerHTML=h;
     guardarProgresoPlanilla('borrador');
     goStep(3);
   } catch(e){ alert('Error al calcular: ' + e.message); }
-  finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
+  finally{ btn.innerHTML='Calcular producción <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2274,10 +2262,13 @@ async function abrirPlanilla(id) {
   const flowTab = [...document.querySelectorAll('#mainProduccion > .tabs .tab')].find(t=>t.textContent.includes('Planificar'));
   showProdSubTab('flow', flowTab);
 
-  const targetStep = d.step && d.step >= 2 ? d.step : 2;
+  // Ojo: si esta planilla se guardó con la numeración de pasos anterior (antes de
+  // sacar el paso de "Confirmación"), el valor guardado podría ser 1 más alto de
+  // lo esperado — lo topamos al máximo actual para no romper la navegación.
+  const targetStep = Math.min(d.step && d.step >= 2 ? d.step : 2, 4);
   goStep(targetStep);
   if (targetStep >= 3) renderSales();
-  if (targetStep >= 4) renderProduction();
+  if (targetStep >= 3) renderProduction();
   if (ST.schedule) { renderScheduleDisplay(); document.getElementById('schedRes').classList.remove('hidden'); }
   showStatus('success', `Planilla del ${p.fecha} abierta — podés seguir editándola.`);
 }
