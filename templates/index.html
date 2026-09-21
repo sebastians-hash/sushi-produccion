@@ -1387,7 +1387,19 @@ function buildProductionTablesHtml(prod) {
   oh+='</tbody></table>';
 
   let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  (prod.combos||[]).forEach(c=>{ if(c.qty>0) ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`; });
+  const combosConQty = (prod.combos||[]).filter(c=>c.qty>0);
+  const familiasCombos = {};
+  combosConQty.forEach(c=>{ (familiasCombos[c.family||'Otros']=familiasCombos[c.family||'Otros']||[]).push(c); });
+  if (combosConQty.length) {
+    Object.keys(familiasCombos).sort((a,b)=>a.localeCompare(b)).forEach(fam=>{
+      ch+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${fam}</span></td></tr>`;
+      familiasCombos[fam].sort((a,b)=>a.name.localeCompare(b.name)).forEach(c=>{
+        ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`;
+      });
+    });
+  } else {
+    ch+='<tr><td colspan="2" class="empty">No hay combos en esta producción</td></tr>';
+  }
   ch+='</tbody></table>';
 
   let bh='';
@@ -1412,7 +1424,7 @@ function setVistaProduccion(modo) {
 }
 
 function renderProduction() {
-  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
+  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100), family:s.family}));
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
   const mainData = usarJunto
     ? ST.combinedProduction
