@@ -201,7 +201,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS locales (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1
+            active INTEGER NOT NULL DEFAULT 1,
+            marcas TEXT NOT NULL DEFAULT '[]'
         );
         CREATE TABLE IF NOT EXISTS usuario_locales (
             id SERIAL PRIMARY KEY,
@@ -296,6 +297,10 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
     if 'rollo_blanco_grupo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
+
+    local_cols = get_columns('locales')
+    if 'marcas' not in local_cols:
+        c.execute("ALTER TABLE locales ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
 
     sug_cols = get_columns('sugerencias')
     if 'referencia_tipo' not in sug_cols:
@@ -682,7 +687,8 @@ def get_locales():
         placeholders = ','.join('?' * len(allowed))
         rows = conn.execute(f'SELECT * FROM locales WHERE id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
     conn.close()
-    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active'])} for r in rows])
+    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/locales', methods=['POST'])
 @admin_required
@@ -690,7 +696,8 @@ def create_local():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO locales (name, active) VALUES (?,?)', (data['name'].strip(), int(data.get('active', True))))
+        conn.execute('INSERT INTO locales (name, active, marcas) VALUES (?,?,?)',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', []))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -705,8 +712,8 @@ def update_local(local_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE locales SET name=?, active=? WHERE id=?',
-                     (data['name'].strip(), int(data.get('active', True)), local_id))
+        conn.execute('UPDATE locales SET name=?, active=?, marcas=? WHERE id=?',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', [])), local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -819,7 +826,7 @@ def restore_data():
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
     counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
-    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active'])
+    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active', 'marcas'])
 
     # usuario_locales: clave compuesta, reemplazo completo simple (igual que equivalencias)
     ul_rows = data.get('usuario_locales', [])
