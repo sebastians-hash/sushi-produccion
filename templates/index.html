@@ -1371,11 +1371,18 @@ function buildProductionTablesHtml(prod) {
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
 
-  let oh='<table><thead><tr><th>Producto</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  if(prod.otrosVenta.length) {
-    prod.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+  const ordenTiposOtros = ['ensalada', 'entrada', 'plato_caliente'];
+  const otrosSinPorciones = prod.otrosVenta.filter(p=>p.tipo!=='porcion');
+  let oh='<table><thead><tr><th>Producto</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  if(otrosSinPorciones.length) {
+    ordenTiposOtros.forEach(tipo=>{
+      const items = otrosSinPorciones.filter(p=>p.tipo===tipo);
+      if(!items.length) return;
+      oh+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${TIPO_OTRO_LABELS[tipo]||tipo}</span></td></tr>`;
+      items.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+    });
   } else {
-    oh+='<tr><td colspan="3" class="empty">No hay otros productos en esta producción</td></tr>';
+    oh+='<tr><td colspan="2" class="empty">No hay entradas, ensaladas ni platos calientes en esta producción</td></tr>';
   }
   oh+='</tbody></table>';
 
