@@ -257,11 +257,11 @@ def page2_story(data, cw, start_num=3):
     story.append(section_header(f"{start_num}  INSUMOS NECESARIOS", cw))
     story.append(Spacer(1, 2*mm))
 
-    ins_rows = [['Insumo', 'Total', 'En KG / unidad']]
+    ins_rows = [['Insumo', 'En KG / unidad']]
     for k, v in insumos.items():
-        ins_rows.append([v['label'], str(v['total']), v['display']])
+        ins_rows.append([v['label'], v['display']])
 
-    it = _make_table(ins_rows, [110*mm, 35*mm, 40*mm], 11, ACCENT, True)
+    it = _make_table(ins_rows, [110*mm, 75*mm], 11, ACCENT, True)
     story.append(it)
     story.append(Spacer(1, 6*mm))
 
@@ -269,10 +269,10 @@ def page2_story(data, cw, start_num=3):
     story.append(Spacer(1, 2*mm))
 
     if semis:
-        sem_rows = [['Semielaborado', 'Rolls que lo usan', 'Cantidad']]
+        sem_rows = [['Semielaborado', 'Cantidad']]
         for s in semis:
-            sem_rows.append([s['name'], s['usedIn'], s['display']])
-        st = _make_table(sem_rows, [68*mm, 82*mm, 35*mm], 11, ACCENT, True)
+            sem_rows.append([s['name'], s['display']])
+        st = _make_table(sem_rows, [150*mm, 35*mm], 11, ACCENT, True)
         story.append(st)
     else:
         story.append(Paragraph("No hay semielaborados para esta produccion.",
