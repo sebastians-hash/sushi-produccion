@@ -1297,14 +1297,14 @@ async function doConfirm() {
           pct: restoPct,
           production: dataRestante.production, insumos: dataRestante.insumos, semis: dataRestante.semis,
           otrosVenta: dataRestante.otrosProductos||[], rollosBlancos: dataRestante.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
         };
       }
       if (resJunto.ok) {
         ST.combinedProduction = {
           production: dataJunto.production, insumos: dataJunto.insumos, semis: dataJunto.semis,
           otrosVenta: dataJunto.otrosProductos||[], rollosBlancos: dataJunto.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
         };
       }
     }
@@ -2061,6 +2061,16 @@ async function downloadPDF() {
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
+  if (ST.dividirPlanilla && ST.remainingProduction) {
+    payload.segundaPlanilla = {
+      pct: ST.remainingProduction.pct,
+      production: ST.remainingProduction.production,
+      insumos: ST.remainingProduction.insumos,
+      semis: ST.remainingProduction.semis,
+      combos: ST.remainingProduction.combos,
+      rollosBlancos: ST.remainingProduction.rollosBlancos
+    };
+  }
   try {
     const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok) throw new Error(await res.text());
