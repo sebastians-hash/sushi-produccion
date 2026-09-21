@@ -1679,7 +1679,11 @@ function calcSchedule() {
   } while(asignado<totR && prodH<maxHoras);
 
   if(asignado<totR){
-    alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
+    const faltante = totR - asignado;
+    const capacidadPorHora = avail.reduce((s,sm)=>s+(ST.dailySm[sm.id]?.prod||sm.productivity||0), 0);
+    const horasFaltantes = capacidadPorHora>0 ? Math.ceil(faltante/capacidadPorHora) : null;
+    const detalleHoras = horasFaltantes ? ` Con el personal actual, te faltarían aproximadamente ${horasFaltantes} hora${horasFaltantes===1?'':'s'} más de producción (o el equivalente en más gente disponible antes).` : '';
+    alert(`No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.${detalleHoras}`);
     return;
   }
 
