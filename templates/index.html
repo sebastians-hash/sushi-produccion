@@ -111,7 +111,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .alert-success{background:var(--green-bg);color:var(--green);border:1px solid #c3e6c3}
 .alert-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #e6d5a0}
 .alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #c3d0f0}
-.sch-info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.sch-info{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
 .sched-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--rsm)}
 .sched-table{border-collapse:collapse;width:100%;min-width:600px}
 .sched-table th,.sched-table td{border:1px solid var(--border);padding:8px 10px}
@@ -336,6 +336,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div id="s5" class="hidden">
     <div class="card">
       <div class="card-title">Configuración del turno</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
+        <div>
+          <label class="form-lbl">Fecha de la planilla</label>
+          <input type="date" id="planillaFecha" class="w-full">
+        </div>
+        <div>
+          <label class="form-lbl">Turno</label>
+          <select id="planillaTurno" class="w-full">
+            <option value="Mañana">Mañana</option>
+            <option value="Noche" selected>Noche</option>
+          </select>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
         <div>
           <label class="form-lbl">Inicio de la grilla</label>
@@ -994,7 +1007,11 @@ function goStep(n) {
   }
   if(n===2) renderSales();
   if(n===4) renderProduction();
-  if(n===5) renderSmList();
+  if(n===5) {
+    renderSmList();
+    const fechaInput = document.getElementById('planillaFecha');
+    if (fechaInput && !fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+  }
 }
 
 function showTab(id, el) {
@@ -1679,8 +1696,11 @@ function calcSchedule() {
     scheduleHours.push({label:`${fmt(m)}-${fmt(m+60)}`, startMins:m, tasks:Object.fromEntries(avail.map(s=>[s.id,[]]))});
   }
 
+  const fechaPlanilla = document.getElementById('planillaFecha').value || new Date().toISOString().split('T')[0];
+  const turnoPlanilla = document.getElementById('planillaTurno').value || 'Noche';
   ST.schedule={
     startTime:fmt(startMins), rollsEndTime:fmt(endMins), endTime:cierreTotal,
+    fecha:fechaPlanilla, turno:turnoPlanilla,
     sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
     hours:scheduleHours
   };
@@ -1704,8 +1724,10 @@ function getPromedioRollosPorHora(smId) {
 }
 
 function renderScheduleDisplay() {
-  const {startTime,rollsEndTime,endTime,sushimanes,hours}=ST.schedule;
+  const {startTime,rollsEndTime,endTime,sushimanes,hours,fecha,turno}=ST.schedule;
+  const fechaDisplay = fecha ? new Date(fecha+'T00:00:00').toLocaleDateString('es-AR') : '—';
   document.getElementById('schedInfo').innerHTML=`
+    <div class="sch-cell-info">Fecha y turno<strong>${fechaDisplay} — ${turno||'—'}</strong></div>
     <div class="sch-cell-info">Inicio de la grilla<strong>${startTime}</strong></div>
     <div class="sch-cell-info">Fin de rolls<strong>${rollsEndTime}</strong></div>
     <div class="sch-cell-info">Cierre total<strong>${endTime}</strong></div>`;
@@ -2054,8 +2076,9 @@ function cancelGridEdits() {
 async function downloadPDF() {
   const btn=document.getElementById('pdfBtn');
   btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
+  const fechaDisplay = ST.schedule?.fecha ? new Date(ST.schedule.fecha+'T00:00:00').toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
   const payload={
-    date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
+    date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:ST.semis,
     combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
