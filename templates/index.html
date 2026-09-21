@@ -1405,7 +1405,7 @@ function setVistaProduccion(modo) {
 }
 
 function renderProduction() {
-  const combosPrincipal = ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
+  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
   const mainData = usarJunto
     ? ST.combinedProduction
