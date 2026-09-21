@@ -111,7 +111,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .alert-success{background:var(--green-bg);color:var(--green);border:1px solid #c3e6c3}
 .alert-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #e6d5a0}
 .alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #c3d0f0}
-.sch-info{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.sch-info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
 .sched-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--rsm)}
 .sched-table{border-collapse:collapse;width:100%;min-width:600px}
 .sched-table th,.sched-table td{border:1px solid var(--border);padding:8px 10px}
@@ -338,28 +338,31 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card-title">Configuración del turno</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
         <div>
-          <label class="form-lbl">Hora de inicio <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+          <label class="form-lbl">Inicio de la grilla</label>
           <div class="row" style="gap:4px">
-            <select id="startTimeManualH" style="flex:1"><option value="">--</option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <select id="startTimeManualH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15" selected>15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
             <span>:</span>
-            <select id="startTimeManualM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
+            <select id="startTimeManualM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">Vacío = automático</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Si hace falta más tiempo, la grilla se extiende antes de esta hora</div>
         </div>
         <div>
-          <label class="form-lbl">Hora de fin de producción</label>
+          <label class="form-lbl">Fin de rolls</label>
           <div class="row" style="gap:4px">
-            <select id="endTimeH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20" selected>20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <select id="endTimeH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18" selected>18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
             <span>:</span>
             <select id="endTimeM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
           </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Se calcula hacia atrás desde esta hora, según ingreso y productividad de cada sushiman</div>
         </div>
         <div>
-          <label class="form-lbl">Corte y armado</label>
-          <div class="row">
-            <input type="number" id="cutMins" value="60" min="0" max="240" style="width:80px">
-            <span style="font-size:13px;color:var(--text2)">min</span>
+          <label class="form-lbl">Cierre total del turno</label>
+          <div class="row" style="gap:4px">
+            <select id="cierreTotalH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20" selected>20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <span>:</span>
+            <select id="cierreTotalM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
           </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">La grilla llega hasta esta hora, para asignar corte/armado a mano</div>
         </div>
       </div>
       <div class="sec"><i class="ti ti-users"></i> Sushimanes disponibles hoy</div>
@@ -1622,9 +1625,9 @@ function readTimePair(idH, idM) {
   return h ? `${h}:${m}` : '';
 }
 function calcSchedule() {
-  const endT=readTimePair('endTimeH','endTimeM')||'20:00';
-  const cut=parseInt(document.getElementById('cutMins').value)||60;
-  const startManual=readTimePair('startTimeManualH','startTimeManualM');
+  const finRolls=readTimePair('endTimeH','endTimeM')||'18:00';
+  const inicioGrilla=readTimePair('startTimeManualH','startTimeManualM')||'15:00';
+  const cierreTotal=readTimePair('cierreTotalH','cierreTotalM')||'20:00';
   const avail=ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId && (ST.dailySm[s.id]?.avail??s.active));
   if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
 
@@ -1632,37 +1635,49 @@ function calcSchedule() {
   const manualTandaCounts=gridMode==='semi' ? getManualTandaCounts() : null;
 
   const totR=ST.production.filter(r=>r.cuentaProductividad!==false).reduce((s,r)=>s+r.qty,0);
-  const endMins=toMins(endT)-cut;
+  const endMins=toMins(finRolls);
 
-  let startMins, prodH, hours, hourAssign;
+  // El inicio SIEMPRE se calcula automaticamente hacia atras desde "Fin de rolls":
+  // como cada sushiman puede tener un horario de ingreso distinto, la capacidad
+  // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
+  let startMins, prodH=0, hours, hourAssign, asignado=0;
+  const maxHoras=20;
+  do {
+    prodH++;
+    startMins=endMins-prodH*60;
+    const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
+    hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
+  } while(asignado<totR && prodH<maxHoras);
 
-  if(startManual) {
-    startMins=toMins(startManual);
-    prodH=Math.max(1,Math.ceil((endMins-startMins)/60));
-    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH, manualTandaCounts));
-  } else {
-    // Como cada sushiman puede tener un horario de ingreso distinto, la capacidad
-    // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
-    let asignado=0; prodH=0;
-    const maxHoras=20;
-    do {
-      prodH++;
-      startMins=endMins-prodH*60;
-      const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
-      hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
-    } while(asignado<totR && prodH<maxHoras);
+  if(asignado<totR){
+    alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
+    return;
+  }
 
-    if(asignado<totR){
-      alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
-      return;
+  let scheduleHours = hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}));
+
+  // Si el calculo real necesito arrancar mas tarde que "Inicio de la grilla", igual
+  // se muestran horas vacias desde esa hora, para que la grilla siempre arranque ahi.
+  const inicioMins=toMins(inicioGrilla);
+  if (startMins>inicioMins) {
+    const extra=[];
+    for (let m=inicioMins; m<startMins; m+=60) {
+      extra.push({label:`${fmt(m)}-${fmt(m+60)}`, startMins:m, tasks:Object.fromEntries(avail.map(s=>[s.id,[]]))});
     }
+    scheduleHours=[...extra, ...scheduleHours];
+    startMins=inicioMins;
+  }
+  // Se extiende la grilla hasta "Cierre total" con horas vacias, para poder asignar
+  // a mano el corte de rolls / armado de combos despues de que terminan los rolls.
+  const cierreMins=toMins(cierreTotal);
+  for (let m=endMins; m<cierreMins; m+=60) {
+    scheduleHours.push({label:`${fmt(m)}-${fmt(m+60)}`, startMins:m, tasks:Object.fromEntries(avail.map(s=>[s.id,[]]))});
   }
 
   ST.schedule={
-    startTime:fmt(startMins), rollsEndTime:fmt(endMins),
-    cutMins:cut, endTime:endT,
+    startTime:fmt(startMins), rollsEndTime:fmt(endMins), endTime:cierreTotal,
     sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
-    hours:hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
+    hours:scheduleHours
   };
   ST.editingGrid=false;
   renderScheduleDisplay();
@@ -1684,12 +1699,11 @@ function getPromedioRollosPorHora(smId) {
 }
 
 function renderScheduleDisplay() {
-  const {startTime,rollsEndTime,cutMins,endTime,sushimanes,hours}=ST.schedule;
+  const {startTime,rollsEndTime,endTime,sushimanes,hours}=ST.schedule;
   document.getElementById('schedInfo').innerHTML=`
-    <div class="sch-cell-info">Inicio de producción<strong>${startTime}</strong></div>
+    <div class="sch-cell-info">Inicio de la grilla<strong>${startTime}</strong></div>
     <div class="sch-cell-info">Fin de rolls<strong>${rollsEndTime}</strong></div>
-    <div class="sch-cell-info">Corte y armado<strong>${cutMins} min</strong></div>
-    <div class="sch-cell-info">Fin total<strong>${endTime}</strong></div>`;
+    <div class="sch-cell-info">Cierre total<strong>${endTime}</strong></div>`;
 
   let g='<div class="sched-table-wrap"><table class="sched-table"><thead><tr><th style="min-width:120px">Sushiman</th>';
   hours.forEach(h=>g+=`<th style="text-align:center;min-width:130px">${h.label}</th>`);
@@ -1904,12 +1918,12 @@ function confirmAddHourSlot() {
 function toggleEditGrid() {
   ST.scheduleBackup=JSON.parse(JSON.stringify(ST.schedule));
   const {sushimanes,hours}=ST.schedule;
-  const rollOptsPlain=ST.production.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const rollOpts=`<optgroup label="Rolls a producir">${rollOptsPlain}</optgroup>
-    <optgroup label="Otras tareas">
+  const rollOptsPlain=[...ST.production].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const rollOpts=`<optgroup label="Otras tareas">
       <option value="Corte de rolls">Corte de rolls</option>
       <option value="Armado de combos">Armado de combos</option>
-    </optgroup>`;
+    </optgroup>
+    <optgroup label="Rolls a producir">${rollOptsPlain}</optgroup>`;
 
   let g='<div class="sched-table-wrap"><table class="sched-table"><thead><tr><th style="min-width:120px">Sushiman</th>';
   hours.forEach(h=>g+=`<th style="text-align:center;min-width:170px">${h.label}</th>`);
