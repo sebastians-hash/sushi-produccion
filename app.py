@@ -145,6 +145,12 @@ def init_db():
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS unidades (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            simbolo TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS proveedores (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -313,6 +319,17 @@ def init_db():
     if 'orden' not in marca_cols:
         c.execute("ALTER TABLE marcas ADD COLUMN orden INTEGER NOT NULL DEFAULT 0")
         c.execute("UPDATE marcas SET orden = id")  # respeta el orden en que se fueron creando, como punto de partida
+
+    # Sembrar las unidades que ya se usaban (antes fijas en el código) + las que se pidieron de arranque
+    ya_hay_unidades = c.execute('SELECT COUNT(*) AS n FROM unidades').fetchone()['n']
+    if not ya_hay_unidades:
+        unidades_iniciales = [
+            ('Gramos', 'g'), ('Mililitros', 'ml'), ('Unidades', 'u'), ('Hojas', 'hojas'),
+            ('Kilogramos', 'kg'), ('Litros', 'L'),
+            ('Paquetes', 'paq'), ('Manga', 'manga'),
+        ]
+        for idx, (nombre, simbolo) in enumerate(unidades_iniciales):
+            c.execute('INSERT INTO unidades (nombre, simbolo, orden) VALUES (?,?,?) ON CONFLICT (simbolo) DO NOTHING', (nombre, simbolo, idx))
 
     sug_cols = get_columns('sugerencias')
     if 'referencia_tipo' not in sug_cols:
@@ -754,7 +771,7 @@ def delete_local(local_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales', 'unidades']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -843,6 +860,10 @@ def restore_data():
                               ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls', 'procedimiento'])
     counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
+    for u in data.get('unidades', []):
+        if u.get('orden') is None:
+            u['orden'] = 0
+    counts['unidades'] = upsert('unidades', data.get('unidades', []), 'simbolo', ['nombre', 'simbolo', 'orden'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
     counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
     counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active', 'marcas'])
@@ -1419,6 +1440,69 @@ def update_zona_almacenamiento(zona_id):
 def delete_zona_almacenamiento(zona_id):
     conn = get_db()
     conn.execute('DELETE FROM zonas_almacenamiento WHERE id=?', (zona_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Unidades (para los insumos) ──
+@app.route('/api/unidades', methods=['GET'])
+@login_required
+def get_unidades():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM unidades ORDER BY orden, nombre').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'nombre': r['nombre'], 'simbolo': r['simbolo'], 'orden': r['orden']} for r in rows])
+
+@app.route('/api/unidades', methods=['POST'])
+@admin_required
+def create_unidad():
+    data = request.json
+    conn = get_db()
+    try:
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM unidades').fetchone()['n']
+        conn.execute('INSERT INTO unidades (nombre, simbolo, orden) VALUES (?,?,?)',
+                     (data['nombre'].strip(), data['simbolo'].strip(), siguiente_orden))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe una unidad con ese símbolo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/<int:unidad_id>', methods=['PUT'])
+@admin_required
+def update_unidad(unidad_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE unidades SET nombre=?, simbolo=? WHERE id=?',
+                     (data['nombre'].strip(), data['simbolo'].strip(), unidad_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra unidad con ese símbolo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/<int:unidad_id>', methods=['DELETE'])
+@admin_required
+def delete_unidad(unidad_id):
+    conn = get_db()
+    conn.execute('DELETE FROM unidades WHERE id=?', (unidad_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/reorder', methods=['PUT'])
+@admin_required
+def reorder_unidades():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, unidad_id in enumerate(ids):
+        conn.execute('UPDATE unidades SET orden=? WHERE id=?', (idx, unidad_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
