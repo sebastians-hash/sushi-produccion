@@ -2042,14 +2042,29 @@ function renderComboCfg() {
   document.getElementById('comboCfg').innerHTML=h;
 }
 
+function mostrarUsosRoll(nombre) {
+  const usos = [];
+  ST.combos.forEach(c => { if ((c.rolls[nombre]||0) > 0) usos.push({tipo:'Combo', nombre:c.name}); });
+  ST.otrosProductos.forEach(p => { if ((p.rolls?.[nombre]||0) > 0) usos.push({tipo:TIPO_OTRO_LABELS[p.tipo]||'Producto', nombre:p.name}); });
+  let bodyHtml;
+  if (!usos.length) {
+    bodyHtml = '<div class="empty">Todavía no se usa en ningún combo ni producto.</div>';
+  } else {
+    bodyHtml = '<table><thead><tr><th>Tipo</th><th>Nombre</th></tr></thead><tbody>' +
+      usos.map(u => `<tr><td><span class="badge b-blue">${u.tipo}</span></td><td style="font-weight:600">${u.nombre}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+  openModal(`¿Dónde se usa "${nombre}"?`, bodyHtml, `<button class="btn" onclick="closeModal()">Cerrar</button>`);
+}
+
 function renderRollCfg() {
   const filtro = valorFiltro('filtro_rolls');
   const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name));
-  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Usos</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(r=>{
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
-      <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td><button class="btn btn-sm" onclick='mostrarUsosRoll(${JSON.stringify(r.name)})' title="Ver en qué combos y productos se usa"><i class="ti ti-eye"></i> Ver usos</button></td>
       <td><button class="btn btn-sm" onclick="openRollModal(${r.id},null,true)" title="Ver receta"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
