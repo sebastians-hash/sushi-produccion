@@ -41,10 +41,10 @@ def section_header(title, width):
     ]))
     return t
 
-def cover_band(date_str, global_pct, width, label=None):
+def cover_band(date_str, global_pct, width, label=None, turno=None):
     title_style = S('dt', fontName='Helvetica-Bold', fontSize=18,
                     textColor=WHITE, leading=22)
-    sub_style   = S('ds', fontSize=10, textColor=colors.HexColor('#DDDDDD'),
+    sub_style   = S('ds', fontSize=9, textColor=colors.HexColor('#DDDDDD'),
                     alignment=TA_RIGHT, leading=14)
 
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'kata_logo_square.png')
@@ -59,9 +59,10 @@ def cover_band(date_str, global_pct, width, label=None):
         left_col_w = width * 0.25
 
     right_w = width - left_col_w - 4*mm
+    turno_txt = f"  |  Turno {turno}" if turno else ""
     t = Table([[ logo_cell,
                  Paragraph("PLANILLA DE PRODUCCION", title_style),
-                 Paragraph(f"{date_str}  |  {global_pct}% de la venta", sub_style) ]],
+                 Paragraph(f"{date_str}{turno_txt}  |  {global_pct}% de la venta", sub_style) ]],
               colWidths=[left_col_w, right_w*0.6, right_w*0.4])
     t.setStyle(TableStyle([
         ('BACKGROUND',    (0,0),(-1,-1), BG_DARK),
@@ -142,6 +143,7 @@ def page1_story(data, cw, label=None):
     story = []
     date_str    = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct  = data.get('globalPct', 100)
+    turno      = data.get('turno')
     production  = data.get('production', [])
     combos      = data.get('combos', [])
 
@@ -149,7 +151,7 @@ def page1_story(data, cw, label=None):
     total_combos = sum(c['qty'] for c in combos)
     total_piezas = sum(r.get('piezas', r['qty']*14) for r in production)
 
-    story.append(cover_band(date_str, global_pct, cw, label=label))
+    story.append(cover_band(date_str, global_pct, cw, label=label, turno=turno))
     story.append(Spacer(1, 4*mm))
     story.append(metrics_row(total_combos, total_rolls, total_piezas, global_pct, cw))
     story.append(Spacer(1, 4*mm))
@@ -267,10 +269,11 @@ def page2_story(data, cw, start_num=3, label=None):
     story = []
     date_str   = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct = data.get('globalPct', 100)
+    turno      = data.get('turno')
     insumos    = data.get('insumos', {})
     semis      = data.get('semis', [])
 
-    story.append(cover_band(date_str, global_pct, cw, label=label))
+    story.append(cover_band(date_str, global_pct, cw, label=label, turno=turno))
     story.append(Spacer(1, 5*mm))
 
     story.append(section_header(f"{start_num}  INSUMOS NECESARIOS", cw))
@@ -284,7 +287,7 @@ def page2_story(data, cw, start_num=3, label=None):
     story.append(it)
 
     story.append(PageBreak())
-    story.append(cover_band(date_str, global_pct, cw, label=label))
+    story.append(cover_band(date_str, global_pct, cw, label=label, turno=turno))
     story.append(Spacer(1, 5*mm))
 
     story.append(section_header(f"{start_num+1}  SEMIELABORADOS", cw))
@@ -306,11 +309,12 @@ def page3_story(data, cw, start_num=5):
     story = []
     date_str   = data.get('date', datetime.now().strftime('%d/%m/%Y'))
     global_pct = data.get('globalPct', 100)
+    turno      = data.get('turno')
     schedule   = data.get('schedule')
     if not schedule:
         return story
 
-    story.append(cover_band(date_str, global_pct, cw))
+    story.append(cover_band(date_str, global_pct, cw, turno=turno))
     story.append(Spacer(1, 4*mm))
     story.append(section_header(f"{start_num}  GRILLA DE PRODUCCION POR HORA", cw))
     story.append(Spacer(1, 3*mm))
@@ -372,7 +376,7 @@ def page3_story(data, cw, start_num=5):
     semi_hourly = data.get('semiHourly', [])
     if semi_hourly:
         story.append(PageBreak())
-        story.append(cover_band(date_str, global_pct, cw))
+        story.append(cover_band(date_str, global_pct, cw, turno=turno))
         story.append(Spacer(1, 4*mm))
         story.append(section_header(f"{start_num+1}  SEMIELABORADOS POR HORA", cw))
         story.append(Spacer(1, 2*mm))
@@ -443,7 +447,7 @@ def build_pdf(data: dict, out_path: str):
     segunda = data.get('segundaPlanilla')
     if segunda:
         pct2 = segunda.get('pct', '')
-        segunda = {**segunda, 'globalPct': pct2}
+        segunda = {**segunda, 'globalPct': pct2, 'turno': segunda.get('turno') or data.get('turno')}
         label2 = f"PLANILLA 2 — PRODUCCIÓN RESTANTE ({pct2}%) — PARA MÁS TARDE"
         offset2 = 4 if segunda.get('rollosBlancos') else 3
         make_doc(p4_path, A4_P).build(page1_story(segunda, cw_p, label=label2))
