@@ -194,14 +194,15 @@ input[type=range]{width:100%;accent-color:var(--text)}
     {% endif %}
   </div>
 
-  <div id="mainProduccion">
-    <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
-      <div class="row" style="gap:10px;align-items:center">
-        <i class="ti ti-building-store"></i>
-        <label class="form-lbl" style="margin:0">Local</label>
-        <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
-      </div>
+  <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+    <div class="row" style="gap:10px;align-items:center">
+      <i class="ti ti-building-store"></i>
+      <label class="form-lbl" style="margin:0">Local</label>
+      <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
     </div>
+  </div>
+
+  <div id="mainProduccion">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
       <div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>
@@ -945,6 +946,28 @@ function onLocalChange() {
   ST.currentLocalId = parseInt(document.getElementById('localSelector').value);
   renderSmCfg();
   renderHistorialCfg();
+  renderComboCfg();
+  renderPorcionesCfg();
+  renderEnsaladasCfg();
+  renderEntradasCfg();
+  renderPlatosCalientesCfg();
+  renderRollCfg();
+  renderSemiCfg();
+}
+
+// ── Filtro de marcas por local: si el local actual tiene alguna marca
+// habilitada, solo se ven productos/rolls/semis de esas marcas (los que no
+// tienen ninguna marca asignada quedan ocultos). Sin ninguna marca marcada
+// en el local, no se filtra nada — se ve todo como siempre.
+function localActualTieneFiltroMarca() {
+  const local = ST.locales.find(l => l.id === ST.currentLocalId);
+  return !!(local && local.marcas && local.marcas.length);
+}
+function visibleParaLocalActual(itemMarcas) {
+  const local = ST.locales.find(l => l.id === ST.currentLocalId);
+  if (!local || !local.marcas || !local.marcas.length) return true;
+  if (!itemMarcas || !itemMarcas.length) return false;
+  return itemMarcas.some(m => local.marcas.includes(m));
 }
 
 function goStep(n) {
@@ -1144,15 +1167,22 @@ function showStatus(type,msg) {
 
 // ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
 function loadManual() {
-  if (!ST.combos.length && !ST.otrosProductos.length) { alert('No hay combos ni otros productos configurados todavía. Cargalos en Configuración.'); return; }
-  const comboEntries = ST.combos.map(c => ({
+  const combosVisibles = ST.combos.filter(c => visibleParaLocalActual(c.marcas));
+  const otrosVisibles = ST.otrosProductos.filter(p => visibleParaLocalActual(p.marcas));
+  if (!combosVisibles.length && !otrosVisibles.length) {
+    alert(localActualTieneFiltroMarca()
+      ? 'No hay combos ni otros productos de las marcas habilitadas para este local.'
+      : 'No hay combos ni otros productos configurados todavía. Cargalos en Configuración.');
+    return;
+  }
+  const comboEntries = combosVisibles.map(c => ({
     code: c.name.toLowerCase().replace(/\s+/g,''),
     name: c.name,
     qty: 0,
     family: c.family,
     matched: true
   }));
-  const otroEntries = ST.otrosProductos.map(p => ({
+  const otroEntries = otrosVisibles.map(p => ({
     code: 'op_'+p.name.toLowerCase().replace(/\s+/g,''),
     name: p.name,
     qty: 0,
@@ -2017,7 +2047,7 @@ function marcaBadges(marcas) {
 
 function renderComboCfg() {
   const filtro = valorFiltro('filtro_combos');
-  const lista = ST.combos.filter(c => coincideBusqueda(filtro, c.name, c.family));
+  const lista = ST.combos.filter(c => coincideBusqueda(filtro, c.name, c.family) && visibleParaLocalActual(c.marcas));
   const byFam={};
   lista.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
   let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
@@ -2038,7 +2068,7 @@ function renderComboCfg() {
     });
   }
   h+='</tbody></table>';
-  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron combos con ese nombre.' : 'No hay combos configurados todavía.'}</div>`;
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron combos con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay combos de las marcas habilitadas para este local.' : 'No hay combos configurados todavía.')}</div>`;
   document.getElementById('comboCfg').innerHTML=h;
 }
 
@@ -2059,7 +2089,7 @@ function mostrarUsosRoll(nombre) {
 
 function renderRollCfg() {
   const filtro = valorFiltro('filtro_rolls');
-  const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name));
+  const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name) && visibleParaLocalActual(r.marcas));
   let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Usos</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(r=>{
     h+=`<tr><td style="font-weight:600">${r.name}</td>
@@ -2076,7 +2106,7 @@ function renderRollCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron rolls con ese nombre.' : 'No hay rolls configurados todavía.'}</div>`;
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron rolls con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay rolls de las marcas habilitadas para este local.' : 'No hay rolls configurados todavía.')}</div>`;
   document.getElementById('rollCfg').innerHTML=h;
 }
 
@@ -2101,7 +2131,7 @@ function mostrarUsosIngrediente(key, nombre) {
 
 function renderSemiCfg() {
   const filtro = valorFiltro('filtro_semis');
-  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name));
+  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name) && visibleParaLocalActual(s.marcas));
   let h='<table><thead><tr><th>Semielaborado</th><th>Usos</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
     const rendDisplay = (s.rendimiento_cantidad > 0)
@@ -2125,7 +2155,7 @@ function renderSemiCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron semielaborados con ese nombre.' : 'No hay semielaborados cargados todavía.'}</div>`;
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron semielaborados con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay semielaborados de las marcas habilitadas para este local.' : 'No hay semielaborados cargados todavía.')}</div>`;
   document.getElementById('semiCfg').innerHTML=h;
 }
 
@@ -2744,7 +2774,7 @@ const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entr
 function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   const filtroIdPorTipo = { porcion: 'filtro_porciones', ensalada: 'filtro_ensaladas', entrada: 'filtro_entradas', plato_caliente: 'filtro_platosCalientes' };
   const filtro = valorFiltro(filtroIdPorTipo[tipo]);
-  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo && coincideBusqueda(filtro, p.name));
+  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo && coincideBusqueda(filtro, p.name) && visibleParaLocalActual(p.marcas));
   let h='<table><thead><tr><th>Producto</th><th>Rolls</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
     const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
@@ -2763,7 +2793,9 @@ function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
   h+='</tbody></table>';
   if(!lista.length) h = filtro
     ? `<div class="empty">No se encontró ninguna coincidencia.</div>`
-    : `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
+    : (localActualTieneFiltroMarca()
+        ? `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s de las marcas habilitadas para este local.</div>`
+        : `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`);
   document.getElementById(containerId).innerHTML=h;
 }
 function renderPorcionesCfg(){ renderOtroProductoCfgTipo('porcion','porcionCfg',renderPorcionesCfg); }
@@ -3145,17 +3177,20 @@ function openLocalModal(id) {
   openModal(id?'Editar local':'Nuevo local',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del local</label>
       <input type="text" id="m_name" class="w-full" value="${l?.name||''}" placeholder="Ej: Sucursal Palermo"></div>
-    <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
       <option value="1" ${l?.active!==false?'selected':''}>Activo</option>
       <option value="0" ${l?.active===false?'selected':''}>Inactivo</option>
-    </select></div>`,
+    </select></div>
+    <div class="form-lbl" style="margin-bottom:8px">Marcas habilitadas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — sin ninguna marcada, este local ve todo el catálogo sin filtrar; si marcás alguna, solo va a ver los productos de esas marcas)</span></div>
+    <div id="localMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(l?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveLocal(${id||'null'})">Guardar</button>`
   );
 }
 async function saveLocal(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
-  const data={name, active: document.getElementById('m_active').value==='1'};
+  const marcas = readMarcaChecks('localMarcaChecks');
+  const data={name, active: document.getElementById('m_active').value==='1', marcas};
   const res = await fetch(id?`/api/locales/${id}`:'/api/locales',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
