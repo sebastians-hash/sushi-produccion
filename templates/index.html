@@ -1306,14 +1306,14 @@ async function doConfirm() {
           pct: restoPct,
           production: dataRestante.production, insumos: dataRestante.insumos, semis: dataRestante.semis,
           otrosVenta: dataRestante.otrosProductos||[], rollosBlancos: dataRestante.rollosBlancos||[],
-          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100), family:s.family})).filter(c=>c.qty>0)
         };
       }
       if (resJunto.ok) {
         ST.combinedProduction = {
           production: dataJunto.production, insumos: dataJunto.insumos, semis: dataJunto.semis,
           otrosVenta: dataJunto.otrosProductos||[], rollosBlancos: dataJunto.rollosBlancos||[],
-          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100), family:s.family})).filter(c=>c.qty>0)
         };
       }
     }
@@ -2068,7 +2068,7 @@ async function downloadPDF() {
   const payload={
     date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:ST.semis,
-    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
+    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100),family:s.family})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
