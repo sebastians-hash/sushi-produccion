@@ -45,15 +45,15 @@ def cover_band(date_str, global_pct, width):
     sub_style   = S('ds', fontSize=10, textColor=colors.HexColor('#DDDDDD'),
                     alignment=TA_RIGHT, leading=14)
 
-    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'logo.png')
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'kata_logo_square.png')
     logo_h = 30
-    logo_w = logo_h * (364/170)
+    logo_w = logo_h  # el logo de Kata es cuadrado (1:1)
 
     if os.path.exists(logo_path):
         logo_cell = RLImage(logo_path, width=logo_w, height=logo_h)
         left_col_w = logo_w + 16
     else:
-        logo_cell = Paragraph("SUSHI", title_style)
+        logo_cell = Paragraph("KATA", title_style)
         left_col_w = width * 0.25
 
     right_w = width - left_col_w - 4*mm
