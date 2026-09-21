@@ -1749,7 +1749,7 @@ function computeSemiHourlyGrid() {
       let amount = 0;
       Object.entries(rollQtyPerHour[hi]).forEach(([rollName, rollQty]) => {
         const roll = ST.rolls.find(r=>r.name===rollName);
-        if (roll && roll.insumos[semi.insumo_key]) {
+        if (roll && roll.insumos[semi.insumo_key] && !(roll.toppings||[]).includes(semi.insumo_key)) {
           amount += roll.insumos[semi.insumo_key] * rollQty;
         }
       });
@@ -3370,7 +3370,7 @@ function tipoBadge(type) {
   return b;
 }
 
-function makeIngRow(key, qty, readOnly) {
+function makeIngRow(key, qty, readOnly, showTopping, isTopping) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
@@ -3388,6 +3388,19 @@ function makeIngRow(key, qty, readOnly) {
   div.appendChild(readOnly ? document.createElement('span') : dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
   div.appendChild(label); div.appendChild(inp); div.appendChild(unit);
+  if (showTopping) {
+    const toppingLabel = document.createElement('label');
+    toppingLabel.style.display = 'flex'; toppingLabel.style.alignItems = 'center'; toppingLabel.style.gap = '3px';
+    toppingLabel.style.fontSize = '11px'; toppingLabel.style.color = 'var(--text3)'; toppingLabel.style.cursor = 'pointer';
+    toppingLabel.style.flexShrink = '0'; toppingLabel.style.whiteSpace = 'nowrap';
+    toppingLabel.title = 'Se agrega después de cortar el roll — no hace falta tenerlo listo antes de armar';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'topping-check'; cb.checked = !!isTopping;
+    if (readOnly) cb.disabled = true;
+    toppingLabel.appendChild(cb);
+    toppingLabel.appendChild(document.createTextNode('Topping'));
+    div.appendChild(toppingLabel);
+  }
   if (!readOnly) {
     const btn = document.createElement('button');
     btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
@@ -3494,10 +3507,11 @@ function selectIngredientFromDropdown(idx) {
     legacyLinkTarget = null;
   }
 
+  const esRoll = ingDropdownPrefix === 'roll';
   if (legacyLinkTarget) {
     // Reemplaza la fila "sin vincular" por una fila real, conservando la cantidad
     const { row, cantidad } = legacyLinkTarget;
-    const nueva = makeIngRow(item.key, cantidad);
+    const nueva = makeIngRow(item.key, cantidad, false, esRoll, false);
     row.parentNode.insertBefore(nueva, row);
     row.remove();
     legacyLinkTarget = null;
@@ -3507,7 +3521,7 @@ function selectIngredientFromDropdown(idx) {
       existing.querySelector('input').focus();
       existing.querySelector('input').select();
     } else {
-      container.appendChild(makeIngRow(item.key, 1));
+      container.appendChild(makeIngRow(item.key, 1, false, esRoll, false));
     }
   }
   document.getElementById(ingDropdownPrefix+'IngSearch').value = '';
@@ -3564,7 +3578,7 @@ function openRollModal(id, dup, readOnly) {
       <input type="checkbox" id="m_cuentaProductividad" ${roll?.cuenta_productividad!==false?'checked':''} ${dis} style="width:18px;height:18px">
       <span class="form-lbl" style="margin:0;text-transform:none;font-weight:400">Cuenta para el cálculo de productividad <span style="color:var(--text3)">(desmarcá esto para nigiris, geishas, sashimis y similares — no van a competir por las horas/presupuesto de cada sushiman en la grilla automática)</span></span>
     </label>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(marcá "Topping" en lo que se agrega después de cortar el roll — salsas, hilos de batata, etc. — así no se cuenta en la planilla de semielaborados por hora, que es solo para lo que hace falta antes de armar)</span></div>
     ${ro ? '' : `<div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('roll')" onfocus="filterIngredientDropdown('roll')"
@@ -3579,7 +3593,8 @@ function openRollModal(id, dup, readOnly) {
   );
   if (ro) document.querySelectorAll('#rollMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('rollIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro)); });
+  const toppingKeys = roll?.toppings || [];
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro, true, toppingKeys.includes(key))); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -3590,15 +3605,18 @@ async function saveRoll(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
   const insumos={};
+  const toppings=[];
   document.querySelectorAll('#rollIngRows .roll-ing-row').forEach(row=>{
-    const v = parseFloat(row.querySelector('input').value)||0;
+    const v = parseFloat(row.querySelector('input[type=number]').value)||0;
     if (v>0) insumos[row.dataset.key] = v;
+    const toppingCheck = row.querySelector('.topping-check');
+    if (toppingCheck && toppingCheck.checked) toppings.push(row.dataset.key);
   });
   const marcas = readMarcaChecks('rollMarcaChecks');
   const piezas_por_rollo = parseInt(document.getElementById('m_piezas').value)||14;
   const rollo_blanco_grupo = document.getElementById('m_rolloBlanco').value || null;
   const cuenta_productividad = document.getElementById('m_cuentaProductividad').checked;
-  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo,rollo_blanco_grupo,cuenta_productividad})});
+  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo,rollo_blanco_grupo,cuenta_productividad,toppings})});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderRollCfg();
