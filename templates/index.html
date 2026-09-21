@@ -2157,9 +2157,10 @@ function renderComboCfg() {
         <td><div class="row" style="gap:4px">
           ${IS_ADMIN ? `
           <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+          <button class="btn btn-sm" onclick="duplicateCombo(${c.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
           <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
           ` : `
-          <button class="btn btn-sm" onclick="openComboModal(${c.id},true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
+          <button class="btn btn-sm" onclick="openComboModal(${c.id},null,true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
           `}
         </div></td></tr>`;
     });
@@ -3796,14 +3797,19 @@ async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) 
     body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
 }
 
-function openComboModal(id, readOnly) {
-  const combo=id?ST.combos.find(c=>c.id===id):null;
+function duplicateCombo(id) {
+  const combo = ST.combos.find(c=>c.id===id);
+  if(!combo) return;
+  openComboModal(null, {...combo, name: combo.name + ' (copia)'});
+}
+function openComboModal(id, dup, readOnly) {
+  const combo=id?ST.combos.find(c=>c.id===id):(dup||null);
   const ro = !!readOnly;
   const dis = ro ? 'disabled' : '';
   const famOpts=familiaOptions(combo?.family);
   const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
   const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts,ro)).join(''):'';
-  openModal(ro?'Ver combo':(id?'Editar combo':'Nuevo combo'),`
+  openModal(ro?'Ver combo':(id?'Editar combo':(dup?'Duplicar combo':'Nuevo combo')),`
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}" ${dis}></div>
       <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full" ${dis}>${famOpts}</select></div>
