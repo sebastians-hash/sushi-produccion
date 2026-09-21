@@ -2045,22 +2045,19 @@ function renderComboCfg() {
 function renderRollCfg() {
   const filtro = valorFiltro('filtro_rolls');
   const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name));
-  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${r.name}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
       <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td><button class="btn btn-sm" onclick="openRollModal(${r.id},null,true)" title="Ver receta"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
         ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-        ` : `
-        <button class="btn btn-sm" onclick="openRollModal(${r.id},null,true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
-        `}
+        ` : ``}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
@@ -2073,16 +2070,6 @@ function renderSemiCfg() {
   const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name));
   let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
-    const hasReceta = s.receta && s.receta.length > 0;
-    const recetaSummary = hasReceta
-      ? s.receta.map(i=>{
-          const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          const nombreEstilizado = i.key
-            ? styledIngredientName(i.key)
-            : `<span style="background:var(--bg);color:var(--text3);font-weight:700;padding:2px 8px;border-radius:20px" title="Sin vincular">${i.nombre}</span>`;
-          return `${nombreEstilizado} (${i.cantidad}${unidad})`;
-        }).join(', ')
-      : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
       : '<span style="color:var(--text3)">—</span>';
@@ -2091,7 +2078,7 @@ function renderSemiCfg() {
     const usedInRolls = ST.rolls.filter(r=>(r.insumos[s.insumo_key]||0) > 0).map(r=>r.name);
     const usedInDisplay = usedInRolls.length ? usedInRolls.join(', ') : '<span style="color:var(--text3);font-style:italic">Ningún roll lo usa todavía</span>';
     h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${usedInDisplay}</td>
-      <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
+      <td><button class="btn btn-sm" onclick="openSemiModal(${s.id},null,true)" title="Ver receta y usar la calculadora"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td>${rendDisplay}</td>
       <td style="text-align:center;font-size:12px">${tiempoDisplay}</td>
       <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
@@ -2101,9 +2088,7 @@ function renderSemiCfg() {
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
-        ` : `
-        <button class="btn btn-sm" onclick="openSemiModal(${s.id},null,true)" title="Ver receta y usar la calculadora"><i class="ti ti-calculator"></i> Ver / Calculadora</button>
-        `}
+        ` : ``}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
