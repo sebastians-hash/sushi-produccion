@@ -296,10 +296,9 @@ def page3_story(data, cw, start_num=5):
     info_data = [[
         Paragraph(f"Inicio: {schedule['startTime']}",          S('ib', fontName='Helvetica-Bold', fontSize=11)),
         Paragraph(f"Fin rolls: {schedule['rollsEndTime']}",    S('ib', fontName='Helvetica-Bold', fontSize=11)),
-        Paragraph(f"Corte y armado: {schedule['cutMins']} min",S('ib', fontName='Helvetica-Bold', fontSize=11)),
-        Paragraph(f"Fin total: {schedule['endTime']}",         S('ib', fontName='Helvetica-Bold', fontSize=11)),
+        Paragraph(f"Cierre total: {schedule['endTime']}",       S('ib', fontName='Helvetica-Bold', fontSize=11)),
     ]]
-    info_t = Table(info_data, colWidths=[cw/4]*4)
+    info_t = Table(info_data, colWidths=[cw/3]*3)
     info_t.setStyle(TableStyle([
         ('BACKGROUND',(0,0),(-1,-1),BG_GRAY), ('BOX',(0,0),(-1,-1),0.4,colors.HexColor('#CCCCCC')),
         ('INNERGRID',(0,0),(-1,-1),0.4,colors.HexColor('#CCCCCC')),
@@ -317,9 +316,8 @@ def page3_story(data, cw, start_num=5):
 
     fs_g = 9 if n_sm <= 5 else 8 if n_sm <= 7 else 7
     hour_labels = [h['label'] for h in hours_data]
-    cut_label   = f"Corte\n+armado\n{schedule['cutMins']}min"
 
-    hdr = ['Sushiman'] + hour_labels + [cut_label]
+    hdr = ['Sushiman'] + hour_labels
     grid_rows = [hdr]
     for sm in sushimanes:
         row = [f"{sm['name']}\n{sm['prod']} r/h"]
@@ -327,14 +325,12 @@ def page3_story(data, cw, start_num=5):
             tasks = h['tasks'].get(str(sm['id']), [])
             cell  = '\n'.join(f"{t['name']}  x{t['qty']}" for t in tasks) if tasks else '—'
             row.append(cell)
-        row.append('')
         grid_rows.append(row)
 
     n_hours     = len(hours_data)
     sm_name_col = 28*mm
-    cut_col     = 22*mm
-    hour_col_w  = (cw - sm_name_col - cut_col) / n_hours if n_hours else 30*mm
-    col_widths  = [sm_name_col] + [hour_col_w] * n_hours + [cut_col]
+    hour_col_w  = (cw - sm_name_col) / n_hours if n_hours else 30*mm
+    col_widths  = [sm_name_col] + [hour_col_w] * n_hours
 
     gt = Table(grid_rows, colWidths=col_widths, repeatRows=1)
     gt.setStyle(TableStyle([
@@ -346,10 +342,8 @@ def page3_story(data, cw, start_num=5):
         ('BACKGROUND',(0,0),(-1,0),BG_DARK), ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
         ('FONTSIZE',(0,0),(-1,0),fs_g+1), ('TEXTCOLOR',(0,0),(-1,0),WHITE),
         ('BACKGROUND',(0,1),(0,-1),ACCENT), ('FONTNAME',(0,1),(0,-1),'Helvetica-Bold'),
-        ('ROWBACKGROUNDS',(1,1),(-2,-1),[WHITE,BG_GRAY]),
+        ('ROWBACKGROUNDS',(1,1),(-1,-1),[WHITE,BG_GRAY]),
         ('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-        ('BACKGROUND',(-1,0),(-1,-1),WARN_BG), ('FONTNAME',(-1,0),(-1,-1),'Helvetica-Bold'),
-        ('TEXTCOLOR',(-1,1),(-1,-1),colors.HexColor('#856404')), ('SPAN',(-1,1),(-1,-1)),
     ]))
     story.append(gt)
 
