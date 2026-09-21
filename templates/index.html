@@ -597,6 +597,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
       <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
       <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
+      <div class="tab" onclick="showTab('tuni',this)">Unidades</div>
     </div>
     <div id="tin">
       <div class="card">
@@ -666,6 +667,21 @@ input[type=range]{width:100%;accent-color:var(--text)}
         </div>
         <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_proveedores" class="w-full" placeholder="Buscar proveedor..." oninput="renderProveedorCfg()"></div>
         <div id="proveedorCfg"></div>
+      </div>
+    </div>
+
+    <div id="tuni" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Unidades</div>
+          <button class="btn btn-sm" onclick="openUnidadModal()"><i class="ti ti-plus"></i> Nueva unidad</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Estas son las unidades disponibles para elegir en cada insumo (tanto para "unidad en receta" como para "unidad en resumen"). Agregá las que necesites — por ejemplo, "Paquetes" o "Manga".</span>
+        </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_unidades" class="w-full" placeholder="Buscar unidad..." oninput="renderUnidadCfg()"></div>
+        <div id="unidadCfg"></div>
       </div>
     </div>
 
@@ -878,7 +894,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -893,11 +909,12 @@ async function loadConfig() {
       fetch('/api/proveedores').then(r=>r.json()),
       fetch('/api/rollo-blanco-grupos').then(r=>r.json()),
       fetch('/api/locales').then(r=>r.json()),
+      fetch('/api/unidades').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
-    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales;
+    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades;
     setupLocalSelector();
     const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const hoyNombre = DIAS_SEMANA[new Date().getDay()];
@@ -2578,6 +2595,58 @@ function zonaOptions(selected) {
   return `<option value="">Sin asignar</option>` + opts;
 }
 
+// ── Unidades (para los insumos: "unidad en receta" y "unidad en resumen") ──
+function renderUnidadCfg() {
+  const filtro = valorFiltro('filtro_unidades');
+  const lista = ST.unidades.filter(u => coincideBusqueda(filtro, u.nombre, u.simbolo));
+  let h='<table><thead><tr><th>Nombre</th><th>Símbolo</th><th style="width:170px"></th></tr></thead><tbody>';
+  lista.forEach(u=>{
+    const idxReal = ST.unidades.findIndex(x=>x.id===u.id);
+    const esPrimera = idxReal===0, esUltima = idxReal===ST.unidades.length-1;
+    h+=`<tr><td style="font-weight:600">${u.nombre}</td><td><span class="badge b-blue">${u.simbolo}</span></td>
+      <td><div class="row" style="gap:4px">
+        ${filtro ? `<span style="font-size:11px;color:var(--text3)" title="Limpiá la búsqueda para poder reordenar">—</span>` : `
+        <button class="btn btn-sm" onclick="moveUnidad(${u.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+        <button class="btn btn-sm" onclick="moveUnidad(${u.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+        `}
+        <button class="btn btn-sm" onclick="openUnidadModal(${u.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('unidades',${u.id},renderUnidadCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay unidades configuradas todavía.</div>';
+  document.getElementById('unidadCfg').innerHTML=h;
+}
+async function moveUnidad(id, direction) {
+  const idx = ST.unidades.findIndex(u=>u.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.unidades.length) return;
+  [ST.unidades[idx], ST.unidades[swapIdx]] = [ST.unidades[swapIdx], ST.unidades[idx]];
+  renderUnidadCfg();
+  await fetch('/api/unidades/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.unidades.map(u=>u.id)})});
+}
+function openUnidadModal(id) {
+  const unidad = id ? ST.unidades.find(u=>u.id===id) : null;
+  openModal(id?'Editar unidad':'Nueva unidad',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_nombre" class="w-full" value="${unidad?.nombre||''}" placeholder="Ej: Paquetes"></div>
+    <div><label class="form-lbl">Símbolo <span style="font-weight:400;color:var(--text3);text-transform:none">(corto, así se muestra en las recetas)</span></label>
+      <input type="text" id="m_simbolo" class="w-full" value="${unidad?.simbolo||''}" placeholder="Ej: paq"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUnidad(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveUnidad(id) {
+  const nombre=document.getElementById('m_nombre').value.trim();
+  const simbolo=document.getElementById('m_simbolo').value.trim();
+  if(!nombre||!simbolo){alert('Completá el nombre y el símbolo');return;}
+  const res = await fetch(id?`/api/unidades/${id}`:'/api/unidades',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,simbolo})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderUnidadCfg();
+}
+function unidadOptions(selected) {
+  return ST.unidades.map(u=>`<option value="${u.simbolo}" ${selected===u.simbolo?'selected':''}>${u.nombre} (${u.simbolo})</option>`).join('');
+}
+
 // ── Proveedores (con contactos) ──
 function renderProveedorCfg() {
   const filtro = valorFiltro('filtro_proveedores');
@@ -4001,15 +4070,9 @@ function openInsumoModal(id) {
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre visible</label><input type="text" id="m_label" class="w-full" value="${ins?.label||''}"></div>
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Unidad en receta</label><select id="m_ur" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="g" ${ins?.unidad_receta==='g'?'selected':''}>Gramos (g)</option>
-        <option value="ml" ${ins?.unidad_receta==='ml'?'selected':''}>Mililitros (ml)</option>
-        <option value="u" ${ins?.unidad_receta==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_receta==='hojas'?'selected':''}>Hojas</option></select></div>
+        ${unidadOptions(ins?.unidad_receta)}</select></div>
       <div><label class="form-lbl">Unidad en resumen</label><select id="m_us" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="kg" ${ins?.unidad_resumen==='kg'?'selected':''}>Kilogramos (kg)</option>
-        <option value="L" ${ins?.unidad_resumen==='L'?'selected':''}>Litros (L)</option>
-        <option value="u" ${ins?.unidad_resumen==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_resumen==='hojas'?'selected':''}>Hojas</option></select></div>
+        ${unidadOptions(ins?.unidad_resumen)}</select></div>
     </div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
       <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
