@@ -2057,7 +2057,7 @@ async function downloadPDF() {
   const payload={
     date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:ST.semis,
-    combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
+    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
