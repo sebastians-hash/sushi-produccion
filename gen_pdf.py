@@ -263,7 +263,10 @@ def page2_story(data, cw, start_num=3):
 
     it = _make_table(ins_rows, [110*mm, 75*mm], 11, ACCENT, True)
     story.append(it)
-    story.append(Spacer(1, 6*mm))
+
+    story.append(PageBreak())
+    story.append(cover_band(date_str, global_pct, cw))
+    story.append(Spacer(1, 5*mm))
 
     story.append(section_header(f"{start_num+1}  SEMIELABORADOS", cw))
     story.append(Spacer(1, 2*mm))
@@ -349,7 +352,9 @@ def page3_story(data, cw, start_num=5):
 
     semi_hourly = data.get('semiHourly', [])
     if semi_hourly:
-        story.append(Spacer(1, 5*mm))
+        story.append(PageBreak())
+        story.append(cover_band(date_str, global_pct, cw))
+        story.append(Spacer(1, 4*mm))
         story.append(section_header(f"{start_num+1}  SEMIELABORADOS POR HORA", cw))
         story.append(Spacer(1, 2*mm))
 
