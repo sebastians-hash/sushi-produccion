@@ -189,7 +189,7 @@ def init_db():
             nombre_alias TEXT NOT NULL,
             marca TEXT,
             factor REAL NOT NULL DEFAULT 1.0,
-            UNIQUE(tipo, nombre_alias)
+            UNIQUE(tipo, nombre_alias, marca)
         );
         CREATE TABLE IF NOT EXISTS sugerencias (
             id SERIAL PRIMARY KEY,
@@ -319,6 +319,18 @@ def init_db():
     if 'orden' not in marca_cols:
         c.execute("ALTER TABLE marcas ADD COLUMN orden INTEGER NOT NULL DEFAULT 0")
         c.execute("UPDATE marcas SET orden = id")  # respeta el orden en que se fueron creando, como punto de partida
+
+    # La restricción vieja no dejaba repetir un mismo nombre de venta entre marcas
+    # distintas, aunque fuera para el mismo producto — la reemplazamos por una que
+    # solo exige que sea único DENTRO de cada marca.
+    c.execute("ALTER TABLE equivalencias DROP CONSTRAINT IF EXISTS equivalencias_tipo_nombre_alias_key")
+    c.execute("""DO $$ BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'equivalencias_tipo_nombre_alias_marca_key'
+        ) THEN
+            ALTER TABLE equivalencias ADD CONSTRAINT equivalencias_tipo_nombre_alias_marca_key UNIQUE (tipo, nombre_alias, marca);
+        END IF;
+    END $$;""")
 
     # Sembrar las unidades que ya se usaban (antes fijas en el código) + las que se pidieron de arranque
     ya_hay_unidades = c.execute('SELECT COUNT(*) AS n FROM unidades').fetchone()['n']
