@@ -152,7 +152,8 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS marcas (
             id SERIAL PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL
+            name TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -307,6 +308,11 @@ def init_db():
     local_cols = get_columns('locales')
     if 'marcas' not in local_cols:
         c.execute("ALTER TABLE locales ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+
+    marca_cols = get_columns('marcas')
+    if 'orden' not in marca_cols:
+        c.execute("ALTER TABLE marcas ADD COLUMN orden INTEGER NOT NULL DEFAULT 0")
+        c.execute("UPDATE marcas SET orden = id")  # respeta el orden en que se fueron creando, como punto de partida
 
     sug_cols = get_columns('sugerencias')
     if 'referencia_tipo' not in sug_cols:
@@ -821,7 +827,10 @@ def restore_data():
                                'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
                                'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
                                'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id'])
-    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
+    for m in data.get('marcas', []):
+        if m.get('orden') is None:
+            m['orden'] = 0
+    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name', 'orden'])
     counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
                               ['email', 'nombre', 'role', 'active', 'created_at'])
     counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
@@ -1810,9 +1819,9 @@ def delete_sushiman(sm_id):
 @login_required
 def get_marcas():
     conn = get_db()
-    rows = conn.execute('SELECT * FROM marcas ORDER BY name').fetchall()
+    rows = conn.execute('SELECT * FROM marcas ORDER BY orden, name').fetchall()
     conn.close()
-    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+    return jsonify([{'id': r['id'], 'name': r['name'], 'orden': r['orden']} for r in rows])
 
 @app.route('/api/marcas', methods=['POST'])
 @admin_required
@@ -1820,12 +1829,26 @@ def create_marca():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM marcas').fetchone()['n']
+        conn.execute('INSERT INTO marcas (name, orden) VALUES (?,?)', (data['name'], siguiente_orden))
         conn.commit()
     except IntegrityError:
         conn.rollback()
         conn.close()
         return jsonify({'error': 'Esa marca ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/reorder', methods=['PUT'])
+@admin_required
+def reorder_marcas():
+    """Recibe la lista de ids de marca en el orden final deseado y reasigna 'orden' 0,1,2..."""
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, marca_id in enumerate(ids):
+        conn.execute('UPDATE marcas SET orden=? WHERE id=?', (idx, marca_id))
+    conn.commit()
     conn.close()
     return jsonify({'ok': True})
 
