@@ -2395,17 +2395,31 @@ function renderInsumoCfg() {
 function renderMarcaCfg() {
   const filtro = valorFiltro('filtro_marcas');
   const lista = ST.marcas.filter(m => coincideBusqueda(filtro, m.name));
-  let h='<table><thead><tr><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
-  lista.forEach(m=>{
+  let h='<table><thead><tr><th>Marca</th><th style="width:150px"></th></tr></thead><tbody>';
+  lista.forEach((m,i)=>{
+    const idxReal = ST.marcas.findIndex(x=>x.id===m.id);
+    const esPrimera = idxReal===0, esUltima = idxReal===ST.marcas.length-1;
     h+=`<tr><td style="font-weight:600">${m.name}</td>
       <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteItem('marcas',${m.id},renderMarcaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ${filtro ? `<span style="font-size:11px;color:var(--text3)" title="Limpiá la búsqueda para poder reordenar">—</span>` : `
+        <button class="btn btn-sm" onclick="moveMarca(${m.id},-1)" title="Subir" ${esPrimera?'disabled':''}><i class="ti ti-arrow-up"></i></button>
+        <button class="btn btn-sm" onclick="moveMarca(${m.id},1)" title="Bajar" ${esUltima?'disabled':''}><i class="ti ti-arrow-down"></i></button>
+        `}
+        <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('marcas',${m.id},renderMarcaCfg)" title="Eliminar"><i class="ti ti-trash"></i></button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
   if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
   document.getElementById('marcaCfg').innerHTML=h;
+}
+async function moveMarca(id, direction) {
+  const idx = ST.marcas.findIndex(m=>m.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.marcas.length) return;
+  [ST.marcas[idx], ST.marcas[swapIdx]] = [ST.marcas[swapIdx], ST.marcas[idx]];
+  renderMarcaCfg();
+  await fetch('/api/marcas/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.marcas.map(m=>m.id)})});
 }
 
 function openMarcaModal(id) {
