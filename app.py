@@ -1332,6 +1332,22 @@ def sync_equivalencias():
     if tipo not in ('combo', 'roll', 'otro_producto'):
         return jsonify({'error': 'Tipo inválido'}), 400
 
+    # Validamos ANTES de tocar la base: dos productos distintos no pueden usar el
+    # mismo texto como nombre de venta (rompería el matcheo, no sabría a cuál va).
+    # Si lo hiciéramos después de borrar lo viejo, un error acá perdería los datos
+    # existentes sin guardar nada nuevo en su lugar.
+    vistos = {}
+    for e in entries:
+        alias = (e.get('nombre_alias') or '').strip()
+        if not alias:
+            continue
+        clave = alias.lower()
+        if clave in vistos and vistos[clave] != e['nombre_canonico']:
+            return jsonify({'error': f'"{alias}" está repetido en más de un producto (en "{vistos[clave]}" y en "{e["nombre_canonico"]}"). '
+                                      f'Cada nombre de venta tiene que ser único — dejá la celda vacía si esa marca no lo vende, '
+                                      f'en vez de escribir "no aplica" o similar.'}), 400
+        vistos[clave] = e['nombre_canonico']
+
     conn = get_db()
     # Solo tocamos las filas CON marca (las de esta matriz) — las que no tienen marca
     # son códigos propios de cada producto (con o sin factor) y no se deben borrar acá.
