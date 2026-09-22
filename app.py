@@ -118,7 +118,14 @@ def init_db():
             productivity INTEGER NOT NULL DEFAULT 10,
             active INTEGER NOT NULL DEFAULT 1,
             dias_franco TEXT NOT NULL DEFAULT '[]',
-            horario_ingreso TEXT
+            horario_ingreso TEXT,
+            turno TEXT,
+            posicion_id INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS posiciones (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS insumos (
             id SERIAL PRIMARY KEY,
@@ -378,6 +385,12 @@ def init_db():
         first_local = c.execute('SELECT id FROM locales ORDER BY id LIMIT 1').fetchone()
         if first_local:
             c.execute('UPDATE sushimanes SET local_id=? WHERE local_id IS NULL', (first_local['id'],))
+
+    sm_cols = get_columns('sushimanes')
+    if 'turno' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN turno TEXT")
+    if 'posicion_id' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN posicion_id INTEGER")
 
     # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
     insumo_cols = get_columns('insumos')
@@ -786,7 +799,7 @@ def delete_local(local_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales', 'unidades']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales', 'unidades', 'posiciones']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -849,7 +862,11 @@ def restore_data():
         elif isinstance(sm['dias_franco'], list):
             sm['dias_franco'] = json.dumps(sm['dias_franco'])
     counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
-                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'local_id'])
+                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'turno', 'posicion_id', 'local_id'])
+    for p in data.get('posiciones', []):
+        if p.get('orden') is None:
+            p['orden'] = 0
+    counts['posiciones'] = upsert('posiciones', data.get('posiciones', []), 'name', ['name', 'orden'])
     # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
     for i in data.get('insumos', []):
         if i.get('es_80_20') is None:
@@ -1884,6 +1901,8 @@ def get_sushimanes():
                      'active': bool(r['active']),
                      'dias_franco': json.loads(r['dias_franco'] or '[]'),
                      'horario_ingreso': r['horario_ingreso'],
+                     'turno': r['turno'],
+                     'posicion_id': r['posicion_id'],
                      'local_id': r['local_id']} for r in rows])
 
 @app.route('/api/sushimanes', methods=['POST'])
@@ -1895,9 +1914,10 @@ def create_sushiman():
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn = get_db()
     try:
-        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, local_id) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, turno, posicion_id, local_id) VALUES (?,?,?,?,?,?,?)',
                      (data['name'], data.get('productivity', 10),
-                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, local_id))
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None,
+                      data.get('turno') or None, data.get('posicion_id') or None, local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1916,9 +1936,10 @@ def update_sushiman(sm_id):
         conn.close()
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     try:
-        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=? WHERE id=?',
+        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=?, turno=?, posicion_id=? WHERE id=?',
                      (data['name'], data['productivity'], int(data.get('active', True)),
-                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, sm_id))
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None,
+                      data.get('turno') or None, data.get('posicion_id') or None, sm_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1936,6 +1957,68 @@ def delete_sushiman(sm_id):
         conn.close()
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn.execute('DELETE FROM sushimanes WHERE id=?', (sm_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Posiciones (para los sushimanes) ──
+@app.route('/api/posiciones', methods=['GET'])
+@login_required
+def get_posiciones():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM posiciones ORDER BY orden, name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'orden': r['orden']} for r in rows])
+
+@app.route('/api/posiciones', methods=['POST'])
+@admin_required
+def create_posicion():
+    data = request.json
+    conn = get_db()
+    try:
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM posiciones').fetchone()['n']
+        conn.execute('INSERT INTO posiciones (name, orden) VALUES (?,?)', (data['name'].strip(), siguiente_orden))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe una posición con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/<int:pos_id>', methods=['PUT'])
+@admin_required
+def update_posicion(pos_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE posiciones SET name=? WHERE id=?', (data['name'].strip(), pos_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra posición con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/<int:pos_id>', methods=['DELETE'])
+@admin_required
+def delete_posicion(pos_id):
+    conn = get_db()
+    conn.execute('UPDATE sushimanes SET posicion_id=NULL WHERE posicion_id=?', (pos_id,))
+    conn.execute('DELETE FROM posiciones WHERE id=?', (pos_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/reorder', methods=['PUT'])
+@admin_required
+def reorder_posiciones():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, pos_id in enumerate(ids):
+        conn.execute('UPDATE posiciones SET orden=? WHERE id=?', (idx, pos_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
