@@ -204,6 +204,10 @@ def page1_story(data, cw, label=None):
         story.append(ct)
         story.append(Spacer(1, 3*mm))
 
+    story.append(PageBreak())
+    story.append(cover_band(date_str, global_pct, cw, label=label, turno=turno))
+    story.append(Spacer(1, 5*mm))
+
     story.append(section_header("2  ROLLOS A PRODUCIR", cw))
     story.append(Spacer(1, 2*mm))
 
