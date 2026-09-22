@@ -44,8 +44,8 @@ def section_header(title, width):
 def cover_band(date_str, global_pct, width, label=None, turno=None):
     title_style = S('dt', fontName='Helvetica-Bold', fontSize=18,
                     textColor=WHITE, leading=22)
-    sub_style   = S('ds', fontSize=9, textColor=colors.HexColor('#DDDDDD'),
-                    alignment=TA_RIGHT, leading=14)
+    sub_style   = S('ds', fontSize=13, textColor=colors.HexColor('#DDDDDD'),
+                    alignment=TA_RIGHT, leading=17)
 
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'kata_logo_square.png')
     logo_h = 30
@@ -63,7 +63,7 @@ def cover_band(date_str, global_pct, width, label=None, turno=None):
     t = Table([[ logo_cell,
                  Paragraph("PLANILLA DE PRODUCCION", title_style),
                  Paragraph(f"{date_str}{turno_txt}  |  {global_pct}% de la venta", sub_style) ]],
-              colWidths=[left_col_w, right_w*0.6, right_w*0.4])
+              colWidths=[left_col_w, right_w*0.57, right_w*0.43])
     t.setStyle(TableStyle([
         ('BACKGROUND',    (0,0),(-1,-1), BG_DARK),
         ('TOPPADDING',    (0,0),(-1,-1), 8),
