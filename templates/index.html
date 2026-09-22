@@ -298,7 +298,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="card"><div class="sec row-between"><span><i class="ti ti-package"></i> Insumos necesarios</span>
       <button class="btn btn-sm" onclick="descargarInsumosTotalesXlsx()" title="Incluye lo que se usa directo más lo que se gasta preparando los semielaborados"><i class="ti ti-file-spreadsheet"></i> Descargar insumos totales (Excel)</button>
     </div><div id="insumosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
+    <div class="card"><div class="sec row-between"><span><i class="ti ti-chef-hat"></i> Semielaborados</span>
+      <button class="btn btn-sm" id="btnToggleRecetas" onclick="toggleDetalleRecetasSemis()"><i class="ti ti-eye-off"></i> Ocultar recetas adaptadas</button>
+    </div><div id="semiTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
     <div class="card card-planilla2 hidden" id="remainingProdCard">
@@ -437,7 +439,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Equipo de sushimanes</div>
-          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          <div class="row" style="gap:6px">
+            <button class="btn btn-sm" onclick="openPosicionesModal()"><i class="ti ti-list"></i> Gestionar posiciones</button>
+            <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          </div>
         </div>
         <div id="smCfg"></div>
       </div>
@@ -896,7 +901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades,posiciones] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -912,11 +917,12 @@ async function loadConfig() {
       fetch('/api/rollo-blanco-grupos').then(r=>r.json()),
       fetch('/api/locales').then(r=>r.json()),
       fetch('/api/unidades').then(r=>r.json()),
+      fetch('/api/posiciones').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
-    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades;
+    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades; ST.posiciones=posiciones;
     setupLocalSelector();
     const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const hoyNombre = DIAS_SEMANA[new Date().getDay()];
@@ -1371,7 +1377,7 @@ function buildProductionTablesHtml(prod) {
   if(prod.semis.length) {
     prod.semis.forEach(s=>{
       sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
-      if(s.receta) {
+      if(s.receta && ST.mostrarRecetasSemis!==false) {
         sh+=`<tr><td colspan="3" style="padding:0;border-bottom:none">
           <div style="background:var(--warn-bg);margin:4px 0 8px;padding:10px 14px;border-radius:var(--rsm);border:1px solid #e6d5a0">
             <div style="font-size:12px;font-weight:700;color:#7a5500;margin-bottom:6px">
@@ -1443,6 +1449,14 @@ function setVistaProduccion(modo) {
   renderProduction();
 }
 
+function toggleDetalleRecetasSemis() {
+  ST.mostrarRecetasSemis = ST.mostrarRecetasSemis===false ? true : false;
+  const btn = document.getElementById('btnToggleRecetas');
+  btn.innerHTML = ST.mostrarRecetasSemis===false
+    ? '<i class="ti ti-eye"></i> Mostrar recetas adaptadas'
+    : '<i class="ti ti-eye-off"></i> Ocultar recetas adaptadas';
+  renderProduction();
+}
 function renderProduction() {
   const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100), family:s.family}));
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
@@ -2108,9 +2122,10 @@ async function downloadPDF() {
   const btn=document.getElementById('pdfBtn');
   btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
   const fechaDisplay = ST.schedule?.fecha ? new Date(ST.schedule.fecha+'T00:00:00').toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+  const semisParaPdf = s => (ST.mostrarRecetasSemis===false) ? s.map(({receta, ...resto})=>resto) : s;
   const payload={
     date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
-    production:ST.production, insumos:ST.insumos, semis:ST.semis,
+    production:ST.production, insumos:ST.insumos, semis:semisParaPdf(ST.semis),
     combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100),family:s.family})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
@@ -2120,7 +2135,7 @@ async function downloadPDF() {
       pct: ST.remainingProduction.pct,
       production: ST.remainingProduction.production,
       insumos: ST.remainingProduction.insumos,
-      semis: ST.remainingProduction.semis,
+      semis: semisParaPdf(ST.remainingProduction.semis),
       combos: ST.remainingProduction.combos,
       rollosBlancos: ST.remainingProduction.rollosBlancos
     };
@@ -2359,10 +2374,13 @@ async function guardarProgresoPlanilla(estado) {
 
 function renderSmCfg() {
   const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
-  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Turno</th><th>Posición</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
+    const posicion = ST.posiciones.find(p=>p.id===s.posicion_id);
     h+=`<tr><td><div class="row" style="gap:8px"><div class="avatar">${s.name.slice(0,2).toUpperCase()}</div><strong>${s.name}</strong></div></td>
       <td style="text-align:right">${s.productivity} rolls/h</td>
+      <td>${s.turno?`<span class="badge b-blue">${s.turno}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td>${posicion?`<span class="badge b-green">${posicion.name}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
       <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSmModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -3424,6 +3442,18 @@ function openSmModal(id) {
       <div><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
       <div><label class="form-lbl">Horario de ingreso habitual</label><input type="time" id="m_ingreso" class="w-full" step="1800" value="${sm?.horario_ingreso||''}"></div>
     </div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Turno</label><select id="m_turno" class="w-full">
+        <option value="">Sin definir</option>
+        <option value="Mañana" ${sm?.turno==='Mañana'?'selected':''}>Mañana</option>
+        <option value="Intermedio" ${sm?.turno==='Intermedio'?'selected':''}>Intermedio</option>
+        <option value="Noche" ${sm?.turno==='Noche'?'selected':''}>Noche</option>
+      </select></div>
+      <div><label class="form-lbl">Posición</label><select id="m_posicion" class="w-full">
+        <option value="">Sin definir</option>
+        ${ST.posiciones.map(p=>`<option value="${p.id}" ${sm?.posicion_id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select></div>
+    </div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
       <option value="1" ${sm?.active!==false?'selected':''}>Activo</option>
       <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>
@@ -3443,12 +3473,89 @@ async function saveSm(id) {
     name, productivity:parseInt(document.getElementById('m_prod').value)||10,
     active:document.getElementById('m_active').value==='1',
     dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null,
+    turno: document.getElementById('m_turno').value || null,
+    posicion_id: document.getElementById('m_posicion').value ? parseInt(document.getElementById('m_posicion').value) : null,
     local_id: ST.currentLocalId
   };
   const res = await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
+}
+
+// ── Posiciones (lista editable de puestos para sushimanes) ──
+function openPosicionesModal() {
+  openModalW('Posiciones', '<div id="posicionesListWrap"></div>', `<button class="btn" onclick="closeModalW()">Cerrar</button>`);
+  renderPosicionesModal();
+}
+function renderPosicionesModal() {
+  let h = `<div class="row" style="gap:6px;margin-bottom:1rem">
+    <input type="text" id="nuevaPosicionInput" class="w-full" placeholder="Nombre de la posición (ej: Corte, Armado, Sushiman)">
+    <button class="btn btn-primary" onclick="crearPosicion()" style="flex-shrink:0"><i class="ti ti-plus"></i> Agregar</button>
+  </div>`;
+  if (!ST.posiciones.length) {
+    h += '<div class="empty">Todavía no cargaste ninguna posición.</div>';
+  } else {
+    h += '<table><thead><tr><th>Posición</th><th style="width:150px"></th></tr></thead><tbody>';
+    ST.posiciones.forEach((p,i)=>{
+      const esPrimera = i===0, esUltima = i===ST.posiciones.length-1;
+      h += `<tr><td id="posNombre_${p.id}" style="font-weight:600">${p.name}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn btn-sm" onclick="movePosicion(${p.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+          <button class="btn btn-sm" onclick="movePosicion(${p.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+          <button class="btn btn-sm" onclick="editarPosicion(${p.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="eliminarPosicion(${p.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div></td></tr>`;
+    });
+    h += '</tbody></table>';
+  }
+  document.getElementById('posicionesListWrap').innerHTML = h;
+}
+async function crearPosicion() {
+  const input = document.getElementById('nuevaPosicionInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/posiciones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderPosicionesModal();
+}
+function editarPosicion(id) {
+  const p = ST.posiciones.find(x=>x.id===id);
+  const celda = document.getElementById(`posNombre_${id}`);
+  celda.innerHTML = `<input type="text" id="editPos_${id}" class="w-full" value="${p.name}" onkeydown="if(event.key==='Enter')guardarPosicion(${id})">`;
+  document.getElementById(`editPos_${id}`).focus();
+  // reemplazamos los botones de esa fila por Guardar/Cancelar mientras se edita
+  const fila = celda.closest('tr');
+  fila.querySelector('td:last-child').innerHTML = `
+    <div class="row" style="gap:4px">
+      <button class="btn btn-sm btn-primary" onclick="guardarPosicion(${id})">Guardar</button>
+      <button class="btn btn-sm" onclick="renderPosicionesModal()">Cancelar</button>
+    </div>`;
+}
+async function guardarPosicion(id) {
+  const name = document.getElementById(`editPos_${id}`).value.trim();
+  if (!name) return;
+  const res = await fetch(`/api/posiciones/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderPosicionesModal();
+}
+async function eliminarPosicion(id) {
+  if(!confirm('¿Eliminar esta posición? Los sushimanes que la tenían asignada quedarán sin posición.')) return;
+  await fetch(`/api/posiciones/${id}`, {method:'DELETE'});
+  await loadConfig();
+  renderPosicionesModal();
+}
+async function movePosicion(id, direction) {
+  const idx = ST.posiciones.findIndex(p=>p.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.posiciones.length) return;
+  [ST.posiciones[idx], ST.posiciones[swapIdx]] = [ST.posiciones[swapIdx], ST.posiciones[idx]];
+  renderPosicionesModal();
+  await fetch('/api/posiciones/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.posiciones.map(p=>p.id)})});
 }
 
 // ── Roll modal ──
