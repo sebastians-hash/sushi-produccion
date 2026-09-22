@@ -295,7 +295,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
+    <div class="card"><div class="sec row-between"><span><i class="ti ti-package"></i> Insumos necesarios</span>
+      <button class="btn btn-sm" onclick="descargarInsumosTotalesXlsx()" title="Incluye lo que se usa directo más lo que se gasta preparando los semielaborados"><i class="ti ti-file-spreadsheet"></i> Descargar insumos totales (Excel)</button>
+    </div><div id="insumosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
@@ -1300,7 +1302,7 @@ async function doConfirm() {
       body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
     const data=await res.json();
     if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
-    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[];
+    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[]; ST.insumosTotales=data.insumosTotales||[];
 
     // Si eligió dividir en 2 planillas, calculamos aparte la produccion del % restante
     // (solo para MOSTRAR como referencia — no pasa por el resto del flujo)
@@ -2133,6 +2135,24 @@ async function downloadPDF() {
     a.click(); URL.revokeObjectURL(url);
   } catch(e){ alert('Error al generar el PDF: '+e.message); }
   finally{ btn.innerHTML='<i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)'; btn.disabled=false; }
+}
+async function descargarInsumosTotalesXlsx() {
+  if (!ST.insumosTotales || !ST.insumosTotales.length) { alert('Todavía no hay insumos calculados para esta producción.'); return; }
+  const btn = event.currentTarget;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="loader"></span> Generando...'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/insumos-totales-xlsx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      date: new Date().toLocaleDateString('es-AR'), globalPct: ST.globalPct, insumosTotales: ST.insumosTotales
+    })});
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `insumos_totales_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Error al generar el Excel: '+e.message); }
+  finally { btn.innerHTML = original; btn.disabled = false; }
 }
 
 // ═══════════════════════════════════════════════════════
