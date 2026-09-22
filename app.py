@@ -135,7 +135,8 @@ def init_db():
             zona_almacenamiento TEXT,
             proveedor_principal_id INTEGER,
             proveedor_alt1_id INTEGER,
-            proveedor_alt2_id INTEGER
+            proveedor_alt2_id INTEGER,
+            eficiencia REAL NOT NULL DEFAULT 100
         );
         CREATE TABLE IF NOT EXISTS categorias_insumos (
             id SERIAL PRIMARY KEY,
@@ -389,6 +390,7 @@ def init_db():
         'proveedor_principal_id': "ALTER TABLE insumos ADD COLUMN proveedor_principal_id INTEGER",
         'proveedor_alt1_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt1_id INTEGER",
         'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
+        'eficiencia': "ALTER TABLE insumos ADD COLUMN eficiencia REAL NOT NULL DEFAULT 100",
     }
     for col, stmt in insumo_new_cols.items():
         if col not in insumo_cols:
@@ -851,11 +853,13 @@ def restore_data():
     for i in data.get('insumos', []):
         if i.get('es_80_20') is None:
             i['es_80_20'] = False
+        if i.get('eficiencia') is None:
+            i['eficiencia'] = 100
     counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
                               ['key', 'label', 'unidad_receta', 'unidad_resumen',
                                'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
                                'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
-                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id'])
+                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id', 'eficiencia'])
     for m in data.get('marcas', []):
         if m.get('orden') is None:
             m['orden'] = 0
@@ -2014,6 +2018,7 @@ def get_insumos():
         'proveedor_principal_id': r['proveedor_principal_id'],
         'proveedor_alt1_id': r['proveedor_alt1_id'],
         'proveedor_alt2_id': r['proveedor_alt2_id'],
+        'eficiencia': r['eficiencia'],
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
@@ -2024,13 +2029,14 @@ def create_insumo():
     try:
         conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
                         categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
-                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
-                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id')))
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      data.get('eficiencia', 100) or 100))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2048,12 +2054,13 @@ def update_insumo(ins_id):
         conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
                         factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
                         marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
-                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=? WHERE id=?''',
+                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=?, eficiencia=? WHERE id=?''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      data.get('eficiencia', 100) or 100,
                       ins_id))
         conn.commit()
     except IntegrityError:
@@ -2235,26 +2242,33 @@ def calcular():
             insumo_totals[k] = insumo_totals.get(k, 0) + v
 
     insumos_out = {}
-    for k, total in sorted(insumo_totals.items(), key=lambda x: -x[1]):
+    for k, total_receta in sorted(insumo_totals.items(), key=lambda x: -x[1]):
         master = insumos_master.get(k)
+        eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
+        # Lo que pide la receta no es lo que hay que comprar: si hay merma (fruta/verdura
+        # que se pudre, producto que queda pegado al envase, etc.), hay que comprar de más.
+        total = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        nota_eficiencia = f" — incluye {round(100-eficiencia)}% de merma estimada" if eficiencia < 100 else ""
         if master:
             label = master['label']
             factor = master['factor_conversion']
             unidad_resumen = master['unidad_resumen']
             converted = total * factor
-            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
+            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}{nota_eficiencia}"
         else:
             label = FALLBACK_LABELS.get(k, k)
             unit = 'hojas' if k == 'algas' else ('u' if k == 'langos' else 'g')
             if unit == 'g':
-                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg"
+                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg{nota_eficiencia}"
             elif unit == 'hojas':
-                display = f"{total:.1f} hojas"
+                display = f"{total:.1f} hojas{nota_eficiencia}"
             else:
-                display = f"{round(total)} u"
+                display = f"{round(total)} u{nota_eficiencia}"
         insumos_out[k] = {
             'label': label,
             'total': round(total, 1) if total < 100 else round(total),
+            'total_receta': round(total_receta, 1) if total_receta < 100 else round(total_receta),
+            'eficiencia': eficiencia,
             'display': display
         }
 
