@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime
 from gen_pdf import build_pdf
+from gen_xlsx import build_insumos_xlsx
 from parse_receta import parse_receta_pdf, match_insumo, formato_to_unidad
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -90,7 +91,9 @@ def init_db():
             name TEXT UNIQUE NOT NULL,
             insumos TEXT NOT NULL,
             piezas_por_rollo INTEGER NOT NULL DEFAULT 14,
-            rollo_blanco_grupo TEXT
+            rollo_blanco_grupo TEXT,
+            cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE,
+            toppings TEXT NOT NULL DEFAULT '[]'
         );
         CREATE TABLE IF NOT EXISTS rollo_blanco_grupos (
             id SERIAL PRIMARY KEY,
@@ -115,7 +118,14 @@ def init_db():
             productivity INTEGER NOT NULL DEFAULT 10,
             active INTEGER NOT NULL DEFAULT 1,
             dias_franco TEXT NOT NULL DEFAULT '[]',
-            horario_ingreso TEXT
+            horario_ingreso TEXT,
+            turno TEXT,
+            posicion_id INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS posiciones (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS insumos (
             id SERIAL PRIMARY KEY,
@@ -133,7 +143,8 @@ def init_db():
             zona_almacenamiento TEXT,
             proveedor_principal_id INTEGER,
             proveedor_alt1_id INTEGER,
-            proveedor_alt2_id INTEGER
+            proveedor_alt2_id INTEGER,
+            eficiencia REAL NOT NULL DEFAULT 100
         );
         CREATE TABLE IF NOT EXISTS categorias_insumos (
             id SERIAL PRIMARY KEY,
@@ -143,6 +154,12 @@ def init_db():
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS unidades (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            simbolo TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS proveedores (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -150,7 +167,8 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS marcas (
             id SERIAL PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL
+            name TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -180,12 +198,29 @@ def init_db():
             nombre_alias TEXT NOT NULL,
             marca TEXT,
             factor REAL NOT NULL DEFAULT 1.0,
-            UNIQUE(tipo, nombre_alias)
+            UNIQUE(tipo, nombre_alias, marca)
+        );
+        CREATE TABLE IF NOT EXISTS sugerencias (
+            id SERIAL PRIMARY KEY,
+            tipo TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'nueva',
+            respuesta_admin TEXT,
+            creado_por TEXT NOT NULL,
+            creado_por_nombre TEXT,
+            referencia_tipo TEXT,
+            referencia_id INTEGER,
+            referencia_nombre TEXT,
+            visto BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS locales (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1
+            active INTEGER NOT NULL DEFAULT 1,
+            marcas TEXT NOT NULL DEFAULT '[]'
         );
         CREATE TABLE IF NOT EXISTS usuario_locales (
             id SERIAL PRIMARY KEY,
@@ -280,6 +315,53 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN piezas_por_rollo INTEGER NOT NULL DEFAULT 14")
     if 'rollo_blanco_grupo' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN rollo_blanco_grupo TEXT")
+    if 'cuenta_productividad' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE")
+    if 'toppings' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN toppings TEXT NOT NULL DEFAULT '[]'")
+
+    local_cols = get_columns('locales')
+    if 'marcas' not in local_cols:
+        c.execute("ALTER TABLE locales ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+
+    marca_cols = get_columns('marcas')
+    if 'orden' not in marca_cols:
+        c.execute("ALTER TABLE marcas ADD COLUMN orden INTEGER NOT NULL DEFAULT 0")
+        c.execute("UPDATE marcas SET orden = id")  # respeta el orden en que se fueron creando, como punto de partida
+
+    # La restricción vieja no dejaba repetir un mismo nombre de venta entre marcas
+    # distintas, aunque fuera para el mismo producto — la reemplazamos por una que
+    # solo exige que sea único DENTRO de cada marca.
+    c.execute("ALTER TABLE equivalencias DROP CONSTRAINT IF EXISTS equivalencias_tipo_nombre_alias_key")
+    c.execute("""DO $$ BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'equivalencias_tipo_nombre_alias_marca_key'
+        ) THEN
+            ALTER TABLE equivalencias ADD CONSTRAINT equivalencias_tipo_nombre_alias_marca_key UNIQUE (tipo, nombre_alias, marca);
+        END IF;
+    END $$;""")
+
+    # Sembrar las unidades que ya se usaban (antes fijas en el código) + las que se pidieron de arranque
+    ya_hay_unidades = c.execute('SELECT COUNT(*) AS n FROM unidades').fetchone()['n']
+    if not ya_hay_unidades:
+        unidades_iniciales = [
+            ('Gramos', 'g'), ('Mililitros', 'ml'), ('Unidades', 'u'), ('Hojas', 'hojas'),
+            ('Kilogramos', 'kg'), ('Litros', 'L'),
+            ('Paquetes', 'paq'), ('Manga', 'manga'),
+        ]
+        for idx, (nombre, simbolo) in enumerate(unidades_iniciales):
+            c.execute('INSERT INTO unidades (nombre, simbolo, orden) VALUES (?,?,?) ON CONFLICT (simbolo) DO NOTHING', (nombre, simbolo, idx))
+
+    sug_cols = get_columns('sugerencias')
+    if 'referencia_tipo' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_tipo TEXT")
+    if 'referencia_id' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_id INTEGER")
+    if 'referencia_nombre' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN referencia_nombre TEXT")
+    if 'visto' not in sug_cols:
+        c.execute("ALTER TABLE sugerencias ADD COLUMN visto BOOLEAN NOT NULL DEFAULT TRUE")
+    conn.commit()
 
     sm_cols = get_columns('sushimanes')
     if 'dias_franco' not in sm_cols:
@@ -304,6 +386,12 @@ def init_db():
         if first_local:
             c.execute('UPDATE sushimanes SET local_id=? WHERE local_id IS NULL', (first_local['id'],))
 
+    sm_cols = get_columns('sushimanes')
+    if 'turno' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN turno TEXT")
+    if 'posicion_id' not in sm_cols:
+        c.execute("ALTER TABLE sushimanes ADD COLUMN posicion_id INTEGER")
+
     # Migration: nuevos atributos de insumos (categoria, 80/20, comentario, marca, proveedores, zona)
     insumo_cols = get_columns('insumos')
     insumo_new_cols = {
@@ -316,6 +404,7 @@ def init_db():
         'proveedor_principal_id': "ALTER TABLE insumos ADD COLUMN proveedor_principal_id INTEGER",
         'proveedor_alt1_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt1_id INTEGER",
         'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
+        'eficiencia': "ALTER TABLE insumos ADD COLUMN eficiencia REAL NOT NULL DEFAULT 100",
     }
     for col, stmt in insumo_new_cols.items():
         if col not in insumo_cols:
@@ -386,6 +475,7 @@ def handle_error(e):
 
 # ── Auth routes ──────────────────────────────────────────────────────────
 @app.route('/debug/env')
+@admin_required
 def debug_env():
     """Ruta temporal de diagnostico. Borrar despues de resolver el problema de login."""
     def mask(val, keep_start=12, keep_end=8):
@@ -553,6 +643,93 @@ def delete_usuario(usuario_id):
     conn.close()
     return jsonify({'ok': True})
 
+# ── Sugerencias (mejoras, correcciones de recetas, nuevas herramientas) ──
+@app.route('/api/sugerencias', methods=['GET'])
+@login_required
+def get_sugerencias():
+    conn = get_db()
+    if session.get('user_role') == 'admin':
+        rows = conn.execute('SELECT * FROM sugerencias ORDER BY created_at DESC').fetchall()
+    else:
+        rows = conn.execute('SELECT * FROM sugerencias WHERE creado_por=? ORDER BY created_at DESC',
+                             (session['user_email'],)).fetchall()
+        # Al entrar a ver su propia lista, el usuario ya "vio" las respuestas/cambios de estado
+        conn.execute('UPDATE sugerencias SET visto=TRUE WHERE creado_por=? AND visto=FALSE',
+                     (session['user_email'],))
+        conn.commit()
+    conn.close()
+    return jsonify([{'id': r['id'], 'tipo': r['tipo'], 'titulo': r['titulo'], 'descripcion': r['descripcion'],
+                     'estado': r['estado'], 'respuesta_admin': r['respuesta_admin'],
+                     'creado_por': r['creado_por'], 'creado_por_nombre': r['creado_por_nombre'],
+                     'referencia_tipo': r['referencia_tipo'], 'referencia_id': r['referencia_id'],
+                     'referencia_nombre': r['referencia_nombre'],
+                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+
+@app.route('/api/sugerencias/pendientes-count', methods=['GET'])
+@login_required
+def get_sugerencias_pendientes_count():
+    conn = get_db()
+    if session.get('user_role') == 'admin':
+        count = conn.execute("SELECT COUNT(*) AS cnt FROM sugerencias WHERE estado='nueva'").fetchone()['cnt']
+    else:
+        count = conn.execute('SELECT COUNT(*) AS cnt FROM sugerencias WHERE creado_por=? AND visto=FALSE',
+                             (session['user_email'],)).fetchone()['cnt']
+    conn.close()
+    return jsonify({'count': count})
+
+@app.route('/api/sugerencias', methods=['POST'])
+@login_required
+def create_sugerencia():
+    data = request.json
+    titulo = (data.get('titulo') or '').strip()
+    descripcion = (data.get('descripcion') or '').strip()
+    tipo = data.get('tipo')
+    if not titulo or not descripcion or tipo not in ('mejora', 'correccion_receta', 'nueva_herramienta'):
+        return jsonify({'error': 'Completá el tipo, el título y la descripción'}), 400
+    ref_tipo = data.get('referencia_tipo')
+    if ref_tipo not in ('roll', 'semielaborado', 'combo', 'otro_producto'):
+        ref_tipo = None
+    conn = get_db()
+    conn.execute('''INSERT INTO sugerencias (tipo, titulo, descripcion, creado_por, creado_por_nombre,
+                    referencia_tipo, referencia_id, referencia_nombre)
+                    VALUES (?,?,?,?,?,?,?,?)''',
+                 (tipo, titulo, descripcion, session['user_email'], session.get('user_name', ''),
+                  ref_tipo, data.get('referencia_id') if ref_tipo else None,
+                  data.get('referencia_nombre') if ref_tipo else None))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sugerencias/<int:sug_id>', methods=['PUT'])
+@admin_required
+def update_sugerencia(sug_id):
+    data = request.json
+    estado = data.get('estado')
+    if estado not in ('nueva', 'en_revision', 'aceptada', 'rechazada', 'implementada'):
+        return jsonify({'error': 'Estado inválido'}), 400
+    conn = get_db()
+    conn.execute('''UPDATE sugerencias SET estado=?, respuesta_admin=?, visto=FALSE, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 (estado, data.get('respuesta_admin') or None, sug_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/sugerencias/<int:sug_id>', methods=['DELETE'])
+@login_required
+def delete_sugerencia(sug_id):
+    conn = get_db()
+    row = conn.execute('SELECT creado_por FROM sugerencias WHERE id=?', (sug_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    if session.get('user_role') != 'admin' and row['creado_por'] != session['user_email']:
+        conn.close()
+        return jsonify({'error': 'No podés borrar una sugerencia de otro usuario'}), 403
+    conn.execute('DELETE FROM sugerencias WHERE id=?', (sug_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 # ── Locales ──
 @app.route('/api/locales', methods=['GET'])
 @login_required
@@ -567,7 +744,8 @@ def get_locales():
         placeholders = ','.join('?' * len(allowed))
         rows = conn.execute(f'SELECT * FROM locales WHERE id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
     conn.close()
-    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active'])} for r in rows])
+    return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active']),
+                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
 
 @app.route('/api/locales', methods=['POST'])
 @admin_required
@@ -575,7 +753,8 @@ def create_local():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO locales (name, active) VALUES (?,?)', (data['name'].strip(), int(data.get('active', True))))
+        conn.execute('INSERT INTO locales (name, active, marcas) VALUES (?,?,?)',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', []))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -590,8 +769,8 @@ def update_local(local_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE locales SET name=?, active=? WHERE id=?',
-                     (data['name'].strip(), int(data.get('active', True)), local_id))
+        conn.execute('UPDATE locales SET name=?, active=?, marcas=? WHERE id=?',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', [])), local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -620,7 +799,7 @@ def delete_local(local_id):
 @admin_required
 def backup_data():
     conn = get_db()
-    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales']
+    TABLES = ['combos', 'rolls', 'semielaborados', 'sushimanes', 'insumos', 'marcas', 'usuarios', 'familias', 'otros_productos', 'equivalencias', 'categorias_insumos', 'zonas_almacenamiento', 'proveedores', 'rollo_blanco_grupos', 'locales', 'usuario_locales', 'unidades', 'posiciones']
     data = {'version': 1, 'exported_at': datetime.now().isoformat()}
     for table in TABLES:
         rows = conn.execute(f'SELECT * FROM {table}').fetchall()
@@ -667,8 +846,12 @@ def restore_data():
     for r in data.get('rolls', []):
         if r.get('piezas_por_rollo') is None:
             r['piezas_por_rollo'] = 14
+        if r.get('cuenta_productividad') is None:
+            r['cuenta_productividad'] = True
+        if r.get('toppings') is None:
+            r['toppings'] = '[]'
     counts['rolls'] = upsert('rolls', data.get('rolls', []), 'name',
-                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo'])
+                              ['name', 'insumos', 'marcas', 'piezas_por_rollo', 'rollo_blanco_grupo', 'cuenta_productividad', 'toppings'])
     counts['semielaborados'] = upsert('semielaborados', data.get('semielaborados', []), 'name',
                               ['name', 'insumo_key', 'unit', 'rolls', 'receta',
                                'rendimiento_cantidad', 'rendimiento_unidad', 'marcas',
@@ -679,17 +862,26 @@ def restore_data():
         elif isinstance(sm['dias_franco'], list):
             sm['dias_franco'] = json.dumps(sm['dias_franco'])
     counts['sushimanes'] = upsert('sushimanes', data.get('sushimanes', []), 'name',
-                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'local_id'])
+                              ['name', 'productivity', 'active', 'dias_franco', 'horario_ingreso', 'turno', 'posicion_id', 'local_id'])
+    for p in data.get('posiciones', []):
+        if p.get('orden') is None:
+            p['orden'] = 0
+    counts['posiciones'] = upsert('posiciones', data.get('posiciones', []), 'name', ['name', 'orden'])
     # Backups viejos no tienen los atributos nuevos de insumos; les damos defaults seguros
     for i in data.get('insumos', []):
         if i.get('es_80_20') is None:
             i['es_80_20'] = False
+        if i.get('eficiencia') is None:
+            i['eficiencia'] = 100
     counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
                               ['key', 'label', 'unidad_receta', 'unidad_resumen',
                                'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
                                'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
-                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id'])
-    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name'])
+                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id', 'eficiencia'])
+    for m in data.get('marcas', []):
+        if m.get('orden') is None:
+            m['orden'] = 0
+    counts['marcas'] = upsert('marcas', data.get('marcas', []), 'name', ['name', 'orden'])
     counts['usuarios'] = upsert('usuarios', data.get('usuarios', []), 'email',
                               ['email', 'nombre', 'role', 'active', 'created_at'])
     counts['familias'] = upsert('familias', data.get('familias', []), 'name', ['name'])
@@ -702,9 +894,13 @@ def restore_data():
                               ['name', 'tipo', 'familia', 'insumos', 'marcas', 'rolls', 'procedimiento'])
     counts['categorias_insumos'] = upsert('categorias_insumos', data.get('categorias_insumos', []), 'name', ['name'])
     counts['zonas_almacenamiento'] = upsert('zonas_almacenamiento', data.get('zonas_almacenamiento', []), 'name', ['name'])
+    for u in data.get('unidades', []):
+        if u.get('orden') is None:
+            u['orden'] = 0
+    counts['unidades'] = upsert('unidades', data.get('unidades', []), 'simbolo', ['nombre', 'simbolo', 'orden'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
     counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
-    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active'])
+    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active', 'marcas'])
 
     # usuario_locales: clave compuesta, reemplazo completo simple (igual que equivalencias)
     ul_rows = data.get('usuario_locales', [])
@@ -855,6 +1051,15 @@ def _slugify_insumo(nombre):
     key = '_'.join(key.split())
     return key or 'insumo'
 
+def _fmt_cant(n):
+    """Redondea a 2 decimales pero sin mostrar decimales de más (0.75 se
+    muestra como '0.75', 3.0 se muestra como '3') — antes se usaba round()
+    sin decimales, que convertía 0.75 hojas en 1 hoja."""
+    r = round(n, 2)
+    if r == int(r):
+        return str(int(r))
+    return f"{r:g}"
+
 @app.route('/api/importar-recetas-pdf', methods=['POST'])
 @admin_required
 def importar_recetas_pdf():
@@ -870,7 +1075,6 @@ def importar_recetas_pdf():
     conn = get_db()
     insumos_rows = conn.execute('SELECT key, label FROM insumos').fetchall()
     semis_rows = conn.execute('SELECT insumo_key AS key, name AS label FROM semielaborados').fetchall()
-    conn.close()
     catalogo = [dict(r) for r in insumos_rows] + [dict(r) for r in semis_rows]
 
     resultados = []
@@ -898,7 +1102,23 @@ def importar_recetas_pdf():
                 'formato': ing['formato'],
                 'unidad_sugerida': ing['unidad'],
                 'match_sugerido': match,  # {'key','label','score'} o None
+                'es_semielaborado_sugerido': ing.get('es_semielaborado_sugerido', False),
             })
+
+        # Verificar si ya existe un producto/semielaborado con este mismo nombre,
+        # y si ese existente ya tiene una receta cargada (para no pisar datos buenos sin avisar)
+        ya_existe = False
+        ya_existe_tiene_receta = False
+        if parsed['es_semielaborado']:
+            existente = conn.execute('SELECT receta FROM semielaborados WHERE LOWER(name)=LOWER(?)', (parsed['titulo'],)).fetchone()
+            if existente:
+                ya_existe = True
+                ya_existe_tiene_receta = bool(json.loads(existente['receta'] or '[]'))
+        else:
+            existente = conn.execute('SELECT insumos FROM otros_productos WHERE LOWER(name)=LOWER(?)', (parsed['titulo'],)).fetchone()
+            if existente:
+                ya_existe = True
+                ya_existe_tiene_receta = bool(json.loads(existente['insumos'] or '{}'))
 
         resultados.append({
             'archivo': f.filename,
@@ -913,8 +1133,11 @@ def importar_recetas_pdf():
             'procedimiento_pasos': parsed['procedimiento_pasos'],
             'raciones': parsed['raciones'],
             'cantidad': parsed['cantidad'],
+            'ya_existe': ya_existe,
+            'ya_existe_tiene_receta': ya_existe_tiene_receta,
         })
 
+    conn.close()
     return jsonify({'resultados': resultados})
 
 @app.route('/api/confirmar-importacion-recetas', methods=['POST'])
@@ -922,18 +1145,23 @@ def importar_recetas_pdf():
 def confirmar_importacion_recetas():
     """Recibe la lista de recetas ya revisadas/confirmadas por el usuario
     (con el tipo definitivo, familia, y cada ingrediente ya vinculado a un
-    insumo existente o marcado para crear uno nuevo) y las guarda."""
+    insumo o semielaborado existente, o marcado para crear uno nuevo) y las guarda.
+    Si una receta ya existe (mismo nombre) y viene con actualizar_existente=true,
+    actualiza ese registro en lugar de crear uno nuevo — así conserva su id y su
+    insumo_key, y sigue bien vinculado desde cualquier otra receta que ya lo use."""
     data = request.json
     recetas = data.get('recetas', [])
     conn = get_db()
     creados_insumos = 0
+    creados_semis_placeholder = 0
     creados_productos = 0
+    actualizados = 0
     errores = []
 
     def resolver_ingredientes(ingredientes):
-        """Devuelve una lista de (key, cantidad) resolviendo/creando insumos nuevos
-        donde haga falta. Actualiza el contador creados_insumos por closure."""
-        nonlocal creados_insumos
+        """Devuelve una lista de (key, cantidad) resolviendo/creando insumos o
+        semielaborados nuevos donde haga falta. Actualiza los contadores por closure."""
+        nonlocal creados_insumos, creados_semis_placeholder
         resueltos = []
         for ing in ingredientes:
             if ing.get('excluir'):
@@ -952,6 +1180,21 @@ def confirmar_importacion_recetas():
                                     VALUES (?,?,?,?,?,?)''',
                                  (key, nueva_label, unidad, unidad_resumen, factor, 'Importado desde PDF'))
                     creados_insumos += 1
+            elif not key and ing.get('crear_semi_nuevo'):
+                nueva_label = (ing.get('nombre') or '').strip()
+                key = _slugify_insumo(nueva_label)
+                ya_existe_insumo = conn.execute('SELECT 1 FROM insumos WHERE key=?', (key,)).fetchone()
+                ya_existe_semi = conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (key,)).fetchone()
+                if not ya_existe_insumo and not ya_existe_semi:
+                    unidad = ing.get('unidad') or 'g'
+                    unit = 'u' if unidad == 'u' else 'g'
+                    # Semielaborado "placeholder": queda creado pero sin receta propia
+                    # todavía — se puede completar más tarde a mano o re-importando su
+                    # propia ficha (que lo va a actualizar en vez de duplicarlo).
+                    conn.execute('''INSERT INTO semielaborados (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas)
+                                    VALUES (?,?,?,?,?,?,?,?)''',
+                                 (nueva_label, key, unit, json.dumps({}), json.dumps([]), 0, unidad, json.dumps([])))
+                    creados_semis_placeholder += 1
             if key and ing.get('peso_neto') is not None:
                 resueltos.append((key, float(ing['peso_neto'])))
         return resueltos
@@ -963,30 +1206,36 @@ def confirmar_importacion_recetas():
             continue
 
         if receta.get('es_semielaborado'):
-            ya_existe = conn.execute('SELECT 1 FROM semielaborados WHERE name=?', (nombre,)).fetchone()
-            if ya_existe:
-                errores.append(f'"{nombre}": ya existe un semielaborado con ese nombre, se omitió')
+            existente = conn.execute('SELECT id, insumo_key FROM semielaborados WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
+            if existente and not receta.get('actualizar_existente'):
+                errores.append(f'"{nombre}": ya existe un semielaborado con ese nombre, se omitió (no se marcó para actualizar)')
                 continue
 
             resueltos = resolver_ingredientes(receta.get('ingredientes', []))
             receta_lista = [{'key': k, 'cantidad': c} for k, c in resueltos]
-
-            insumo_key = _slugify_insumo(nombre)
-            ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
-                             conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (insumo_key,)).fetchone()
-            if ya_existe_key:
-                insumo_key = f'{insumo_key}_2'
-
             rend_unidad = receta.get('rendimiento_unidad') or 'g'
             unit = 'u' if rend_unidad == 'u' else 'g'
 
-            conn.execute('''INSERT INTO semielaborados
-                            (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas, vida_util_dias)
-                            VALUES (?,?,?,?,?,?,?,?,?)''',
-                         (nombre, insumo_key, unit, json.dumps({}), json.dumps(receta_lista),
-                          receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
-                          receta.get('vida_util_dias')))
-            creados_productos += 1
+            if existente:
+                # Actualiza el registro existente MANTENIENDO su id e insumo_key,
+                # para que las recetas que ya lo usaban sigan bien vinculadas.
+                conn.execute('''UPDATE semielaborados SET unit=?, receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, vida_util_dias=? WHERE id=?''',
+                             (unit, json.dumps(receta_lista), receta.get('rendimiento_cantidad') or 0,
+                              rend_unidad, receta.get('vida_util_dias'), existente['id']))
+                actualizados += 1
+            else:
+                insumo_key = _slugify_insumo(nombre)
+                ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
+                                 conn.execute('SELECT 1 FROM semielaborados WHERE insumo_key=?', (insumo_key,)).fetchone()
+                if ya_existe_key:
+                    insumo_key = f'{insumo_key}_2'
+                conn.execute('''INSERT INTO semielaborados
+                                (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas, vida_util_dias)
+                                VALUES (?,?,?,?,?,?,?,?,?)''',
+                             (nombre, insumo_key, unit, json.dumps({}), json.dumps(receta_lista),
+                              receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
+                              receta.get('vida_util_dias')))
+                creados_productos += 1
             continue
 
         tipo = receta.get('tipo')
@@ -994,9 +1243,9 @@ def confirmar_importacion_recetas():
             errores.append(f'"{nombre}": tipo inválido, se omitió')
             continue
 
-        ya_existe_producto = conn.execute('SELECT 1 FROM otros_productos WHERE name=?', (nombre,)).fetchone()
-        if ya_existe_producto:
-            errores.append(f'"{nombre}": ya existe un producto con ese nombre, se omitió')
+        existente = conn.execute('SELECT id FROM otros_productos WHERE LOWER(name)=LOWER(?)', (nombre,)).fetchone()
+        if existente and not receta.get('actualizar_existente'):
+            errores.append(f'"{nombre}": ya existe un producto con ese nombre, se omitió (no se marcó para actualizar)')
             continue
 
         resueltos = resolver_ingredientes(receta.get('ingredientes', []))
@@ -1004,16 +1253,24 @@ def confirmar_importacion_recetas():
         for key, cantidad in resueltos:
             insumos_dict[key] = insumos_dict.get(key, 0) + cantidad
 
-        conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
-                        VALUES (?,?,?,?,?,?,?)''',
-                     (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
-                      json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
-        creados_productos += 1
+        if existente:
+            conn.execute('''UPDATE otros_productos SET tipo=?, familia=?, insumos=?, procedimiento=? WHERE id=?''',
+                         (tipo, receta.get('familia', ''), json.dumps(insumos_dict),
+                          json.dumps(receta.get('procedimiento_pasos', [])), existente['id']))
+            actualizados += 1
+        else:
+            conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
+                            VALUES (?,?,?,?,?,?,?)''',
+                         (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
+                          json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
+            creados_productos += 1
 
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'creados_insumos': creados_insumos,
-                     'creados_productos': creados_productos, 'errores': errores})
+                     'creados_semis_placeholder': creados_semis_placeholder,
+                     'creados_productos': creados_productos, 'actualizados': actualizados,
+                     'errores': errores})
 
 # ── Equivalencias (mismo producto, distinto nombre por marca) ──
 @app.route('/api/equivalencias', methods=['GET'])
@@ -1117,6 +1374,22 @@ def sync_equivalencias():
     entries = data.get('entries', [])  # [{nombre_canonico, marca, nombre_alias}]
     if tipo not in ('combo', 'roll', 'otro_producto'):
         return jsonify({'error': 'Tipo inválido'}), 400
+
+    # Validamos ANTES de tocar la base: dos productos distintos no pueden usar el
+    # mismo texto como nombre de venta (rompería el matcheo, no sabría a cuál va).
+    # Si lo hiciéramos después de borrar lo viejo, un error acá perdería los datos
+    # existentes sin guardar nada nuevo en su lugar.
+    vistos = {}
+    for e in entries:
+        alias = (e.get('nombre_alias') or '').strip()
+        if not alias:
+            continue
+        clave = alias.lower()
+        if clave in vistos and vistos[clave] != e['nombre_canonico']:
+            return jsonify({'error': f'"{alias}" está repetido en más de un producto (en "{vistos[clave]}" y en "{e["nombre_canonico"]}"). '
+                                      f'Cada nombre de venta tiene que ser único — dejá la celda vacía si esa marca no lo vende, '
+                                      f'en vez de escribir "no aplica" o similar.'}), 400
+        vistos[clave] = e['nombre_canonico']
 
     conn = get_db()
     # Solo tocamos las filas CON marca (las de esta matriz) — las que no tienen marca
@@ -1226,6 +1499,69 @@ def update_zona_almacenamiento(zona_id):
 def delete_zona_almacenamiento(zona_id):
     conn = get_db()
     conn.execute('DELETE FROM zonas_almacenamiento WHERE id=?', (zona_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Unidades (para los insumos) ──
+@app.route('/api/unidades', methods=['GET'])
+@login_required
+def get_unidades():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM unidades ORDER BY orden, nombre').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'nombre': r['nombre'], 'simbolo': r['simbolo'], 'orden': r['orden']} for r in rows])
+
+@app.route('/api/unidades', methods=['POST'])
+@admin_required
+def create_unidad():
+    data = request.json
+    conn = get_db()
+    try:
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM unidades').fetchone()['n']
+        conn.execute('INSERT INTO unidades (nombre, simbolo, orden) VALUES (?,?,?)',
+                     (data['nombre'].strip(), data['simbolo'].strip(), siguiente_orden))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe una unidad con ese símbolo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/<int:unidad_id>', methods=['PUT'])
+@admin_required
+def update_unidad(unidad_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE unidades SET nombre=?, simbolo=? WHERE id=?',
+                     (data['nombre'].strip(), data['simbolo'].strip(), unidad_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra unidad con ese símbolo'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/<int:unidad_id>', methods=['DELETE'])
+@admin_required
+def delete_unidad(unidad_id):
+    conn = get_db()
+    conn.execute('DELETE FROM unidades WHERE id=?', (unidad_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/unidades/reorder', methods=['PUT'])
+@admin_required
+def reorder_unidades():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, unidad_id in enumerate(ids):
+        conn.execute('UPDATE unidades SET orden=? WHERE id=?', (idx, unidad_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -1351,7 +1687,9 @@ def get_rolls():
                      'insumos': json.loads(r['insumos']),
                      'marcas': json.loads(r['marcas'] or '[]'),
                      'piezas_por_rollo': r['piezas_por_rollo'],
-                     'rollo_blanco_grupo': r['rollo_blanco_grupo']} for r in rows])
+                     'rollo_blanco_grupo': r['rollo_blanco_grupo'],
+                     'cuenta_productividad': bool(r['cuenta_productividad']),
+                     'toppings': json.loads(r['toppings'] or '[]')} for r in rows])
 
 @app.route('/api/rolls', methods=['POST'])
 @admin_required
@@ -1359,9 +1697,10 @@ def create_roll():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO rolls (name, insumos, marcas, piezas_por_rollo, rollo_blanco_grupo, cuenta_productividad, toppings) VALUES (?,?,?,?,?,?,?)',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None,
+                      bool(data.get('cuenta_productividad', True)), json.dumps(data.get('toppings', []))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1376,9 +1715,10 @@ def update_roll(roll_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=? WHERE id=?',
+        conn.execute('UPDATE rolls SET name=?, insumos=?, marcas=?, piezas_por_rollo=?, rollo_blanco_grupo=?, cuenta_productividad=?, toppings=? WHERE id=?',
                      (data['name'], json.dumps(data['insumos']), json.dumps(data.get('marcas', [])),
-                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None, roll_id))
+                      data.get('piezas_por_rollo', 14), data.get('rollo_blanco_grupo') or None,
+                      bool(data.get('cuenta_productividad', True)), json.dumps(data.get('toppings', [])), roll_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1561,6 +1901,8 @@ def get_sushimanes():
                      'active': bool(r['active']),
                      'dias_franco': json.loads(r['dias_franco'] or '[]'),
                      'horario_ingreso': r['horario_ingreso'],
+                     'turno': r['turno'],
+                     'posicion_id': r['posicion_id'],
                      'local_id': r['local_id']} for r in rows])
 
 @app.route('/api/sushimanes', methods=['POST'])
@@ -1572,9 +1914,10 @@ def create_sushiman():
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn = get_db()
     try:
-        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, local_id) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO sushimanes (name, productivity, dias_franco, horario_ingreso, turno, posicion_id, local_id) VALUES (?,?,?,?,?,?,?)',
                      (data['name'], data.get('productivity', 10),
-                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, local_id))
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None,
+                      data.get('turno') or None, data.get('posicion_id') or None, local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1593,9 +1936,10 @@ def update_sushiman(sm_id):
         conn.close()
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     try:
-        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=? WHERE id=?',
+        conn.execute('UPDATE sushimanes SET name=?, productivity=?, active=?, dias_franco=?, horario_ingreso=?, turno=?, posicion_id=? WHERE id=?',
                      (data['name'], data['productivity'], int(data.get('active', True)),
-                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None, sm_id))
+                      json.dumps(data.get('dias_franco', [])), data.get('horario_ingreso') or None,
+                      data.get('turno') or None, data.get('posicion_id') or None, sm_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1617,14 +1961,76 @@ def delete_sushiman(sm_id):
     conn.close()
     return jsonify({'ok': True})
 
+# ── Posiciones (para los sushimanes) ──
+@app.route('/api/posiciones', methods=['GET'])
+@login_required
+def get_posiciones():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM posiciones ORDER BY orden, name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'orden': r['orden']} for r in rows])
+
+@app.route('/api/posiciones', methods=['POST'])
+@admin_required
+def create_posicion():
+    data = request.json
+    conn = get_db()
+    try:
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM posiciones').fetchone()['n']
+        conn.execute('INSERT INTO posiciones (name, orden) VALUES (?,?)', (data['name'].strip(), siguiente_orden))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe una posición con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/<int:pos_id>', methods=['PUT'])
+@admin_required
+def update_posicion(pos_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE posiciones SET name=? WHERE id=?', (data['name'].strip(), pos_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otra posición con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/<int:pos_id>', methods=['DELETE'])
+@admin_required
+def delete_posicion(pos_id):
+    conn = get_db()
+    conn.execute('UPDATE sushimanes SET posicion_id=NULL WHERE posicion_id=?', (pos_id,))
+    conn.execute('DELETE FROM posiciones WHERE id=?', (pos_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/posiciones/reorder', methods=['PUT'])
+@admin_required
+def reorder_posiciones():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, pos_id in enumerate(ids):
+        conn.execute('UPDATE posiciones SET orden=? WHERE id=?', (idx, pos_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 # ── Marcas ──
 @app.route('/api/marcas', methods=['GET'])
 @login_required
 def get_marcas():
     conn = get_db()
-    rows = conn.execute('SELECT * FROM marcas ORDER BY name').fetchall()
+    rows = conn.execute('SELECT * FROM marcas ORDER BY orden, name').fetchall()
     conn.close()
-    return jsonify([{'id': r['id'], 'name': r['name']} for r in rows])
+    return jsonify([{'id': r['id'], 'name': r['name'], 'orden': r['orden']} for r in rows])
 
 @app.route('/api/marcas', methods=['POST'])
 @admin_required
@@ -1632,12 +2038,26 @@ def create_marca():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO marcas (name) VALUES (?)', (data['name'],))
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM marcas').fetchone()['n']
+        conn.execute('INSERT INTO marcas (name, orden) VALUES (?,?)', (data['name'], siguiente_orden))
         conn.commit()
     except IntegrityError:
         conn.rollback()
         conn.close()
         return jsonify({'error': 'Esa marca ya existe'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/marcas/reorder', methods=['PUT'])
+@admin_required
+def reorder_marcas():
+    """Recibe la lista de ids de marca en el orden final deseado y reasigna 'orden' 0,1,2..."""
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, marca_id in enumerate(ids):
+        conn.execute('UPDATE marcas SET orden=? WHERE id=?', (idx, marca_id))
+    conn.commit()
     conn.close()
     return jsonify({'ok': True})
 
@@ -1682,6 +2102,7 @@ def get_insumos():
         'proveedor_principal_id': r['proveedor_principal_id'],
         'proveedor_alt1_id': r['proveedor_alt1_id'],
         'proveedor_alt2_id': r['proveedor_alt2_id'],
+        'eficiencia': r['eficiencia'],
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
@@ -1692,18 +2113,19 @@ def create_insumo():
     try:
         conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
                         categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
-                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
-                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id')))
+                      data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      data.get('eficiencia', 100) or 100))
         conn.commit()
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe un insumo con esa clave'}), 400
+        return jsonify({'error': 'Ya existe un insumo con un nombre muy similar. Probá con un nombre distinto (ej: agregando la marca o una aclaración).'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -1716,18 +2138,19 @@ def update_insumo(ins_id):
         conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
                         factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
                         marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
-                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=? WHERE id=?''',
+                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=?, eficiencia=? WHERE id=?''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
+                      data.get('eficiencia', 100) or 100,
                       ins_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
         conn.close()
-        return jsonify({'error': 'Ya existe otro insumo con esa clave'}), 400
+        return jsonify({'error': 'Ya existe otro insumo con un nombre muy similar. Probá con un nombre distinto.'}), 400
     conn.close()
     return jsonify({'ok': True})
 
@@ -1759,10 +2182,13 @@ def calcular():
                  for r in conn.execute('SELECT name, piezas_por_rollo FROM rolls').fetchall()}
     roll_grupo_db = {r['name']: r['rollo_blanco_grupo']
                  for r in conn.execute('SELECT name, rollo_blanco_grupo FROM rolls').fetchall()}
+    roll_cuenta_prod_db = {r['name']: bool(r['cuenta_productividad'])
+                 for r in conn.execute('SELECT name, cuenta_productividad FROM rolls').fetchall()}
     otros_db  = {r['name']: {'tipo': r['tipo'], 'insumos': json.loads(r['insumos']), 'rolls': json.loads(r['rolls'] or '{}')}
                  for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+    proveedores_db = {r['id']: r['name'] for r in conn.execute('SELECT id, name FROM proveedores').fetchall()}
 
     # Equivalencias: mismo producto, distinto nombre segun la marca que lo vendio
     def norm(s):
@@ -1857,7 +2283,8 @@ def calcular():
 
     production = sorted(
         [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
-          'piezas': v * (roll_piezas_db.get(k, 14) or 14)} for k, v in roll_totals.items() if v > 0],
+          'piezas': v * (roll_piezas_db.get(k, 14) or 14),
+          'cuentaProductividad': roll_cuenta_prod_db.get(k, True)} for k, v in roll_totals.items() if v > 0],
         key=lambda x: -x['qty']
     )
 
@@ -1900,26 +2327,33 @@ def calcular():
             insumo_totals[k] = insumo_totals.get(k, 0) + v
 
     insumos_out = {}
-    for k, total in sorted(insumo_totals.items(), key=lambda x: -x[1]):
+    for k, total_receta in sorted(insumo_totals.items(), key=lambda x: -x[1]):
         master = insumos_master.get(k)
+        eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
+        # Lo que pide la receta no es lo que hay que comprar: si hay merma (fruta/verdura
+        # que se pudre, producto que queda pegado al envase, etc.), hay que comprar de más.
+        total = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        nota_eficiencia = f" — incluye {round(100-eficiencia)}% de merma estimada" if eficiencia < 100 else ""
         if master:
             label = master['label']
             factor = master['factor_conversion']
             unidad_resumen = master['unidad_resumen']
             converted = total * factor
-            display = f"{round(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
+            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}{nota_eficiencia}"
         else:
             label = FALLBACK_LABELS.get(k, k)
             unit = 'hojas' if k == 'algas' else ('u' if k == 'langos' else 'g')
             if unit == 'g':
-                display = f"{round(total)} g / {total/1000:.2f} kg"
+                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg{nota_eficiencia}"
             elif unit == 'hojas':
-                display = f"{total:.1f} hojas"
+                display = f"{total:.1f} hojas{nota_eficiencia}"
             else:
-                display = f"{round(total)} u"
+                display = f"{round(total)} u{nota_eficiencia}"
         insumos_out[k] = {
             'label': label,
             'total': round(total, 1) if total < 100 else round(total),
+            'total_receta': round(total_receta, 1) if total_receta < 100 else round(total_receta),
+            'eficiencia': eficiencia,
             'display': display
         }
 
@@ -1927,6 +2361,37 @@ def calcular():
     # (o "otros productos": porciones, ensaladas, entradas, platos calientes)
     # incluyen su insumo_key en su receta (no depende de una lista manual)
     semis_by_key = {s['insumo_key']: s['name'] for s in semis_db}
+    semis_by_key_full = {s['insumo_key']: s for s in semis_db}
+
+    # Para el reporte de "insumos totales" (neto de recetas + lo que se gasta
+    # PREPARANDO cada semielaborado) hace falta bajar hasta los insumos crudos,
+    # aunque un semielaborado use OTRO semielaborado en su propia receta.
+    insumo_totals_expandido = dict(insumo_totals)
+    insumos_sin_vincular = {}  # ingredientes de receta sin 'key' -> no se pueden ligar a un insumo real
+
+    def expandir_insumos_de_semi(semi_key, cantidad_necesaria, visitados=frozenset()):
+        if semi_key in visitados:
+            return  # corta ante una dependencia circular entre semielaborados
+        semi_row = semis_by_key_full.get(semi_key)
+        if not semi_row:
+            return
+        receta = json.loads(semi_row['receta'] or '[]')
+        rend_cant = semi_row['rendimiento_cantidad'] or 0
+        if not receta or rend_cant <= 0:
+            return
+        scale = cantidad_necesaria / rend_cant
+        for ing in receta:
+            cant = ing['cantidad'] * scale
+            k = ing.get('key')
+            if k and insumos_master.get(k):
+                insumo_totals_expandido[k] = insumo_totals_expandido.get(k, 0) + cant
+            elif k and semis_by_key_full.get(k):
+                expandir_insumos_de_semi(k, cant, visitados | {semi_key})
+            else:
+                nombre = ing.get('nombre') or k or '?'
+                unidad = ing.get('unidad', 'g')
+                clave = f"{nombre}|{unidad}"
+                insumos_sin_vincular[clave] = insumos_sin_vincular.get(clave, 0) + cant
 
     def resolve_ing(ing):
         """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
@@ -1959,6 +2424,7 @@ def calcular():
                 total += amt * otro['qty']
                 used_in.append(otro['name'])
         if total > 0:
+            expandir_insumos_de_semi(semi['insumo_key'], total)
             unit = semi['unit']
             display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
                        else f"{round(total)} u")
@@ -1993,12 +2459,42 @@ def calcular():
                 }
             semis_out.append(semi_out)
 
+    # Reporte de "insumos totales": todo lo que hace falta comprar, sumando lo que
+    # se usa directo mas lo que se gasta PREPARANDO cada semielaborado (ya bajado
+    # a insumos crudos), con la categoria/proveedor de cada uno para poder pedirlo.
+    insumos_totales_out = []
+    for k, total_receta in sorted(insumo_totals_expandido.items(), key=lambda x: -x[1]):
+        master = insumos_master.get(k)
+        eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
+        total_bruto = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        insumos_totales_out.append({
+            'insumo': master['label'] if master else FALLBACK_LABELS.get(k, k),
+            'cantidad_neta': round(total_receta, 2),
+            'unidad': master['unidad_receta'] if master else 'g',
+            'eficiencia': eficiencia,
+            'cantidad_bruta': round(total_bruto, 2),
+            'categoria': (master.get('categoria') if master else None) or '',
+            'proveedor': (proveedores_db.get(master.get('proveedor_principal_id')) if master else None) or '',
+        })
+    for clave, total_receta in sorted(insumos_sin_vincular.items(), key=lambda x: -x[1]):
+        nombre, unidad = clave.rsplit('|', 1)
+        insumos_totales_out.append({
+            'insumo': nombre + ' (sin vincular a un insumo)',
+            'cantidad_neta': round(total_receta, 2),
+            'unidad': unidad,
+            'eficiencia': 100,
+            'cantidad_bruta': round(total_receta, 2),
+            'categoria': '',
+            'proveedor': '',
+        })
+
     return jsonify({
         'production': production,
         'insumos': insumos_out,
         'semis': semis_out,
         'otrosProductos': otros_productos_out,
-        'rollosBlancos': rollos_blancos_out
+        'rollosBlancos': rollos_blancos_out,
+        'insumosTotales': insumos_totales_out
     })
 
 # ── Generar PDF ──
@@ -2108,6 +2604,20 @@ def generar_pdf():
     return send_file(tmp.name, as_attachment=True,
                      download_name=f'produccion_{date_str}.pdf',
                      mimetype='application/pdf')
+
+@app.route('/api/insumos-totales-xlsx', methods=['POST'])
+@login_required
+def generar_insumos_totales_xlsx():
+    body = request.json
+    rows = body.get('insumosTotales', [])
+    date_str = body.get('date', datetime.now().strftime('%d-%m-%Y'))
+    global_pct = body.get('globalPct', 100)
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_insumos_xlsx(rows, date_str, global_pct, tmp.name)
+    return send_file(tmp.name, as_attachment=True,
+                     download_name=f'insumos_totales_{date_str}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── Importar recetas desde Excel ──────────────────────────────────────────
 @app.route('/api/importar/rolls', methods=['POST'])

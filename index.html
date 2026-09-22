@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180.png">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -88,6 +88,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .flex-end{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .form-lbl{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.search-box-wrap{position:relative;margin-bottom:12px;max-width:340px}
+.search-box-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;pointer-events:none}
+.search-box-wrap input{padding-left:32px}
 .w-full{width:100%}
 .drop{border:2px dashed var(--border);border-radius:var(--r);padding:2.5rem;text-align:center;
   cursor:pointer;color:var(--text3);transition:all .12s}
@@ -109,6 +112,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
 .alert-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #e6d5a0}
 .alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #c3d0f0}
 .sch-info{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.sched-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--rsm)}
+.sched-table{border-collapse:collapse;width:100%;min-width:600px}
+.sched-table th,.sched-table td{border:1px solid var(--border);padding:8px 10px}
+.sched-table thead th{background:var(--beige2);color:var(--text);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1}
+.sched-table tbody th{background:var(--beige);text-align:left}
+.sched-table tbody tr:nth-child(even) td:not(.sched-cell-filled){background:var(--bg)}
+.sched-cell-empty{text-align:center;color:var(--text3);background:var(--surface)}
+.sched-cell-filled{background:var(--blue-bg);color:var(--blue);font-size:12px;line-height:1.5}
 .sch-cell-info{background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 12px;text-align:center;font-size:12px;color:var(--text2)}
 .sch-cell-info strong{display:block;font-size:16px;color:var(--text);margin-top:2px}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
@@ -173,29 +184,33 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
       </div>
       {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
-      <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i></a>
+      <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i> Salir</a>
     </div>
   </header>
 
   <div class="main-nav">
     <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
-    {% if is_admin %}
     <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
     <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
+    {% if is_admin %}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
+    {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
+    {% if is_admin %}
     <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
     {% endif %}
   </div>
 
-  <div id="mainProduccion">
-    <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
-      <div class="row" style="gap:10px;align-items:center">
-        <i class="ti ti-building-store"></i>
-        <label class="form-lbl" style="margin:0">Local</label>
-        <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
-      </div>
+  <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+    <div class="row" style="gap:10px;align-items:center">
+      <i class="ti ti-building-store"></i>
+      <label class="form-lbl" style="margin:0">Local</label>
+      <select id="localSelector" style="flex:1;max-width:280px" onchange="onLocalChange()"></select>
     </div>
+  </div>
+
+  <div id="mainProduccion">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
       <div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>
@@ -205,9 +220,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div class="steps">
     <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
     <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
-    <div class="step" id="si3"><span class="step-n">3</span>Confirm.</div>
-    <div class="step" id="si4"><span class="step-n">4</span>Producción</div>
-    <div class="step" id="si5"><span class="step-n">5</span>Planif.</div>
+    <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
+    <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
   </div>
 
   <!-- ── STEP 1 ── -->
@@ -264,34 +278,29 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="flex-end">
       <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Ver resumen <i class="ti ti-arrow-right"></i></button>
+      <button class="btn btn-primary" onclick="doConfirm()" id="btnConfirm">Calcular producción <i class="ti ti-arrow-right"></i></button>
     </div>
   </div>
 
   <!-- ── STEP 3 ── -->
-  <div id="s3" class="hidden">
+  <!-- ── STEP 4 ── -->
+  <div id="s4" class="hidden">
     <div class="card">
       <div class="card-title">Resumen de producción</div>
       <div class="metrics" id="sumMetrics"></div>
-      <div class="sec"><i class="ti ti-list"></i> Rollos a producir</div>
-      <div id="sumRolls"></div>
     </div>
-    <div class="flex-end">
-      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Ajustar</button>
-      <button class="btn btn-primary" onclick="goStep(4)">Avanzar a producción <i class="ti ti-arrow-right"></i></button>
-    </div>
-  </div>
-
-  <!-- ── STEP 4 ── -->
-  <div id="s4" class="hidden">
     <div class="tabs hidden" id="vistaProdSwitch" style="margin-bottom:1rem">
       <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);margin-right:5px"></span>Separado</div>
       <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
     </div>
     <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
     <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-package"></i> Insumos necesarios</div><div id="insumosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-chef-hat"></i> Semielaborados</div><div id="semiTbl"></div></div>
+    <div class="card"><div class="sec row-between"><span><i class="ti ti-package"></i> Insumos necesarios</span>
+      <button class="btn btn-sm" onclick="descargarInsumosTotalesXlsx()" title="Incluye lo que se usa directo más lo que se gasta preparando los semielaborados"><i class="ti ti-file-spreadsheet"></i> Descargar insumos totales (Excel)</button>
+    </div><div id="insumosTbl"></div></div>
+    <div class="card"><div class="sec row-between"><span><i class="ti ti-chef-hat"></i> Semielaborados</span>
+      <button class="btn btn-sm" id="btnToggleRecetas" onclick="toggleDetalleRecetasSemis()"><i class="ti ti-eye-off"></i> Ocultar recetas adaptadas</button>
+    </div><div id="semiTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
     <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
     <div class="card card-planilla2 hidden" id="remainingProdCard">
@@ -312,8 +321,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div id="remainingCombosTbl"></div>
     </div>
     <div class="flex-end">
-      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
-      <button class="btn btn-primary" onclick="goStep(5)">Planificar <i class="ti ti-arrow-right"></i></button>
+      <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Planificar <i class="ti ti-arrow-right"></i></button>
     </div>
   </div>
 
@@ -321,30 +330,46 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div id="s5" class="hidden">
     <div class="card">
       <div class="card-title">Configuración del turno</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
         <div>
-          <label class="form-lbl">Hora de inicio <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
-          <div class="row" style="gap:4px">
-            <select id="startTimeManualH" style="flex:1"><option value="">--</option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
-            <span>:</span>
-            <select id="startTimeManualM" style="flex:1"><option value="00">00</option><option value="30">30</option></select>
-          </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">Vacío = automático</div>
+          <label class="form-lbl">Fecha de la planilla</label>
+          <input type="date" id="planillaFecha" class="w-full">
         </div>
         <div>
-          <label class="form-lbl">Hora de fin de producción</label>
+          <label class="form-lbl">Turno</label>
+          <select id="planillaTurno" class="w-full">
+            <option value="Mañana">Mañana</option>
+            <option value="Noche" selected>Noche</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
+        <div>
+          <label class="form-lbl">Inicio de la grilla</label>
           <div class="row" style="gap:4px">
-            <select id="endTimeH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20" selected>20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <select id="startTimeManualH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15" selected>15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <span>:</span>
+            <select id="startTimeManualM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Si hace falta más tiempo, la grilla se extiende antes de esta hora</div>
+        </div>
+        <div>
+          <label class="form-lbl">Fin de rolls</label>
+          <div class="row" style="gap:4px">
+            <select id="endTimeH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18" selected>18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
             <span>:</span>
             <select id="endTimeM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
           </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Se calcula hacia atrás desde esta hora, según ingreso y productividad de cada sushiman</div>
         </div>
         <div>
-          <label class="form-lbl">Corte y armado</label>
-          <div class="row">
-            <input type="number" id="cutMins" value="60" min="0" max="240" style="width:80px">
-            <span style="font-size:13px;color:var(--text2)">min</span>
+          <label class="form-lbl">Cierre total del turno</label>
+          <div class="row" style="gap:4px">
+            <select id="cierreTotalH" style="flex:1"><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20" selected>20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <span>:</span>
+            <select id="cierreTotalM" style="flex:1"><option value="00" selected>00</option><option value="30">30</option></select>
           </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">La grilla llega hasta esta hora, para asignar corte/armado a mano</div>
         </div>
       </div>
       <div class="sec"><i class="ti ti-users"></i> Sushimanes disponibles hoy</div>
@@ -403,7 +428,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       </div>
     </div>
     <div class="flex-end">
-      <button class="btn" onclick="goStep(4)"><i class="ti ti-arrow-left"></i> Atrás</button>
+      <button class="btn" onclick="goStep(3)"><i class="ti ti-arrow-left"></i> Atrás</button>
     </div>
   </div>
 
@@ -414,7 +439,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Equipo de sushimanes</div>
-          <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          <div class="row" style="gap:6px">
+            <button class="btn btn-sm" onclick="openPosicionesModal()"><i class="ti ti-list"></i> Gestionar posiciones</button>
+            <button class="btn btn-sm" onclick="openSmModal()"><i class="ti ti-plus"></i> Nuevo</button>
+          </div>
         </div>
         <div id="smCfg"></div>
       </div>
@@ -443,8 +471,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Combos configurados</div>
-          <button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>
+          {% if is_admin %}<button class="btn btn-sm" onclick="openComboModal()"><i class="ti ti-plus"></i> Nuevo combo</button>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_combos" class="w-full" placeholder="Buscar combo..." oninput="renderComboCfg()"></div>
         <div id="comboCfg"></div>
       </div>
     </div>
@@ -452,9 +481,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Porciones</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'porcion')"><i class="ti ti-plus"></i> Nueva porción</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('porcion')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_porciones" class="w-full" placeholder="Buscar porción..." oninput="renderPorcionesCfg()"></div>
         <div id="porcionCfg"></div>
       </div>
     </div>
@@ -462,9 +492,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Ensaladas</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'ensalada')"><i class="ti ti-plus"></i> Nueva ensalada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('ensalada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_ensaladas" class="w-full" placeholder="Buscar ensalada..." oninput="renderEnsaladasCfg()"></div>
         <div id="ensaladaCfg"></div>
       </div>
     </div>
@@ -472,9 +503,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Entradas</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'entrada')"><i class="ti ti-plus"></i> Nueva entrada</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('entrada')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_entradas" class="w-full" placeholder="Buscar entrada..." oninput="renderEntradasCfg()"></div>
         <div id="entradaCfg"></div>
       </div>
     </div>
@@ -482,9 +514,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Platos Calientes</div>
-          <div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
-                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>
+          {% if is_admin %}<div class="row" style="gap:8px"><button class="btn btn-sm" onclick="openOtroProductoModal(null,null,'plato_caliente')"><i class="ti ti-plus"></i> Nuevo plato</button>
+                    <button class="btn btn-sm" onclick="openImportarRecetasModal('plato_caliente')"><i class="ti ti-file-upload"></i> Importar desde PDF</button></div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_platosCalientes" class="w-full" placeholder="Buscar plato..." oninput="renderPlatosCalientesCfg()"></div>
         <div id="platoCalienteCfg"></div>
       </div>
     </div>
@@ -493,17 +526,22 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div id="mainRecetas" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tr',this)">Rolls</div>
+      {% if is_admin %}
       <div class="tab" onclick="showTab('trbg',this)">Grupos de rollo blanco</div>
+      {% endif %}
       <div class="tab" onclick="showTab('ts',this)">Semielaborados</div>
+      {% if is_admin %}
       <div class="tab" onclick="showTab('tma',this)">Marcas</div>
       <div class="tab" onclick="showTab('tfa',this)">Familias</div>
+      {% endif %}
     </div>
 <div id="tr">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Rolls</div>
-          <button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>
+          {% if is_admin %}<button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_rolls" class="w-full" placeholder="Buscar roll..." oninput="renderRollCfg()"></div>
         <div id="rollCfg"></div>
       </div>
     </div><div id="trbg" class="hidden">
@@ -516,17 +554,19 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Agrupá los rolls que llevan el mismo relleno y solo cambian de cobertura (ej: Apaltado, Napoli, Buenos Aires, Lango Mex). En la producción del día vas a ver estos rolls sumados como uno solo antes de diferenciarlos.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_rolloBlancoGrupos" class="w-full" placeholder="Buscar grupo..." oninput="renderRolloBlancoGrupoCfg()"></div>
         <div id="rolloBlancoGrupoCfg"></div>
       </div>
     </div><div id="ts" class="hidden">
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Semielaborados</div>
-          <div class="row" style="gap:8px">
+          {% if is_admin %}<div class="row" style="gap:8px">
             <button class="btn btn-sm" onclick="openSemiModal()"><i class="ti ti-plus"></i> Nuevo</button>
             <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
-          </div>
+          </div>{% endif %}
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_semis" class="w-full" placeholder="Buscar semielaborado..." oninput="renderSemiCfg()"></div>
         <div id="semiCfg"></div>
       </div>
     </div><div id="tma" class="hidden">
@@ -539,6 +579,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Administrá las marcas para las que producís. Después podés asignar una o más marcas a cada combo, roll y semielaborado — las recetas compartidas pueden marcarse con varias.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_marcas" class="w-full" placeholder="Buscar marca..." oninput="renderMarcaCfg()"></div>
         <div id="marcaCfg"></div>
       </div>
     </div><div id="tfa" class="hidden">
@@ -549,8 +590,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
         </div>
         <div class="alert alert-info" style="margin-bottom:1rem">
           <i class="ti ti-info-circle"></i>
-          <span>Las familias agrupan combos y otros productos (ej: Alaska, Tokyo, Porciones, Ensaladas). Se usan en el paso de ajuste de venta para organizar todo por categoría.</span>
+          <span>Las familias agrupan combos (ej: Alaska, Tokyo, Black). Se usan en el paso de ajuste de venta para organizar todo por categoría. Porciones, ensaladas, entradas y platos calientes ya se agrupan solos por su propio tipo, sin necesitar familia.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_familias" class="w-full" placeholder="Buscar familia..." oninput="renderFamiliaCfg()"></div>
         <div id="familiaCfg"></div>
       </div>
     </div>
@@ -562,6 +604,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('tcat',this)">Categorías</div>
       <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
       <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
+      <div class="tab" onclick="showTab('tuni',this)">Unidades</div>
     </div>
     <div id="tin">
       <div class="card">
@@ -587,6 +630,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           </select>
           <button class="btn btn-sm" onclick="limpiarFiltrosInsumo()" title="Limpiar filtros"><i class="ti ti-filter-x"></i> Limpiar</button>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_insumos" class="w-full" placeholder="Buscar insumo..." oninput="renderInsumoCfg()"></div>
         <div id="insumoCfg"></div>
       </div>
     </div>
@@ -600,6 +644,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Agrupá los insumos por categoría (ej: Verduras, Proteínas, Secos) para organizarlos en la tabla maestra.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_categorias" class="w-full" placeholder="Buscar categoría..." oninput="renderCategoriaCfg()"></div>
         <div id="categoriaCfg"></div>
       </div>
     </div>
@@ -613,6 +658,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Dónde se guarda cada insumo (ej: Cámara de frío, Depósito secos, Heladera). Se asigna al editar cada insumo.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_zonas" class="w-full" placeholder="Buscar zona..." oninput="renderZonaCfg()"></div>
         <div id="zonaCfg"></div>
       </div>
     </div>
@@ -626,7 +672,23 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Cargá tus proveedores y sus contactos. Después podés asignarle a cada insumo un proveedor principal y hasta dos alternativos, para más adelante calcular compras por proveedor.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_proveedores" class="w-full" placeholder="Buscar proveedor..." oninput="renderProveedorCfg()"></div>
         <div id="proveedorCfg"></div>
+      </div>
+    </div>
+
+    <div id="tuni" class="hidden">
+      <div class="card">
+        <div class="row-between" style="margin-bottom:1rem">
+          <div class="card-title" style="margin:0">Unidades</div>
+          <button class="btn btn-sm" onclick="openUnidadModal()"><i class="ti ti-plus"></i> Nueva unidad</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Estas son las unidades disponibles para elegir en cada insumo (tanto para "unidad en receta" como para "unidad en resumen"). Agregá las que necesites — por ejemplo, "Paquetes" o "Manga".</span>
+        </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_unidades" class="w-full" placeholder="Buscar unidad..." oninput="renderUnidadCfg()"></div>
+        <div id="unidadCfg"></div>
       </div>
     </div>
 
@@ -646,6 +708,20 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
   </div>
 
+  <div id="mainSugerencias" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Sugerencias</div>
+        <button class="btn btn-sm btn-primary" onclick="openSugerenciaModal()"><i class="ti ti-plus"></i> Nueva sugerencia</button>
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1rem" id="sugerenciasInfoAlert">
+        <i class="ti ti-info-circle"></i>
+        <span></span>
+      </div>
+      <div id="sugerenciasCfg"></div>
+    </div>
+  </div>
+
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
@@ -662,6 +738,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Cada local tiene su propia planilla de producción, sus sushimanes y su historial — pero comparten el mismo catálogo de combos, rolls, recetas e insumos.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_locales" class="w-full" placeholder="Buscar local..." oninput="renderLocalCfg()"></div>
         <div id="localCfg"></div>
       </div>
     </div>
@@ -675,6 +752,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
           <i class="ti ti-info-circle"></i>
           <span>Solo las cuentas de Google registradas acá pueden entrar a la app. <strong>Admin</strong> ve y edita Configuración; <strong>Usuario</strong> solo usa el flujo de producción.</span>
         </div>
+        <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_usuarios" class="w-full" placeholder="Buscar por nombre o email..." oninput="renderUsuarioCfg()"></div>
         <div id="usuarioCfg"></div>
       </div>
     </div>
@@ -795,6 +873,23 @@ const INSUMO_LABELS = {
 };
 const INSUMO_KEYS = Object.keys(INSUMO_LABELS);
 
+// ── Buscador reutilizable para las tablas de configuración ──
+// Los inputs de búsqueda viven FUERA del contenedor que cada render*Cfg()
+// reemplaza por completo, así no pierden el foco al tipear (si estuvieran
+// dentro del innerHTML que se regenera, se perdería el cursor en cada letra).
+function _normTexto(s) {
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function coincideBusqueda(query, ...campos) {
+  if (!query) return true;
+  const q = _normTexto(query);
+  return campos.some(c => _normTexto(c).includes(q));
+}
+function valorFiltro(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
 // ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
@@ -806,7 +901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades,posiciones] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -821,11 +916,13 @@ async function loadConfig() {
       fetch('/api/proveedores').then(r=>r.json()),
       fetch('/api/rollo-blanco-grupos').then(r=>r.json()),
       fetch('/api/locales').then(r=>r.json()),
+      fetch('/api/unidades').then(r=>r.json()),
+      fetch('/api/posiciones').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
-    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales;
+    ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades; ST.posiciones=posiciones;
     setupLocalSelector();
     const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const hoyNombre = DIAS_SEMANA[new Date().getDay()];
@@ -838,6 +935,7 @@ async function loadConfig() {
     if (IS_ADMIN) {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
     }
+    refreshSugerenciasBadge();
   } catch(e){ console.error('loadConfig',e); }
 }
 
@@ -845,7 +943,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',admin:'mainAdmin'};
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',sugerencias:'mainSugerencias',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -855,6 +953,7 @@ function goMainSection(name) {
   if(name==='recetas') renderRollCfg();
   if(name==='insumos') renderInsumoCfg();
   if(name==='equivalencias'){ renderEquivalenciaCfg(); }
+  if(name==='sugerencias'){ renderSugerenciasCfg(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -886,22 +985,50 @@ function onLocalChange() {
   ST.currentLocalId = parseInt(document.getElementById('localSelector').value);
   renderSmCfg();
   renderHistorialCfg();
+  renderComboCfg();
+  renderPorcionesCfg();
+  renderEnsaladasCfg();
+  renderEntradasCfg();
+  renderPlatosCalientesCfg();
+  renderRollCfg();
+  renderSemiCfg();
 }
 
+// ── Filtro de marcas por local: si el local actual tiene alguna marca
+// habilitada, solo se ven productos/rolls/semis de esas marcas (los que no
+// tienen ninguna marca asignada quedan ocultos). Sin ninguna marca marcada
+// en el local, no se filtra nada — se ve todo como siempre.
+function localActualTieneFiltroMarca() {
+  const local = ST.locales.find(l => l.id === ST.currentLocalId);
+  return !!(local && local.marcas && local.marcas.length);
+}
+function visibleParaLocalActual(itemMarcas) {
+  const local = ST.locales.find(l => l.id === ST.currentLocalId);
+  if (!local || !local.marcas || !local.marcas.length) return true;
+  if (!itemMarcas || !itemMarcas.length) return false;
+  return itemMarcas.some(m => local.marcas.includes(m));
+}
+
+const STEP_DIV_IDS = [1, 2, 4, 5]; // paso lógico (1..4) -> sufijo real del div/indicador (se salta el 3, que ya no existe)
 function goStep(n) {
-  if(n>1&&n<6&&!ST.sales.length) return;
+  if(n>1&&n<5&&!ST.sales.length) return;
   ST.prevStep=ST.step; ST.step=n;
-  for(let i=1;i<=5;i++){
-    document.getElementById('s'+i).classList.toggle('hidden',i!==n);
-    const si=document.getElementById('si'+i);
-    if(!si) continue;
-    si.className='step'+(i===n?' active':i<n?' done nav':'');
-    if(i<n) si.onclick=()=>goStep(i);
+  STEP_DIV_IDS.forEach((divId, idx)=>{
+    const logicalN = idx+1;
+    document.getElementById('s'+divId).classList.toggle('hidden', logicalN!==n);
+    const si=document.getElementById('si'+divId);
+    if(!si) return;
+    si.className='step'+(logicalN===n?' active':logicalN<n?' done nav':'');
+    if(logicalN<n) si.onclick=()=>goStep(logicalN);
     else si.onclick=null;
-  }
+  });
   if(n===2) renderSales();
-  if(n===4) renderProduction();
-  if(n===5) renderSmList();
+  if(n===3) renderProduction();
+  if(n===4) {
+    renderSmList();
+    const fechaInput = document.getElementById('planillaFecha');
+    if (fechaInput && !fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+  }
 }
 
 function showTab(id, el) {
@@ -925,6 +1052,7 @@ function showTab(id, el) {
   if(id==='tcat') renderCategoriaCfg();
   if(id==='tzon') renderZonaCfg();
   if(id==='tprov') renderProveedorCfg();
+  if(id==='tuni') renderUnidadCfg();
   if(id==='tma') renderMarcaCfg();
   if(id==='tfa') renderFamiliaCfg();
   if(id==='teq') renderEquivalenciaCfg();
@@ -1011,7 +1139,7 @@ async function processFiles(files) {
       const foundOtro=findOtroProducto(code,rawName);
       if(foundOtro){
         const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
-        addToGroup(key, foundOtro.match.name, foundOtro.match.familia||'Otros', true, qtyRaw*foundOtro.factor);
+        addToGroup(key, foundOtro.match.name, TIPO_OTRO_LABELS[foundOtro.match.tipo]||'Otros', true, qtyRaw*foundOtro.factor);
         return;
       }
 
@@ -1085,19 +1213,26 @@ function showStatus(type,msg) {
 
 // ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
 function loadManual() {
-  if (!ST.combos.length && !ST.otrosProductos.length) { alert('No hay combos ni otros productos configurados todavía. Cargalos en Configuración.'); return; }
-  const comboEntries = ST.combos.map(c => ({
+  const combosVisibles = ST.combos.filter(c => visibleParaLocalActual(c.marcas));
+  const otrosVisibles = ST.otrosProductos.filter(p => visibleParaLocalActual(p.marcas));
+  if (!combosVisibles.length && !otrosVisibles.length) {
+    alert(localActualTieneFiltroMarca()
+      ? 'No hay combos ni otros productos de las marcas habilitadas para este local.'
+      : 'No hay combos ni otros productos configurados todavía. Cargalos en Configuración.');
+    return;
+  }
+  const comboEntries = combosVisibles.map(c => ({
     code: c.name.toLowerCase().replace(/\s+/g,''),
     name: c.name,
     qty: 0,
     family: c.family,
     matched: true
   }));
-  const otroEntries = ST.otrosProductos.map(p => ({
+  const otroEntries = otrosVisibles.map(p => ({
     code: 'op_'+p.name.toLowerCase().replace(/\s+/g,''),
     name: p.name,
     qty: 0,
-    family: p.familia || 'Otros',
+    family: TIPO_OTRO_LABELS[p.tipo] || 'Otros',
     matched: true
   }));
   ST.sales = [...comboEntries, ...otroEntries];
@@ -1173,7 +1308,7 @@ async function doConfirm() {
       body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
     const data=await res.json();
     if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
-    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[];
+    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[]; ST.insumosTotales=data.insumosTotales||[];
 
     // Si eligió dividir en 2 planillas, calculamos aparte la produccion del % restante
     // (solo para MOSTRAR como referencia — no pasa por el resto del flujo)
@@ -1197,33 +1332,29 @@ async function doConfirm() {
           pct: restoPct,
           production: dataRestante.production, insumos: dataRestante.insumos, semis: dataRestante.semis,
           otrosVenta: dataRestante.otrosProductos||[], rollosBlancos: dataRestante.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*restoPct/100), family:s.family})).filter(c=>c.qty>0)
         };
       }
       if (resJunto.ok) {
         ST.combinedProduction = {
           production: dataJunto.production, insumos: dataJunto.insumos, semis: dataJunto.semis,
           otrosVenta: dataJunto.otrosProductos||[], rollosBlancos: dataJunto.rollosBlancos||[],
-          combos: ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100)})).filter(c=>c.qty>0)
+          combos: ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*100/100), family:s.family})).filter(c=>c.qty>0)
         };
       }
     }
-    const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-    const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
+    const totR=ST.production.filter(r=>r.cuentaProductividad!==false).reduce((s,r)=>s+r.qty,0);
+    const totC=ST.sales.filter(p=>!p.code.startsWith('op_')).reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
     const tiempoEstimado = Math.ceil(totR / 35);
     document.getElementById('sumMetrics').innerHTML=`
       <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
       <div class="metric"><div class="metric-lbl">Rollos totales</div><div class="metric-val">${totR}</div></div>
       <div class="metric"><div class="metric-lbl">Tiempo estimado de producción</div><div class="metric-val">${tiempoEstimado} hs</div></div>
       <div class="metric"><div class="metric-lbl">% producción</div><div class="metric-val">${gPct}%</div></div>`;
-    let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Rollos</th><th style="text-align:right">Piezas</th></tr></thead><tbody>';
-    ST.production.forEach(r=>h+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td></tr>`);
-    h+='</tbody></table>';
-    document.getElementById('sumRolls').innerHTML=h;
     guardarProgresoPlanilla('borrador');
     goStep(3);
   } catch(e){ alert('Error al calcular: ' + e.message); }
-  finally{ btn.innerHTML='Ver resumen <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
+  finally{ btn.innerHTML='Calcular producción <i class="ti ti-arrow-right"></i>'; btn.disabled=false; }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1238,15 +1369,15 @@ function buildProductionTablesHtml(prod) {
   prod.production.forEach(r=>rh+=`<tr><td>${r.name}</td><td style="text-align:right">${r.qty}</td><td style="text-align:right">${r.piezas}</td><td style="text-align:right;color:var(--text3);font-size:11px">${r.piezasPorRollo}/rollo</td></tr>`);
   rh+=`<tr><td style="font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${totR}</td><td style="text-align:right;font-weight:700">${totPiezas}</td><td></td></tr></tbody></table>`;
 
-  let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">Total</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
-  Object.entries(prod.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.total}</td><td style="text-align:right;color:var(--text2)">${v.display}</td></tr>`);
+  let ih='<table><thead><tr><th>Insumo</th><th style="text-align:right">En KG / unidad</th></tr></thead><tbody>';
+  Object.entries(prod.insumos).forEach(([k,v])=>ih+=`<tr><td>${v.label}</td><td style="text-align:right;font-weight:700">${v.display}</td></tr>`);
   ih+='</tbody></table>';
 
   let sh='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th style="text-align:right">Cantidad necesaria</th></tr></thead><tbody>';
   if(prod.semis.length) {
     prod.semis.forEach(s=>{
       sh+=`<tr><td style="font-weight:600">${s.name}</td><td style="color:var(--text2)">${s.usedIn}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
-      if(s.receta) {
+      if(s.receta && ST.mostrarRecetasSemis!==false) {
         sh+=`<tr><td colspan="3" style="padding:0;border-bottom:none">
           <div style="background:var(--warn-bg);margin:4px 0 8px;padding:10px 14px;border-radius:var(--rsm);border:1px solid #e6d5a0">
             <div style="font-size:12px;font-weight:700;color:#7a5500;margin-bottom:6px">
@@ -1266,16 +1397,35 @@ function buildProductionTablesHtml(prod) {
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
 
-  let oh='<table><thead><tr><th>Producto</th><th>Tipo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  if(prod.otrosVenta.length) {
-    prod.otrosVenta.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td><span class="badge b-blue">${TIPO_OTRO_LABELS[p.tipo]||p.tipo}</span></td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+  const ordenTiposOtros = ['ensalada', 'entrada', 'plato_caliente'];
+  const otrosSinPorciones = prod.otrosVenta.filter(p=>p.tipo!=='porcion');
+  let oh='<table><thead><tr><th>Producto</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  if(otrosSinPorciones.length) {
+    ordenTiposOtros.forEach(tipo=>{
+      const items = otrosSinPorciones.filter(p=>p.tipo===tipo);
+      if(!items.length) return;
+      oh+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${TIPO_OTRO_LABELS[tipo]||tipo}</span></td></tr>`;
+      items.forEach(p=>oh+=`<tr><td style="font-weight:600">${p.name}</td><td style="text-align:right;font-weight:700">${p.qty}</td></tr>`);
+    });
   } else {
-    oh+='<tr><td colspan="3" class="empty">No hay otros productos en esta producción</td></tr>';
+    oh+='<tr><td colspan="2" class="empty">No hay entradas, ensaladas ni platos calientes en esta producción</td></tr>';
   }
   oh+='</tbody></table>';
 
   let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
-  (prod.combos||[]).forEach(c=>{ if(c.qty>0) ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`; });
+  const combosConQty = (prod.combos||[]).filter(c=>c.qty>0);
+  const familiasCombos = {};
+  combosConQty.forEach(c=>{ (familiasCombos[c.family||'Otros']=familiasCombos[c.family||'Otros']||[]).push(c); });
+  if (combosConQty.length) {
+    Object.keys(familiasCombos).sort((a,b)=>a.localeCompare(b)).forEach(fam=>{
+      ch+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${fam}</span></td></tr>`;
+      familiasCombos[fam].sort((a,b)=>a.name.localeCompare(b.name)).forEach(c=>{
+        ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`;
+      });
+    });
+  } else {
+    ch+='<tr><td colspan="2" class="empty">No hay combos en esta producción</td></tr>';
+  }
   ch+='</tbody></table>';
 
   let bh='';
@@ -1299,8 +1449,16 @@ function setVistaProduccion(modo) {
   renderProduction();
 }
 
+function toggleDetalleRecetasSemis() {
+  ST.mostrarRecetasSemis = ST.mostrarRecetasSemis===false ? true : false;
+  const btn = document.getElementById('btnToggleRecetas');
+  btn.innerHTML = ST.mostrarRecetasSemis===false
+    ? '<i class="ti ti-eye"></i> Mostrar recetas adaptadas'
+    : '<i class="ti ti-eye-off"></i> Ocultar recetas adaptadas';
+  renderProduction();
+}
 function renderProduction() {
-  const combosPrincipal = ST.sales.map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100)}));
+  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100), family:s.family}));
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
   const mainData = usarJunto
     ? ST.combinedProduction
@@ -1354,7 +1512,7 @@ function onGridModeChange() {
 }
 function renderManualTandasTable() {
   let h='<table><thead><tr><th>Roll</th><th style="text-align:right">Total a producir</th><th style="text-align:center;width:110px">Tandas</th><th style="text-align:right">Rolls por tanda</th></tr></thead><tbody>';
-  ST.production.forEach(r=>{
+  ST.production.filter(r=>r.cuentaProductividad!==false).forEach(r=>{
     const sugerido = r.qty<50 ? 1 : 1+Math.floor(r.qty/50); // sugerencia inicial, editable
     h+=`<tr data-roll="${r.name}"><td style="font-weight:600">${r.name}</td>
       <td style="text-align:right">${r.qty}</td>
@@ -1439,7 +1597,7 @@ function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
   // 50 o mas suma otra tanda, y cada 50 adicionales suma una tanda mas). Cada tanda
   // se asigna ENTERA a un solo sushiman — nunca se reparte una tanda entre dos personas.
   let tandas=[];
-  ST.production.forEach(r=>{
+  ST.production.filter(r=>r.cuentaProductividad!==false).forEach(r=>{
     const numTandas = manualTandaCounts?.[r.name] || (r.qty<50 ? 1 : 1+Math.floor(r.qty/50));
     const base=Math.floor(r.qty/numTandas);
     let remainder=r.qty-base*numTandas;
@@ -1467,15 +1625,20 @@ function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
   // a alguien le toco una tanda mas grande que su promedio habitual.
   const hourlyTarget={};
   avail.forEach(sm=>{
+    const prod=ST.dailySm[sm.id]?.prod||sm.productivity;
     const actualTotal=assignedTandas[sm.id].reduce((s,t)=>s+t.qty,0);
     const idxs=workedIdx[sm.id];
-    const n=idxs.length;
     const targets=new Array(hours.length).fill(0);
-    if(n>0 && actualTotal>0){
-      const base=Math.floor(actualTotal/n);
-      let remainder=actualTotal-base*n;
-      idxs.forEach((hi,idx)=>{ targets[hi]=base+(idx<remainder?1:0); });
-    }
+    // El objetivo de cada hora nunca puede superar la productividad real de esa
+    // persona (rolls/hora) — si le tocó más de lo que puede hacer en las horas
+    // simuladas, el excedente queda sin asignar en esta pasada, y calcSchedule()
+    // se encarga de sumar más horas hasta que alcance.
+    let remaining=actualTotal;
+    idxs.forEach(hi=>{
+      const take=Math.min(prod, remaining);
+      targets[hi]=take;
+      remaining-=take;
+    });
     hourlyTarget[sm.id]=targets;
   });
 
@@ -1525,47 +1688,66 @@ function readTimePair(idH, idM) {
   return h ? `${h}:${m}` : '';
 }
 function calcSchedule() {
-  const endT=readTimePair('endTimeH','endTimeM')||'20:00';
-  const cut=parseInt(document.getElementById('cutMins').value)||60;
-  const startManual=readTimePair('startTimeManualH','startTimeManualM');
+  const finRolls=readTimePair('endTimeH','endTimeM')||'18:00';
+  const inicioGrilla=readTimePair('startTimeManualH','startTimeManualM')||'15:00';
+  const cierreTotal=readTimePair('cierreTotalH','cierreTotalM')||'20:00';
   const avail=ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId && (ST.dailySm[s.id]?.avail??s.active));
   if(!avail.length){alert('Seleccioná al menos un sushiman disponible');return;}
 
   const gridMode=document.querySelector('input[name="gridMode"]:checked')?.value||'auto';
   const manualTandaCounts=gridMode==='semi' ? getManualTandaCounts() : null;
 
-  const totR=ST.production.reduce((s,r)=>s+r.qty,0);
-  const endMins=toMins(endT)-cut;
+  const totR=ST.production.filter(r=>r.cuentaProductividad!==false).reduce((s,r)=>s+r.qty,0);
+  const endMins=toMins(finRolls);
 
-  let startMins, prodH, hours, hourAssign;
+  // El inicio SIEMPRE se calcula automaticamente hacia atras desde "Fin de rolls":
+  // como cada sushiman puede tener un horario de ingreso distinto, la capacidad
+  // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
+  let startMins, prodH=0, hours, hourAssign, asignado=0;
+  const maxHoras=20;
+  do {
+    prodH++;
+    startMins=endMins-prodH*60;
+    const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
+    hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
+  } while(asignado<totR && prodH<maxHoras);
 
-  if(startManual) {
-    startMins=toMins(startManual);
-    prodH=Math.max(1,Math.ceil((endMins-startMins)/60));
-    ({hours,hourAssign}=buildHourAssign(avail, startMins, prodH, manualTandaCounts));
-  } else {
-    // Como cada sushiman puede tener un horario de ingreso distinto, la capacidad
-    // por hora no es fija — simulamos agregando horas hasta cubrir toda la produccion.
-    let asignado=0; prodH=0;
-    const maxHoras=20;
-    do {
-      prodH++;
-      startMins=endMins-prodH*60;
-      const sim=buildHourAssign(avail, startMins, prodH, manualTandaCounts);
-      hours=sim.hours; hourAssign=sim.hourAssign; asignado=sim.totalAsignado;
-    } while(asignado<totR && prodH<maxHoras);
-
-    if(asignado<totR){
-      alert('No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.');
-      return;
-    }
+  if(asignado<totR){
+    const faltante = totR - asignado;
+    const capacidadPorHora = avail.reduce((s,sm)=>s+(ST.dailySm[sm.id]?.prod||sm.productivity||0), 0);
+    const horasFaltantes = capacidadPorHora>0 ? Math.ceil(faltante/capacidadPorHora) : null;
+    const detalleHoras = horasFaltantes ? ` Con el personal actual, te faltarían aproximadamente ${horasFaltantes} hora${horasFaltantes===1?'':'s'} más de producción (o el equivalente en más gente disponible antes).` : '';
+    alert(`No alcanza el tiempo/gente disponible para cubrir toda la producción. Revisá los horarios de ingreso o sumá más sushimanes.${detalleHoras}`);
+    return;
   }
 
+  let scheduleHours = hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}));
+
+  // Si el calculo real necesito arrancar mas tarde que "Inicio de la grilla", igual
+  // se muestran horas vacias desde esa hora, para que la grilla siempre arranque ahi.
+  const inicioMins=toMins(inicioGrilla);
+  if (startMins>inicioMins) {
+    const extra=[];
+    for (let m=inicioMins; m<startMins; m+=60) {
+      extra.push({label:`${fmt(m)}-${fmt(m+60)}`, startMins:m, tasks:Object.fromEntries(avail.map(s=>[s.id,[]]))});
+    }
+    scheduleHours=[...extra, ...scheduleHours];
+    startMins=inicioMins;
+  }
+  // Se extiende la grilla hasta "Cierre total" con horas vacias, para poder asignar
+  // a mano el corte de rolls / armado de combos despues de que terminan los rolls.
+  const cierreMins=toMins(cierreTotal);
+  for (let m=endMins; m<cierreMins; m+=60) {
+    scheduleHours.push({label:`${fmt(m)}-${fmt(m+60)}`, startMins:m, tasks:Object.fromEntries(avail.map(s=>[s.id,[]]))});
+  }
+
+  const fechaPlanilla = document.getElementById('planillaFecha').value || new Date().toISOString().split('T')[0];
+  const turnoPlanilla = document.getElementById('planillaTurno').value || 'Noche';
   ST.schedule={
-    startTime:fmt(startMins), rollsEndTime:fmt(endMins),
-    cutMins:cut, endTime:endT,
+    startTime:fmt(startMins), rollsEndTime:fmt(endMins), endTime:cierreTotal,
+    fecha:fechaPlanilla, turno:turnoPlanilla,
     sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
-    hours:hours.map((h,hi)=>({label:h.label,startMins:h.startMins,tasks:Object.fromEntries(avail.map(s=>[s.id,hourAssign[hi][s.id]||[]]))}))
+    hours:scheduleHours
   };
   ST.editingGrid=false;
   renderScheduleDisplay();
@@ -1587,27 +1769,27 @@ function getPromedioRollosPorHora(smId) {
 }
 
 function renderScheduleDisplay() {
-  const {startTime,rollsEndTime,cutMins,endTime,sushimanes,hours}=ST.schedule;
+  const {startTime,rollsEndTime,endTime,sushimanes,hours,fecha,turno}=ST.schedule;
+  const fechaDisplay = fecha ? new Date(fecha+'T00:00:00').toLocaleDateString('es-AR') : '—';
   document.getElementById('schedInfo').innerHTML=`
-    <div class="sch-cell-info">Inicio de producción<strong>${startTime}</strong></div>
+    <div class="sch-cell-info">Fecha y turno<strong>${fechaDisplay} — ${turno||'—'}</strong></div>
+    <div class="sch-cell-info">Inicio de la grilla<strong>${startTime}</strong></div>
     <div class="sch-cell-info">Fin de rolls<strong>${rollsEndTime}</strong></div>
-    <div class="sch-cell-info">Corte y armado<strong>${cutMins} min</strong></div>
-    <div class="sch-cell-info">Fin total<strong>${endTime}</strong></div>`;
+    <div class="sch-cell-info">Cierre total<strong>${endTime}</strong></div>`;
 
-  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
+  let g='<div class="sched-table-wrap"><table class="sched-table"><thead><tr><th style="min-width:120px">Sushiman</th>';
   hours.forEach(h=>g+=`<th style="text-align:center;min-width:130px">${h.label}</th>`);
-  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
-  sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige)">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
+  g+='</tr></thead><tbody>';
+  sushimanes.forEach((sm)=>{
+    g+=`<tr><th style="font-weight:700">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3);text-transform:none">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></th>`;
     hours.forEach((h)=>{
       const tasks=h.tasks[sm.id]||[];
-      if(!tasks.length){g+='<td style="text-align:center;color:var(--text3)">—</td>';return;}
-      g+=`<td style="background:var(--blue-bg);color:var(--blue);font-size:12px">${tasks.map(t=>`<strong>${t.name}</strong> ×${t.qty}`).join('<br>')}</td>`;
+      if(!tasks.length){g+='<td class="sched-cell-empty">—</td>';return;}
+      g+=`<td class="sched-cell-filled">${tasks.map(t=>`<strong>${t.name}</strong> ×${t.qty}`).join('<br>')}</td>`;
     });
-    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${cutMins} min</td>`;
     g+='</tr>';
   });
-  g+='</tbody></table>';
+  g+='</tbody></table></div>';
   document.getElementById('schedGrid').innerHTML=g;
   document.getElementById('schedValidation').textContent='';
   document.getElementById('addHourBtn').classList.add('hidden');
@@ -1634,7 +1816,7 @@ function computeSemiHourlyGrid() {
       let amount = 0;
       Object.entries(rollQtyPerHour[hi]).forEach(([rollName, rollQty]) => {
         const roll = ST.rolls.find(r=>r.name===rollName);
-        if (roll && roll.insumos[semi.insumo_key]) {
+        if (roll && roll.insumos[semi.insumo_key] && !(roll.toppings||[]).includes(semi.insumo_key)) {
           amount += roll.insumos[semi.insumo_key] * rollQty;
         }
       });
@@ -1808,14 +1990,19 @@ function confirmAddHourSlot() {
 function toggleEditGrid() {
   ST.scheduleBackup=JSON.parse(JSON.stringify(ST.schedule));
   const {sushimanes,hours}=ST.schedule;
-  const rollOpts=ST.production.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const rollOptsPlain=[...ST.production].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  const rollOpts=`<optgroup label="Otras tareas">
+      <option value="Corte de rolls">Corte de rolls</option>
+      <option value="Armado de combos">Armado de combos</option>
+    </optgroup>
+    <optgroup label="Rolls a producir">${rollOptsPlain}</optgroup>`;
 
-  let g='<table><thead><tr><th style="min-width:110px">Sushiman</th>';
+  let g='<div class="sched-table-wrap"><table class="sched-table"><thead><tr><th style="min-width:120px">Sushiman</th>';
   hours.forEach(h=>g+=`<th style="text-align:center;min-width:170px">${h.label}</th>`);
-  g+=`<th style="text-align:center;background:var(--warn-bg);color:var(--warn);min-width:80px">Corte+<br>armado</th></tr></thead><tbody>`;
+  g+='</tr></thead><tbody>';
 
   sushimanes.forEach((sm,si)=>{
-    g+=`<tr><td style="font-weight:700;background:var(--beige);vertical-align:top;padding:8px">${sm.name}<br><span style="font-weight:400;font-size:11px;color:var(--text3)">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></td>`;
+    g+=`<tr><th style="vertical-align:top;padding:8px">${sm.name}<br><span id="promLabel_${si}" style="font-weight:400;font-size:11px;color:var(--text3);text-transform:none">${getPromedioRollosPorHora(sm.id)} rolls/h prom.</span></th>`;
     hours.forEach((h,hi)=>{
       const tasks=h.tasks[sm.id]||[];
       const cellId=`cell_${si}_${hi}`;
@@ -1833,10 +2020,9 @@ function toggleEditGrid() {
              ondragleave="this.classList.remove('grid-drop-target')"
              ondrop="onCellDrop(event,${si},${hi})">${cellHtml}</td>`;
     });
-    if(si===0) g+=`<td rowspan="${sushimanes.length}" style="background:var(--warn-bg);color:var(--warn);text-align:center;font-weight:700;vertical-align:middle">${ST.schedule.cutMins} min</td>`;
     g+='</tr>';
   });
-  g+='</tbody></table><div id="gridValidPanel" style="margin-top:10px"></div>';
+  g+='</tbody></table></div><div id="gridValidPanel" style="margin-top:10px"></div>';
 
   document.getElementById('schedGrid').innerHTML=g;
   document.getElementById('addHourBtn').classList.remove('hidden');
@@ -1847,7 +2033,14 @@ function toggleEditGrid() {
   validateAndHighlight();
 }
 
-function onGridChange() { validateAndHighlight(); }
+function onGridChange() {
+  syncGridStateFromDOM();
+  ST.schedule.sushimanes.forEach((sm,si)=>{
+    const label=document.getElementById(`promLabel_${si}`);
+    if(label) label.textContent=`${getPromedioRollosPorHora(sm.id)} rolls/h prom.`;
+  });
+  validateAndHighlight();
+}
 
 // ── Drag & drop: mover una tarea de una celda (sushiman+hora) a otra ──
 let draggedTaskInfo = null;
@@ -1882,9 +2075,8 @@ function onCellDrop(e, toSi, toHi) {
 function addGridTask(smIdx, hIdx) {
   syncGridStateFromDOM();
   const smId=ST.schedule.sushimanes[smIdx].id;
-  const firstRoll=ST.production[0]?.name||'';
   if(!ST.schedule.hours[hIdx].tasks[smId]) ST.schedule.hours[hIdx].tasks[smId]=[];
-  ST.schedule.hours[hIdx].tasks[smId].push({name:firstRoll,qty:1});
+  ST.schedule.hours[hIdx].tasks[smId].push({name:'Corte de rolls',qty:1});
   toggleEditGrid();
 }
 
@@ -1929,13 +2121,25 @@ function cancelGridEdits() {
 async function downloadPDF() {
   const btn=document.getElementById('pdfBtn');
   btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
+  const fechaDisplay = ST.schedule?.fecha ? new Date(ST.schedule.fecha+'T00:00:00').toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+  const semisParaPdf = s => (ST.mostrarRecetasSemis===false) ? s.map(({receta, ...resto})=>resto) : s;
   const payload={
-    date:new Date().toLocaleDateString('es-AR'), globalPct:ST.globalPct,
-    production:ST.production, insumos:ST.insumos, semis:ST.semis,
-    combos:ST.sales.map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100)})).filter(c=>c.qty>0),
+    date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
+    production:ST.production, insumos:ST.insumos, semis:semisParaPdf(ST.semis),
+    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100),family:s.family})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
+  if (ST.dividirPlanilla && ST.remainingProduction) {
+    payload.segundaPlanilla = {
+      pct: ST.remainingProduction.pct,
+      production: ST.remainingProduction.production,
+      insumos: ST.remainingProduction.insumos,
+      semis: semisParaPdf(ST.remainingProduction.semis),
+      combos: ST.remainingProduction.combos,
+      rollosBlancos: ST.remainingProduction.rollosBlancos
+    };
+  }
   try {
     const res=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok) throw new Error(await res.text());
@@ -1947,6 +2151,24 @@ async function downloadPDF() {
   } catch(e){ alert('Error al generar el PDF: '+e.message); }
   finally{ btn.innerHTML='<i class="ti ti-file-download"></i> Descargar PDF completo (3 hojas A4)'; btn.disabled=false; }
 }
+async function descargarInsumosTotalesXlsx() {
+  if (!ST.insumosTotales || !ST.insumosTotales.length) { alert('Todavía no hay insumos calculados para esta producción.'); return; }
+  const btn = event.currentTarget;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="loader"></span> Generando...'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/insumos-totales-xlsx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      date: new Date().toLocaleDateString('es-AR'), globalPct: ST.globalPct, insumosTotales: ST.insumosTotales
+    })});
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `insumos_totales_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Error al generar el Excel: '+e.message); }
+  finally { btn.innerHTML = original; btn.disabled = false; }
+}
 
 // ═══════════════════════════════════════════════════════
 // CONFIG RENDERING
@@ -1957,8 +2179,10 @@ function marcaBadges(marcas) {
 }
 
 function renderComboCfg() {
+  const filtro = valorFiltro('filtro_combos');
+  const lista = ST.combos.filter(c => coincideBusqueda(filtro, c.name, c.family) && visibleParaLocalActual(c.marcas));
   const byFam={};
-  ST.combos.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
+  lista.forEach(c=>(byFam[c.family]||(byFam[c.family]=[])).push(c));
   let h='<table><thead><tr><th>Combo</th><th>Familia</th><th>Composición</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   for(const [fam,items] of Object.entries(byFam)){
     h+=`<tr class="fam-row"><td colspan="5"><span class="badge b-blue">${fam}</span></td></tr>`;
@@ -1967,67 +2191,105 @@ function renderComboCfg() {
       h+=`<tr><td style="font-weight:600">${c.name}</td><td>${c.family}</td><td style="font-size:12px;color:var(--text2)">${r||'—'}</td>
         <td style="font-size:11px">${marcaBadges(c.marcas)}</td>
         <td><div class="row" style="gap:4px">
+          ${IS_ADMIN ? `
           <button class="btn btn-sm" onclick="openComboModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+          <button class="btn btn-sm" onclick="duplicateCombo(${c.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
           <button class="btn btn-sm btn-danger" onclick="deleteItem('combos',${c.id},renderComboCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+          ` : `
+          <button class="btn btn-sm" onclick="openComboModal(${c.id},null,true)" title="Ver"><i class="ti ti-eye"></i> Ver</button>
+          `}
         </div></td></tr>`;
     });
   }
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron combos con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay combos de las marcas habilitadas para este local.' : 'No hay combos configurados todavía.')}</div>`;
   document.getElementById('comboCfg').innerHTML=h;
 }
 
+function mostrarUsosRoll(nombre) {
+  const usos = [];
+  ST.combos.forEach(c => { if ((c.rolls[nombre]||0) > 0) usos.push({tipo:'Combo', nombre:c.name}); });
+  ST.otrosProductos.forEach(p => { if ((p.rolls?.[nombre]||0) > 0) usos.push({tipo:TIPO_OTRO_LABELS[p.tipo]||'Producto', nombre:p.name}); });
+  let bodyHtml;
+  if (!usos.length) {
+    bodyHtml = '<div class="empty">Todavía no se usa en ningún combo ni producto.</div>';
+  } else {
+    bodyHtml = '<table><thead><tr><th>Tipo</th><th>Nombre</th></tr></thead><tbody>' +
+      usos.map(u => `<tr><td><span class="badge b-blue">${u.tipo}</span></td><td style="font-weight:600">${u.nombre}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+  openModal(`¿Dónde se usa "${nombre}"?`, bodyHtml, `<button class="btn" onclick="closeModal()">Cerrar</button>`);
+}
+
 function renderRollCfg() {
-  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Grupo rollo blanco</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolls.forEach(r=>{
-    const i=Object.entries(r.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
-    h+=`<tr><td style="font-weight:600">${r.name}</td>
+  const filtro = valorFiltro('filtro_rolls');
+  const lista = ST.rolls.filter(r => coincideBusqueda(filtro, r.name) && visibleParaLocalActual(r.marcas));
+  let h='<table><thead><tr><th>Roll</th><th style="text-align:center">Piezas</th><th>Usos</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  lista.forEach(r=>{
+    h+=`<tr><td style="font-weight:600">${r.name}${r.cuenta_productividad===false?' <span class="badge b-warn" style="font-size:10px" title="No compite por las horas/presupuesto de cada sushiman en la grilla automática">no cuenta p/productividad</span>':''}</td>
       <td style="text-align:center"><span class="badge b-blue">${r.piezas_por_rollo||14}</span></td>
-      <td>${r.rollo_blanco_grupo?`<span class="badge b-warn">${r.rollo_blanco_grupo}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td><button class="btn btn-sm" onclick='mostrarUsosRoll(${JSON.stringify(r.name)})' title="Ver en qué combos y productos se usa"><i class="ti ti-eye"></i> Ver usos</button></td>
+      <td><button class="btn btn-sm" onclick="openRollModal(${r.id},null,true)" title="Ver receta"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td style="font-size:11px">${marcaBadges(r.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openRollModal(${r.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateRoll(${r.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('rolls',${r.id},renderRollCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : ``}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron rolls con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay rolls de las marcas habilitadas para este local.' : 'No hay rolls configurados todavía.')}</div>`;
   document.getElementById('rollCfg').innerHTML=h;
 }
 
+function mostrarUsosIngrediente(key, nombre) {
+  const usos = [];
+  ST.rolls.forEach(r => { if ((r.insumos[key]||0) > 0) usos.push({tipo:'Roll', nombre:r.name}); });
+  ST.otrosProductos.forEach(p => { if ((p.insumos[key]||0) > 0) usos.push({tipo:TIPO_OTRO_LABELS[p.tipo]||'Producto', nombre:p.name}); });
+  ST.semielaborados.forEach(s => {
+    if (s.insumo_key === key) return; // no contarse a si mismo
+    if ((s.receta||[]).some(i => i.key === key)) usos.push({tipo:'Semielaborado', nombre:s.name});
+  });
+  let bodyHtml;
+  if (!usos.length) {
+    bodyHtml = '<div class="empty">Todavía no se usa en ninguna receta.</div>';
+  } else {
+    bodyHtml = '<table><thead><tr><th>Tipo</th><th>Receta</th></tr></thead><tbody>' +
+      usos.map(u => `<tr><td><span class="badge b-blue">${u.tipo}</span></td><td style="font-weight:600">${u.nombre}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+  openModal(`¿Dónde se usa "${nombre}"?`, bodyHtml, `<button class="btn" onclick="closeModal()">Cerrar</button>`);
+}
+
 function renderSemiCfg() {
-  let h='<table><thead><tr><th>Semielaborado</th><th>Rolls que lo usan</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.semielaborados.forEach(s=>{
-    const hasReceta = s.receta && s.receta.length > 0;
-    const recetaSummary = hasReceta
-      ? s.receta.map(i=>{
-          const unidad = i.key ? getIngredientUnit(i.key) : i.unidad;
-          const nombreEstilizado = i.key
-            ? styledIngredientName(i.key)
-            : `<span style="background:var(--bg);color:var(--text3);font-weight:700;padding:2px 8px;border-radius:20px" title="Sin vincular">${i.nombre}</span>`;
-          return `${nombreEstilizado} (${i.cantidad}${unidad})`;
-        }).join(', ')
-      : '<span style="color:var(--text3);font-style:italic">Sin receta cargada</span>';
+  const filtro = valorFiltro('filtro_semis');
+  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name) && visibleParaLocalActual(s.marcas));
+  let h='<table><thead><tr><th>Semielaborado</th><th>Usos</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  lista.forEach(s=>{
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
       : '<span style="color:var(--text3)">—</span>';
     const tiempoDisplay = s.tiempo_elaboracion_min ? `${s.tiempo_elaboracion_min} min` : '<span style="color:var(--text3)">—</span>';
     const vidaDisplay = s.vida_util_dias ? `${s.vida_util_dias} día${s.vida_util_dias===1?'':'s'}` : '<span style="color:var(--text3)">—</span>';
-    const usedInRolls = ST.rolls.filter(r=>(r.insumos[s.insumo_key]||0) > 0).map(r=>r.name);
-    const usedInDisplay = usedInRolls.length ? usedInRolls.join(', ') : '<span style="color:var(--text3);font-style:italic">Ningún roll lo usa todavía</span>';
-    h+=`<tr><td style="font-weight:600">${s.name}</td><td style="font-size:12px;color:var(--text2)">${usedInDisplay}</td>
-      <td style="font-size:12px;color:var(--text2);max-width:220px">${recetaSummary}</td>
+    h+=`<tr><td style="font-weight:600">${s.name}</td>
+      <td><button class="btn btn-sm" onclick='mostrarUsosIngrediente("${s.insumo_key}",${JSON.stringify(s.name)})' title="Ver en qué recetas se usa"><i class="ti ti-eye"></i> Ver usos</button></td>
+      <td><button class="btn btn-sm" onclick="openSemiModal(${s.id},null,true)" title="Ver receta y usar la calculadora"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td>${rendDisplay}</td>
       <td style="text-align:center;font-size:12px">${tiempoDisplay}</td>
       <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
       <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openSemiModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateSemi(${s.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('semielaborados',${s.id},renderSemiCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : ``}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
+  if (!lista.length) h = `<div class="empty">${filtro ? 'No se encontraron semielaborados con ese nombre.' : (localActualTieneFiltroMarca() ? 'No hay semielaborados de las marcas habilitadas para este local.' : 'No hay semielaborados cargados todavía.')}</div>`;
   document.getElementById('semiCfg').innerHTML=h;
 }
 
@@ -2077,10 +2339,13 @@ async function abrirPlanilla(id) {
   const flowTab = [...document.querySelectorAll('#mainProduccion > .tabs .tab')].find(t=>t.textContent.includes('Planificar'));
   showProdSubTab('flow', flowTab);
 
-  const targetStep = d.step && d.step >= 2 ? d.step : 2;
+  // Ojo: si esta planilla se guardó con la numeración de pasos anterior (antes de
+  // sacar el paso de "Confirmación"), el valor guardado podría ser 1 más alto de
+  // lo esperado — lo topamos al máximo actual para no romper la navegación.
+  const targetStep = Math.min(d.step && d.step >= 2 ? d.step : 2, 4);
   goStep(targetStep);
   if (targetStep >= 3) renderSales();
-  if (targetStep >= 4) renderProduction();
+  if (targetStep >= 3) renderProduction();
   if (ST.schedule) { renderScheduleDisplay(); document.getElementById('schedRes').classList.remove('hidden'); }
   showStatus('success', `Planilla del ${p.fecha} abierta — podés seguir editándola.`);
 }
@@ -2109,10 +2374,13 @@ async function guardarProgresoPlanilla(estado) {
 
 function renderSmCfg() {
   const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
-  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Nombre</th><th style="text-align:right">Productividad</th><th>Turno</th><th>Posición</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
+    const posicion = ST.posiciones.find(p=>p.id===s.posicion_id);
     h+=`<tr><td><div class="row" style="gap:8px"><div class="avatar">${s.name.slice(0,2).toUpperCase()}</div><strong>${s.name}</strong></div></td>
       <td style="text-align:right">${s.productivity} rolls/h</td>
+      <td>${s.turno?`<span class="badge b-blue">${s.turno}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td>${posicion?`<span class="badge b-green">${posicion.name}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
       <td><span class="badge ${s.active?'b-green':'b-warn'}">${s.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openSmModal(${s.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2148,6 +2416,7 @@ function renderInsumoCfg() {
   const fCategoria = document.getElementById('filtroCategoria')?.value || '';
   const fProveedor = document.getElementById('filtroProveedor')?.value || '';
   const f8020 = document.getElementById('filtro8020')?.value || '';
+  const fTexto = valorFiltro('filtro_insumos');
 
   const lista = ST.insumosMaster.filter(i=>{
     if (fCategoria && i.categoria !== fCategoria) return false;
@@ -2158,16 +2427,19 @@ function renderInsumoCfg() {
     }
     if (f8020 === 'si' && !i.es_80_20) return false;
     if (f8020 === 'no' && i.es_80_20) return false;
+    if (!coincideBusqueda(fTexto, i.label)) return false;
     return true;
   });
 
-  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="text-align:center">Aprovech.</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(i=>{
+    const efic = i.eficiencia ?? 100;
     h+=`<tr><td style="font-weight:600">${i.label}</td>
       <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
       <td style="text-align:center">${i.es_80_20?'<span class="badge b-warn">80/20</span>':'—'}</td>
       <td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
       <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
+      <td style="text-align:center">${efic<100?`<span class="badge b-warn" title="Se ajusta la cantidad a comprar por esta merma estimada">${efic}%</span>`:'<span style="color:var(--text3)">100%</span>'}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openInsumoModal(${i.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
@@ -2180,17 +2452,33 @@ function renderInsumoCfg() {
 }
 
 function renderMarcaCfg() {
-  let h='<table><thead><tr><th>Marca</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.marcas.forEach(m=>{
+  const filtro = valorFiltro('filtro_marcas');
+  const lista = ST.marcas.filter(m => coincideBusqueda(filtro, m.name));
+  let h='<table><thead><tr><th>Marca</th><th style="width:150px"></th></tr></thead><tbody>';
+  lista.forEach((m,i)=>{
+    const idxReal = ST.marcas.findIndex(x=>x.id===m.id);
+    const esPrimera = idxReal===0, esUltima = idxReal===ST.marcas.length-1;
     h+=`<tr><td style="font-weight:600">${m.name}</td>
       <td><div class="row" style="gap:4px">
+        ${filtro ? `<span style="font-size:11px;color:var(--text3)" title="Limpiá la búsqueda para poder reordenar">—</span>` : `
+        <button class="btn btn-sm" onclick="moveMarca(${m.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+        <button class="btn btn-sm" onclick="moveMarca(${m.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+        `}
         <button class="btn btn-sm" onclick="openMarcaModal(${m.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('marcas',${m.id},renderMarcaCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.marcas.length) h='<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay marcas configuradas. Agregá la primera para poder asignarla a combos, rolls y semielaborados.</div>';
   document.getElementById('marcaCfg').innerHTML=h;
+}
+async function moveMarca(id, direction) {
+  const idx = ST.marcas.findIndex(m=>m.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.marcas.length) return;
+  [ST.marcas[idx], ST.marcas[swapIdx]] = [ST.marcas[swapIdx], ST.marcas[idx]];
+  renderMarcaCfg();
+  await fetch('/api/marcas/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.marcas.map(m=>m.id)})});
 }
 
 function openMarcaModal(id) {
@@ -2209,8 +2497,10 @@ async function saveMarca(id) {
 
 // ── Familias ──
 function renderFamiliaCfg() {
+  const filtro = valorFiltro('filtro_familias');
+  const lista = ST.familias.filter(f => coincideBusqueda(filtro, f.name));
   let h='<table><thead><tr><th>Familia</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.familias.forEach(f=>{
+  lista.forEach(f=>{
     h+=`<tr><td style="font-weight:600">${f.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openFamiliaModal(${f.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2218,7 +2508,7 @@ function renderFamiliaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.familias.length) h='<div class="empty">No hay familias configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay familias configuradas.</div>';
   document.getElementById('familiaCfg').innerHTML=h;
 }
 function openFamiliaModal(id) {
@@ -2239,8 +2529,10 @@ async function saveFamilia(id) {
 
 // ── Categorías de insumos ──
 function renderCategoriaCfg() {
+  const filtro = valorFiltro('filtro_categorias');
+  const lista = ST.categoriasInsumos.filter(c => coincideBusqueda(filtro, c.name));
   let h='<table><thead><tr><th>Categoría</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.categoriasInsumos.forEach(c=>{
+  lista.forEach(c=>{
     h+=`<tr><td style="font-weight:600">${c.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openCategoriaModal(${c.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2248,7 +2540,7 @@ function renderCategoriaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.categoriasInsumos.length) h='<div class="empty">No hay categorías configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay categorías configuradas.</div>';
   document.getElementById('categoriaCfg').innerHTML=h;
 }
 function openCategoriaModal(id) {
@@ -2273,8 +2565,10 @@ function categoriaOptions(selected) {
 
 // ── Grupos de rollo blanco (rolls que comparten el mismo relleno) ──
 function renderRolloBlancoGrupoCfg() {
+  const filtro = valorFiltro('filtro_rolloBlancoGrupos');
+  const lista = ST.rolloBlancoGrupos.filter(g => coincideBusqueda(filtro, g.name));
   let h='<table><thead><tr><th>Grupo</th><th>Rolls asignados</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.rolloBlancoGrupos.forEach(g=>{
+  lista.forEach(g=>{
     const rollsDelGrupo = ST.rolls.filter(r=>r.rollo_blanco_grupo===g.name).map(r=>r.name);
     h+=`<tr><td style="font-weight:600">${g.name}</td>
       <td style="font-size:12px;color:var(--text2)">${rollsDelGrupo.length?rollsDelGrupo.join(', '):'<span style="color:var(--text3);font-style:italic">Ningún roll asignado todavía</span>'}</td>
@@ -2284,7 +2578,7 @@ function renderRolloBlancoGrupoCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.rolloBlancoGrupos.length) h='<div class="empty">No hay grupos configurados. Agregá uno para agrupar rolls que comparten relleno.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay grupos configurados. Agregá uno para agrupar rolls que comparten relleno.</div>';
   document.getElementById('rolloBlancoGrupoCfg').innerHTML=h;
 }
 function openRolloBlancoGrupoModal(id) {
@@ -2309,8 +2603,10 @@ function rolloBlancoGrupoOptions(selected) {
 
 // ── Zonas de almacenamiento ──
 function renderZonaCfg() {
+  const filtro = valorFiltro('filtro_zonas');
+  const lista = ST.zonasAlmacenamiento.filter(z => coincideBusqueda(filtro, z.name));
   let h='<table><thead><tr><th>Zona</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.zonasAlmacenamiento.forEach(z=>{
+  lista.forEach(z=>{
     h+=`<tr><td style="font-weight:600">${z.name}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openZonaModal(${z.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
@@ -2318,7 +2614,7 @@ function renderZonaCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.zonasAlmacenamiento.length) h='<div class="empty">No hay zonas configuradas.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay zonas configuradas.</div>';
   document.getElementById('zonaCfg').innerHTML=h;
 }
 function openZonaModal(id) {
@@ -2341,10 +2637,64 @@ function zonaOptions(selected) {
   return `<option value="">Sin asignar</option>` + opts;
 }
 
+// ── Unidades (para los insumos: "unidad en receta" y "unidad en resumen") ──
+function renderUnidadCfg() {
+  const filtro = valorFiltro('filtro_unidades');
+  const lista = ST.unidades.filter(u => coincideBusqueda(filtro, u.nombre, u.simbolo));
+  let h='<table><thead><tr><th>Nombre</th><th>Símbolo</th><th style="width:170px"></th></tr></thead><tbody>';
+  lista.forEach(u=>{
+    const idxReal = ST.unidades.findIndex(x=>x.id===u.id);
+    const esPrimera = idxReal===0, esUltima = idxReal===ST.unidades.length-1;
+    h+=`<tr><td style="font-weight:600">${u.nombre}</td><td><span class="badge b-blue">${u.simbolo}</span></td>
+      <td><div class="row" style="gap:4px">
+        ${filtro ? `<span style="font-size:11px;color:var(--text3)" title="Limpiá la búsqueda para poder reordenar">—</span>` : `
+        <button class="btn btn-sm" onclick="moveUnidad(${u.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+        <button class="btn btn-sm" onclick="moveUnidad(${u.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+        `}
+        <button class="btn btn-sm" onclick="openUnidadModal(${u.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteItem('unidades',${u.id},renderUnidadCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+      </div></td></tr>`;
+  });
+  h+='</tbody></table>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay unidades configuradas todavía.</div>';
+  document.getElementById('unidadCfg').innerHTML=h;
+}
+async function moveUnidad(id, direction) {
+  const idx = ST.unidades.findIndex(u=>u.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.unidades.length) return;
+  [ST.unidades[idx], ST.unidades[swapIdx]] = [ST.unidades[swapIdx], ST.unidades[idx]];
+  renderUnidadCfg();
+  await fetch('/api/unidades/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.unidades.map(u=>u.id)})});
+}
+function openUnidadModal(id) {
+  const unidad = id ? ST.unidades.find(u=>u.id===id) : null;
+  openModal(id?'Editar unidad':'Nueva unidad',`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_nombre" class="w-full" value="${unidad?.nombre||''}" placeholder="Ej: Paquetes"></div>
+    <div><label class="form-lbl">Símbolo <span style="font-weight:400;color:var(--text3);text-transform:none">(corto, así se muestra en las recetas)</span></label>
+      <input type="text" id="m_simbolo" class="w-full" value="${unidad?.simbolo||''}" placeholder="Ej: paq"></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveUnidad(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveUnidad(id) {
+  const nombre=document.getElementById('m_nombre').value.trim();
+  const simbolo=document.getElementById('m_simbolo').value.trim();
+  if(!nombre||!simbolo){alert('Completá el nombre y el símbolo');return;}
+  const res = await fetch(id?`/api/unidades/${id}`:'/api/unidades',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,simbolo})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal(); await loadConfig(); renderUnidadCfg();
+}
+function unidadOptions(selected) {
+  return ST.unidades.map(u=>`<option value="${u.simbolo}" ${selected===u.simbolo?'selected':''}>${u.nombre} (${u.simbolo})</option>`).join('');
+}
+
 // ── Proveedores (con contactos) ──
 function renderProveedorCfg() {
+  const filtro = valorFiltro('filtro_proveedores');
+  const lista = ST.proveedores.filter(p => coincideBusqueda(filtro, p.name));
   let h='<table><thead><tr><th>Proveedor</th><th>Contactos</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.proveedores.forEach(p=>{
+  lista.forEach(p=>{
     const contactosResumen = p.contactos.length
       ? p.contactos.map(c=>c.nombre).join(', ')
       : '<span style="color:var(--text3);font-style:italic">Sin contactos cargados</span>';
@@ -2356,7 +2706,7 @@ function renderProveedorCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.proveedores.length) h='<div class="empty">No hay proveedores cargados.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay proveedores cargados.</div>';
   document.getElementById('proveedorCfg').innerHTML=h;
 }
 function contactoRow(c) {
@@ -2432,6 +2782,129 @@ function equivalenciaProductoOptions(tipo, selected) {
   return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
 }
 
+const TIPO_SUGERENCIA_LABELS = { mejora: 'Mejora', correccion_receta: 'Corrección de receta', nueva_herramienta: 'Nueva herramienta' };
+const ESTADO_SUGERENCIA_LABELS = { nueva: 'Nueva', en_revision: 'En revisión', aceptada: 'Aceptada', rechazada: 'Rechazada', implementada: 'Implementada' };
+const ESTADO_SUGERENCIA_BADGE = { nueva: 'b-blue', en_revision: 'b-warn', aceptada: 'b-green', rechazada: 'b-red', implementada: 'b-green' };
+
+async function refreshSugerenciasBadge() {
+  try {
+    const res = await fetch('/api/sugerencias/pendientes-count');
+    const { count } = await res.json();
+    const badge = document.getElementById('sugerenciasBadge');
+    badge.textContent = count > 9 ? '9+' : count;
+    badge.classList.toggle('hidden', !count);
+  } catch(e) { /* no molestar al usuario si esto falla */ }
+}
+
+const REFERENCIA_TIPO_LABELS = { roll: 'Roll', semielaborado: 'Semielaborado', combo: 'Combo', otro_producto: 'Producto' };
+
+async function renderSugerenciasCfg() {
+  document.querySelector('#sugerenciasInfoAlert span').textContent = IS_ADMIN
+    ? 'Acá ves las sugerencias de todos los usuarios. Podés cambiar el estado y dejarles una respuesta.'
+    : 'Contanos qué mejorarías, qué receta te parece que está mal, o qué herramienta nueva te gustaría que tenga la app. Solo vos vas a ver tus propias sugerencias (y nosotros).';
+  const res = await fetch('/api/sugerencias');
+  ST.sugerencias = await res.json();
+  refreshSugerenciasBadge();
+  const cont = document.getElementById('sugerenciasCfg');
+  if (!ST.sugerencias.length) { cont.innerHTML = '<div class="empty">No hay sugerencias todavía.</div>'; return; }
+  let h = '';
+  ST.sugerencias.forEach(s => {
+    h += `<div class="card" style="margin-bottom:10px;border:1px solid var(--border)">
+      <div class="row-between" style="margin-bottom:6px;align-items:flex-start">
+        <div>
+          <div style="font-weight:700;font-size:15px">${s.titulo}</div>
+          <div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge b-blue">${TIPO_SUGERENCIA_LABELS[s.tipo] || s.tipo}</span>
+            <span class="badge ${ESTADO_SUGERENCIA_BADGE[s.estado]}">${ESTADO_SUGERENCIA_LABELS[s.estado]}</span>
+            ${s.referencia_tipo ? `<span class="badge" style="background:var(--bg2);color:var(--text2)"><i class="ti ti-link"></i> ${REFERENCIA_TIPO_LABELS[s.referencia_tipo]}: ${s.referencia_nombre}</span>` : ''}
+            ${IS_ADMIN ? `<span style="font-size:12px;color:var(--text3)">${s.creado_por_nombre || s.creado_por}</span>` : ''}
+            <span style="font-size:12px;color:var(--text3)">${new Date(s.created_at).toLocaleDateString('es-AR')}</span>
+          </div>
+        </div>
+        <div class="row" style="gap:4px">
+          ${IS_ADMIN ? `<button class="btn btn-sm" onclick="openResponderSugerenciaModal(${s.id})" title="Responder"><i class="ti ti-message-circle"></i> Responder</button>` : ''}
+          <button class="btn btn-sm btn-danger" onclick="deleteSugerencia(${s.id})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text2);white-space:pre-wrap">${s.descripcion}</div>
+      ${s.respuesta_admin ? `<div style="margin-top:10px;background:var(--bg);border-left:3px solid var(--blue);border-radius:var(--rsm);padding:8px 12px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Respuesta</div>
+        <div style="font-size:13px;white-space:pre-wrap">${s.respuesta_admin}</div>
+      </div>` : ''}
+    </div>`;
+  });
+  cont.innerHTML = h;
+}
+
+function botonSugerirMejora(tipo, id, nombre) {
+  if (!id) return '';
+  return `<button class="btn btn-sm" onclick='openSugerenciaModal({tipo:"${tipo}",id:${id},nombre:${JSON.stringify(nombre)}})' title="Sugerir una mejora o corrección para esto"><i class="ti ti-bulb"></i> Sugerir mejora</button>`;
+}
+
+function openSugerenciaModal(referencia) {
+  ST._sugerenciaReferencia = referencia || null;
+  openModal('Nueva sugerencia', `
+    ${referencia ? `<div class="alert alert-info" style="margin-bottom:1rem">
+      <i class="ti ti-link"></i>
+      <span>Esta sugerencia va a quedar vinculada a: <strong>${REFERENCIA_TIPO_LABELS[referencia.tipo]} — ${referencia.nombre}</strong></span>
+    </div>` : ''}
+    <div style="margin-bottom:1rem"><label class="form-lbl">Tipo</label><select id="m_tipoSugerencia" class="w-full">
+      <option value="mejora">Mejora</option>
+      <option value="correccion_receta" ${referencia?'selected':''}>Corrección de receta</option>
+      <option value="nueva_herramienta">Nueva herramienta</option>
+    </select></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Título</label><input type="text" id="m_tituloSugerencia" class="w-full" placeholder="Resumilo en pocas palabras"></div>
+    <div><label class="form-lbl">Descripción</label><textarea id="m_descSugerencia" class="w-full" rows="5" placeholder="Contanos con el mayor detalle posible..."></textarea></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSugerencia()">Enviar</button>`
+  );
+}
+
+async function saveSugerencia() {
+  const tipo = document.getElementById('m_tipoSugerencia').value;
+  const titulo = document.getElementById('m_tituloSugerencia').value.trim();
+  const descripcion = document.getElementById('m_descSugerencia').value.trim();
+  if (!titulo || !descripcion) { alert('Completá el título y la descripción'); return; }
+  const ref = ST._sugerenciaReferencia;
+  const payload = { tipo, titulo, descripcion };
+  if (ref) { payload.referencia_tipo = ref.tipo; payload.referencia_id = ref.id; payload.referencia_nombre = ref.nombre; }
+  const res = await fetch('/api/sugerencias', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal();
+  await renderSugerenciasCfg();
+}
+
+function openResponderSugerenciaModal(id) {
+  const s = ST.sugerencias.find(x=>x.id===id);
+  openModal('Responder sugerencia', `
+    <div style="margin-bottom:1rem;font-size:13px;color:var(--text2)"><strong>${s.titulo}</strong><br>${s.descripcion}</div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Estado</label><select id="m_estadoSugerencia" class="w-full">
+      ${Object.entries(ESTADO_SUGERENCIA_LABELS).map(([k,label])=>`<option value="${k}" ${s.estado===k?'selected':''}>${label}</option>`).join('')}
+    </select></div>
+    <div><label class="form-lbl">Respuesta <span style="font-weight:400;color:var(--text3);text-transform:none">(el usuario la va a poder ver)</span></label>
+      <textarea id="m_respuestaSugerencia" class="w-full" rows="4">${s.respuesta_admin || ''}</textarea></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSugerenciaRespuesta(${id})">Guardar</button>`
+  );
+}
+
+async function saveSugerenciaRespuesta(id) {
+  const estado = document.getElementById('m_estadoSugerencia').value;
+  const respuesta_admin = document.getElementById('m_respuestaSugerencia').value.trim();
+  const res = await fetch(`/api/sugerencias/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({estado, respuesta_admin})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal();
+  await renderSugerenciasCfg();
+}
+
+async function deleteSugerencia(id) {
+  if (!confirm('¿Eliminar esta sugerencia?')) return;
+  const res = await fetch(`/api/sugerencias/${id}`, {method:'DELETE'});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await renderSugerenciasCfg();
+}
+
 function renderEquivalenciaCfg() {
   const container = document.getElementById('equivalenciaCfg');
 
@@ -2463,15 +2936,17 @@ function renderEquivalenciaCfg() {
     ST.marcas.forEach(m => {
       const existing = ST.equivalencias.find(e=>e.tipo===equivTipoActual && e.nombre_canonico===prodName && e.marca===m.name);
       h += `<td><input type="text" class="equiv-cell" data-producto="${prodName}" data-marca="${m.name}"
-              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%"></td>`;
+              value="${existing?existing.nombre_alias:''}" placeholder="—" style="width:100%" ${IS_ADMIN?'':'disabled'}></td>`;
     });
     h += '</tr>';
   });
   h += '</tbody></table></div>';
 
-  h += `<div class="flex-end">
-    <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
-  </div>`;
+  if (IS_ADMIN) {
+    h += `<div class="flex-end">
+      <button class="btn btn-primary" onclick="saveEquivalenciaMatrix()"><i class="ti ti-check"></i> Guardar cambios</button>
+    </div>`;
+  }
 
   container.innerHTML = h;
 }
@@ -2505,24 +2980,30 @@ async function saveEquivalenciaMatrix() {
 const TIPO_OTRO_LABELS = {porcion:'Porción', ensalada:'Ensalada', entrada:'Entrada', plato_caliente:'Plato caliente', otro:'Otro'};
 
 function renderOtroProductoCfgTipo(tipo, containerId, renderFnName) {
-  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo);
-  let h='<table><thead><tr><th>Producto</th><th>Familia</th><th>Rolls</th><th>Insumos y semielaborados</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  const filtroIdPorTipo = { porcion: 'filtro_porciones', ensalada: 'filtro_ensaladas', entrada: 'filtro_entradas', plato_caliente: 'filtro_platosCalientes' };
+  const filtro = valorFiltro(filtroIdPorTipo[tipo]);
+  const lista = ST.otrosProductos.filter(p=>p.tipo===tipo && coincideBusqueda(filtro, p.name) && visibleParaLocalActual(p.marcas));
+  let h='<table><thead><tr><th>Producto</th><th>Rolls</th><th>Receta</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(p=>{
     const rollsResumen = Object.entries(p.rolls||{}).filter(([,q])=>q>0).map(([r,q])=>`${r} (${q}pz)`).join(', ');
-    const i=Object.entries(p.insumos).filter(([,v])=>v>0).map(([k,v])=>`${styledIngredientName(k)}: ${v}${getIngredientUnit(k)}`).join(' · ');
     h+=`<tr><td style="font-weight:600">${p.name}</td>
-      <td>${p.familia||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${rollsResumen||'—'}</td>
-      <td style="font-size:12px;color:var(--text2)">${i||'—'}</td>
+      <td><button class="btn btn-sm" onclick="openOtroProductoModal(${p.id},null,null,true)" title="Ver receta"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td style="font-size:11px">${marcaBadges(p.marcas)}</td>
       <td><div class="row" style="gap:4px">
+        ${IS_ADMIN ? `
         <button class="btn btn-sm" onclick="openOtroProductoModal(${p.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm" onclick="duplicateOtroProducto(${p.id})" title="Duplicar"><i class="ti ti-copy"></i> Duplicar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('otros-productos',${p.id},${renderFnName})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
+        ` : ``}
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!lista.length) h=`<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`;
+  if(!lista.length) h = filtro
+    ? `<div class="empty">No se encontró ninguna coincidencia.</div>`
+    : (localActualTieneFiltroMarca()
+        ? `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s de las marcas habilitadas para este local.</div>`
+        : `<div class="empty">No hay ${TIPO_OTRO_LABELS[tipo].toLowerCase()}s cargadas todavía. Agregá la primera.</div>`);
   document.getElementById(containerId).innerHTML=h;
 }
 function renderPorcionesCfg(){ renderOtroProductoCfgTipo('porcion','porcionCfg',renderPorcionesCfg); }
@@ -2530,41 +3011,44 @@ function renderEnsaladasCfg(){ renderOtroProductoCfgTipo('ensalada','ensaladaCfg
 function renderEntradasCfg(){ renderOtroProductoCfgTipo('entrada','entradaCfg',renderEntradasCfg); }
 function renderPlatosCalientesCfg(){ renderOtroProductoCfgTipo('plato_caliente','platoCalienteCfg',renderPlatosCalientesCfg); }
 
-function openOtroProductoModal(id, dup, defaultTipo) {
+function openOtroProductoModal(id, dup, defaultTipo, readOnly) {
   const prod = id ? ST.otrosProductos.find(p=>p.id===id) : (dup || null);
   const ins = prod?.insumos || {};
   const rollsExistentes = prod?.rolls || {};
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
   const tipoSeleccionado = prod?.tipo || defaultTipo;
   const tipoOpts = Object.entries(TIPO_OTRO_LABELS).filter(([k])=>k!=='otro').map(([k,label])=>
     `<option value="${k}" ${tipoSeleccionado===k?'selected':''}>${label}</option>`).join('');
   const rollOptsProd=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd)).join('');
-  openModal(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto'),`
+  const existingRollRows=Object.entries(rollsExistentes).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOptsProd,ro)).join('');
+  openModal(ro?'Ver producto':(id?'Editar producto':(dup?'Duplicar producto':'Nuevo producto')),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón"></div>
-      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full">${tipoOpts}</select></div>
+      <div><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${prod?.name||''}" placeholder="Ej: Ensalada Poke Salmón" ${dis}></div>
+      <div><label class="form-lbl">Tipo</label><select id="m_tipo" class="w-full" ${dis}>${tipoOpts}</select></div>
     </div>
-    <div style="margin-bottom:1.25rem"><label class="form-lbl">Familia</label><select id="m_familia" class="w-full">${familiaOptions(prod?.familia)}</select></div>
 
     <div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rolls y piezas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para productos armados con piezas de un roll, igual que un combo)</span></div>
     <div id="otroProdRollRows" style="margin-bottom:8px">${existingRollRows}</div>
-    <button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+    ${ro ? '' : `<button class="btn btn-sm" style="margin-bottom:1.25rem" onclick="addOtroProdRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`}
 
     <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — para lo que se agrega directo, sin pasar por un roll)</span></div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
+    ${ro ? '' : `<div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="otroProdIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('otroProd')" onfocus="filterIngredientDropdown('otroProd')"
         onkeydown="handleIngredientKeydown(event,'otroProd')" onblur="closeIngredientDropdownOnBlur('otroProd')">
       <div id="otroProdIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="otroProdIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="otroProdMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(prod?.marcas)}</div>
-    ${codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`
+    ${ro ? '' : codigosVentaSection('otro_producto', prod?.name||'', 'otroProdCodigosVenta')}`,
+    botonSugerirMejora('otro_producto', id, prod?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveOtroProducto(${id||'null'})">Guardar</button>`)
   );
+  if (ro) document.querySelectorAll('#otroProdMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('otroProdIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro)); });
 }
 function addOtroProdRollRow(){
   const opts = ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
@@ -2626,11 +3110,13 @@ async function handleImportarRecetasFiles(files, defaultTipo) {
 }
 
 function catalogoInsumosOptions(matchKey) {
-  let h = '';
+  let h = '<optgroup label="Insumos">';
   ST.insumosMaster.forEach(i => { h += `<option value="${i.key}" ${i.key===matchKey?'selected':''}>${i.label}</option>`; });
+  h += '</optgroup>';
   if (ST.semielaborados.length) {
-    h += '</optgroup><optgroup label="Semielaborados">';
+    h += '<optgroup label="Semielaborados">';
     ST.semielaborados.forEach(s => { h += `<option value="${s.insumo_key}" ${s.insumo_key===matchKey?'selected':''}>${s.name}</option>`; });
+    h += '</optgroup>';
   }
   return h;
 }
@@ -2648,13 +3134,16 @@ function renderImportarRecetasReview() {
     let ingRows = '';
     r.ingredientes.forEach((ing, ii) => {
       const sugerido = ing.match_sugerido;
+      const esNegrita = ing.es_semielaborado_sugerido;
+      const defaultOpt = sugerido ? sugerido.key : (esNegrita ? 'crear_semi_nuevo' : 'crear_nuevo');
       ingRows += `<tr>
-        <td>${ing.nombre}</td>
+        <td>${ing.nombre}${esNegrita ? ` <span class="badge b-green" style="font-size:10px" title="Estaba en negrita en el PDF — el sistema de origen lo marca como semielaborado">negrita → semielaborado</span>` : ''}</td>
         <td><input type="number" class="ing-peso" data-r="${ri}" data-i="${ii}" value="${ing.peso_neto ?? ''}" style="width:70px"> ${ing.unidad_sugerida}</td>
         <td><select class="ing-match" data-r="${ri}" data-i="${ii}">
-          <option value="crear_nuevo" ${!sugerido?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="crear_nuevo" ${defaultOpt==='crear_nuevo'?'selected':''}>+ Crear insumo nuevo "${ing.nombre}"</option>
+          <option value="crear_semi_nuevo" ${defaultOpt==='crear_semi_nuevo'?'selected':''}>+ Crear semielaborado nuevo "${ing.nombre}"</option>
           <option value="excluir">No incluir este ingrediente</option>
-          <optgroup label="Vincular a insumo existente">${catalogoInsumosOptions(sugerido?sugerido.key:null)}</optgroup>
+          ${catalogoInsumosOptions(sugerido?sugerido.key:null)}
         </select>${sugerido ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Sugerido: ${sugerido.label} (${Math.round(sugerido.score*100)}% parecido) — revisalo antes de confirmar</div>` : ''}</td>
       </tr>`;
     });
@@ -2689,6 +3178,12 @@ function renderImportarRecetasReview() {
         ${headerFields}
       </div>
       ${(!esSemi && !r.tipo_sugerido) ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">No reconocí la categoría "${r.categoria}" — elegí el tipo correcto arriba.</div>` : ''}
+      ${r.ya_existe ? `<div class="alert alert-warn" style="margin-bottom:10px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" class="receta-actualizar" data-r="${ri}" ${!r.ya_existe_tiene_receta?'checked':''}>
+            Ya existe ${esSemi?'un semielaborado':'un producto'} llamado "${r.titulo}"${r.ya_existe_tiene_receta?' (con receta cargada)':' (sin receta cargada todavía)'} — actualizar sus datos con lo de este PDF en vez de omitirlo
+          </label>
+        </div>` : ''}
       <table><thead><tr><th>Ingrediente (del PDF)</th><th style="width:110px">Cantidad</th><th>Vincular a</th></tr></thead>
       <tbody>${ingRows}</tbody></table>
     </div>`;
@@ -2710,8 +3205,11 @@ async function confirmarImportacionRecetas() {
       const peso = parseFloat(pesoEl.value) || 0;
       if (matchEl.value === 'excluir') return { nombre: ing.nombre, excluir: true };
       if (matchEl.value === 'crear_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_nuevo: true };
+      if (matchEl.value === 'crear_semi_nuevo') return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, crear_semi_nuevo: true };
       return { nombre: ing.nombre, peso_neto: peso, unidad: ing.unidad_sugerida, insumo_key: matchEl.value };
     });
+    const actualizarEl = document.querySelector(`.receta-actualizar[data-r="${ri}"]`);
+    const actualizarExistente = actualizarEl ? actualizarEl.checked : false;
     if (r.es_semielaborado) {
       const rendCant = parseFloat(document.querySelector(`.semi-rend-cant[data-r="${ri}"]`).value) || 0;
       const rendUnid = document.querySelector(`.semi-rend-unid[data-r="${ri}"]`).value;
@@ -2719,11 +3217,12 @@ async function confirmarImportacionRecetas() {
       recetas.push({
         nombre, es_semielaborado: true, ingredientes, procedimiento_pasos: r.procedimiento_pasos,
         rendimiento_cantidad: rendCant, rendimiento_unidad: rendUnid,
-        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null
+        vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null,
+        actualizar_existente: actualizarExistente
       });
     } else {
       const tipo = document.querySelector(`.receta-tipo[data-r="${ri}"]`).value;
-      recetas.push({ nombre, tipo, familia: '', ingredientes, procedimiento_pasos: r.procedimiento_pasos });
+      recetas.push({ nombre, tipo, ingredientes, procedimiento_pasos: r.procedimiento_pasos, actualizar_existente: actualizarExistente });
     }
   });
 
@@ -2733,7 +3232,7 @@ async function confirmarImportacionRecetas() {
   const result = await res.json();
   if (!res.ok) { alert(result.error || 'Error al confirmar la importación'); return; }
 
-  let msg = `Listo: ${result.creados_productos} producto(s) y ${result.creados_insumos} insumo(s) nuevo(s) creados.`;
+  let msg = `Listo: ${result.creados_productos} creado(s), ${result.actualizados} actualizado(s), ${result.creados_insumos} insumo(s) nuevo(s) y ${result.creados_semis_placeholder} semielaborado(s) nuevo(s) (sin receta todavía) creados.`;
   if (result.errores.length) msg += `\n\nAvisos:\n` + result.errores.join('\n');
   alert(msg);
   await loadConfig();
@@ -2764,7 +3263,6 @@ async function saveOtroProducto(id) {
   const nombreAnterior = id ? ST.otrosProductos.find(p=>p.id===id)?.name : null;
   const data = {
     name, tipo: document.getElementById('m_tipo').value,
-    familia: document.getElementById('m_familia').value,
     insumos, marcas, rolls
   };
   const res = await fetch(id?`/api/otros-productos/${id}`:'/api/otros-productos',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -2789,8 +3287,10 @@ function readMarcaChecks(containerId) {
 
 // ── Usuarios (admin) ──
 function renderUsuarioCfg() {
+  const filtro = valorFiltro('filtro_usuarios');
+  const lista = ST.usuarios.filter(u => coincideBusqueda(filtro, u.email, u.nombre));
   let h='<table><thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Locales</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.usuarios.forEach(u=>{
+  lista.forEach(u=>{
     const isMe = u.email === (window.CURRENT_USER_EMAIL||'');
     const localesTxt = u.role==='admin' ? '<span style="color:var(--text3);font-style:italic">Todos</span>'
       : (u.locales||[]).map(lid=>ST.locales.find(l=>l.id===lid)?.name).filter(Boolean).join(', ') || '<span style="color:var(--text3);font-style:italic">Sin asignar</span>';
@@ -2805,7 +3305,7 @@ function renderUsuarioCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.usuarios.length) h='<div class="empty">No hay usuarios cargados todavía.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay usuarios cargados todavía.</div>';
   document.getElementById('usuarioCfg').innerHTML=h;
 }
 function onUsuarioRoleChange() {
@@ -2865,8 +3365,10 @@ async function deleteUsuario(id) {
 
 // ── Locales ──
 function renderLocalCfg() {
+  const filtro = valorFiltro('filtro_locales');
+  const lista = ST.locales.filter(l => coincideBusqueda(filtro, l.name));
   let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
-  ST.locales.forEach(l=>{
+  lista.forEach(l=>{
     h+=`<tr><td style="font-weight:600">${l.name}</td>
       <td><span class="badge ${l.active?'b-green':'b-red'}">${l.active?'Activo':'Inactivo'}</span></td>
       <td><div class="row" style="gap:4px">
@@ -2875,7 +3377,7 @@ function renderLocalCfg() {
       </div></td></tr>`;
   });
   h+='</tbody></table>';
-  if(!ST.locales.length) h='<div class="empty">No hay locales cargados todavía.</div>';
+  if(!lista.length) h = filtro ? '<div class="empty">No se encontró ninguna coincidencia.</div>' : '<div class="empty">No hay locales cargados todavía.</div>';
   document.getElementById('localCfg').innerHTML=h;
 }
 function openLocalModal(id) {
@@ -2883,17 +3385,20 @@ function openLocalModal(id) {
   openModal(id?'Editar local':'Nuevo local',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre del local</label>
       <input type="text" id="m_name" class="w-full" value="${l?.name||''}" placeholder="Ej: Sucursal Palermo"></div>
-    <div><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
+    <div style="margin-bottom:1.25rem"><label class="form-lbl">Estado</label><select id="m_active" class="w-full">
       <option value="1" ${l?.active!==false?'selected':''}>Activo</option>
       <option value="0" ${l?.active===false?'selected':''}>Inactivo</option>
-    </select></div>`,
+    </select></div>
+    <div class="form-lbl" style="margin-bottom:8px">Marcas habilitadas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — sin ninguna marcada, este local ve todo el catálogo sin filtrar; si marcás alguna, solo va a ver los productos de esas marcas)</span></div>
+    <div id="localMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(l?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveLocal(${id||'null'})">Guardar</button>`
   );
 }
 async function saveLocal(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
-  const data={name, active: document.getElementById('m_active').value==='1'};
+  const marcas = readMarcaChecks('localMarcaChecks');
+  const data={name, active: document.getElementById('m_active').value==='1', marcas};
   const res = await fetch(id?`/api/locales/${id}`:'/api/locales',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
@@ -2937,6 +3442,18 @@ function openSmModal(id) {
       <div><label class="form-lbl">Productividad (rolls por hora)</label><input type="number" id="m_prod" class="w-full" value="${sm?.productivity||10}" min="1" max="50"></div>
       <div><label class="form-lbl">Horario de ingreso habitual</label><input type="time" id="m_ingreso" class="w-full" step="1800" value="${sm?.horario_ingreso||''}"></div>
     </div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Turno</label><select id="m_turno" class="w-full">
+        <option value="">Sin definir</option>
+        <option value="Mañana" ${sm?.turno==='Mañana'?'selected':''}>Mañana</option>
+        <option value="Intermedio" ${sm?.turno==='Intermedio'?'selected':''}>Intermedio</option>
+        <option value="Noche" ${sm?.turno==='Noche'?'selected':''}>Noche</option>
+      </select></div>
+      <div><label class="form-lbl">Posición</label><select id="m_posicion" class="w-full">
+        <option value="">Sin definir</option>
+        ${ST.posiciones.map(p=>`<option value="${p.id}" ${sm?.posicion_id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select></div>
+    </div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Estado base</label><select id="m_active" class="w-full">
       <option value="1" ${sm?.active!==false?'selected':''}>Activo</option>
       <option value="0" ${sm?.active===false?'selected':''}>Inactivo</option></select></div>
@@ -2956,12 +3473,89 @@ async function saveSm(id) {
     name, productivity:parseInt(document.getElementById('m_prod').value)||10,
     active:document.getElementById('m_active').value==='1',
     dias_franco, horario_ingreso: document.getElementById('m_ingreso').value || null,
+    turno: document.getElementById('m_turno').value || null,
+    posicion_id: document.getElementById('m_posicion').value ? parseInt(document.getElementById('m_posicion').value) : null,
     local_id: ST.currentLocalId
   };
   const res = await fetch(id?`/api/sushimanes/${id}`:'/api/sushimanes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderSmCfg(); renderSmList();
+}
+
+// ── Posiciones (lista editable de puestos para sushimanes) ──
+function openPosicionesModal() {
+  openModalW('Posiciones', '<div id="posicionesListWrap"></div>', `<button class="btn" onclick="closeModalW()">Cerrar</button>`);
+  renderPosicionesModal();
+}
+function renderPosicionesModal() {
+  let h = `<div class="row" style="gap:6px;margin-bottom:1rem">
+    <input type="text" id="nuevaPosicionInput" class="w-full" placeholder="Nombre de la posición (ej: Corte, Armado, Sushiman)">
+    <button class="btn btn-primary" onclick="crearPosicion()" style="flex-shrink:0"><i class="ti ti-plus"></i> Agregar</button>
+  </div>`;
+  if (!ST.posiciones.length) {
+    h += '<div class="empty">Todavía no cargaste ninguna posición.</div>';
+  } else {
+    h += '<table><thead><tr><th>Posición</th><th style="width:150px"></th></tr></thead><tbody>';
+    ST.posiciones.forEach((p,i)=>{
+      const esPrimera = i===0, esUltima = i===ST.posiciones.length-1;
+      h += `<tr><td id="posNombre_${p.id}" style="font-weight:600">${p.name}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn btn-sm" onclick="movePosicion(${p.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+          <button class="btn btn-sm" onclick="movePosicion(${p.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+          <button class="btn btn-sm" onclick="editarPosicion(${p.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="eliminarPosicion(${p.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div></td></tr>`;
+    });
+    h += '</tbody></table>';
+  }
+  document.getElementById('posicionesListWrap').innerHTML = h;
+}
+async function crearPosicion() {
+  const input = document.getElementById('nuevaPosicionInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/posiciones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderPosicionesModal();
+}
+function editarPosicion(id) {
+  const p = ST.posiciones.find(x=>x.id===id);
+  const celda = document.getElementById(`posNombre_${id}`);
+  celda.innerHTML = `<input type="text" id="editPos_${id}" class="w-full" value="${p.name}" onkeydown="if(event.key==='Enter')guardarPosicion(${id})">`;
+  document.getElementById(`editPos_${id}`).focus();
+  // reemplazamos los botones de esa fila por Guardar/Cancelar mientras se edita
+  const fila = celda.closest('tr');
+  fila.querySelector('td:last-child').innerHTML = `
+    <div class="row" style="gap:4px">
+      <button class="btn btn-sm btn-primary" onclick="guardarPosicion(${id})">Guardar</button>
+      <button class="btn btn-sm" onclick="renderPosicionesModal()">Cancelar</button>
+    </div>`;
+}
+async function guardarPosicion(id) {
+  const name = document.getElementById(`editPos_${id}`).value.trim();
+  if (!name) return;
+  const res = await fetch(`/api/posiciones/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderPosicionesModal();
+}
+async function eliminarPosicion(id) {
+  if(!confirm('¿Eliminar esta posición? Los sushimanes que la tenían asignada quedarán sin posición.')) return;
+  await fetch(`/api/posiciones/${id}`, {method:'DELETE'});
+  await loadConfig();
+  renderPosicionesModal();
+}
+async function movePosicion(id, direction) {
+  const idx = ST.posiciones.findIndex(p=>p.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.posiciones.length) return;
+  [ST.posiciones[idx], ST.posiciones[swapIdx]] = [ST.posiciones[swapIdx], ST.posiciones[idx]];
+  renderPosicionesModal();
+  await fetch('/api/posiciones/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.posiciones.map(p=>p.id)})});
 }
 
 // ── Roll modal ──
@@ -3037,7 +3631,7 @@ function tipoBadge(type) {
   return b;
 }
 
-function makeIngRow(key, qty) {
+function makeIngRow(key, qty, readOnly, showTopping, isTopping) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
@@ -3048,16 +3642,33 @@ function makeIngRow(key, qty) {
   label.textContent = getIngredientLabel(key);
   const inp = document.createElement('input');
   inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
+  if (readOnly) inp.disabled = true;
   const unit = document.createElement('span');
   unit.style.fontSize = '12px'; unit.style.color = 'var(--text3)'; unit.style.minWidth = '40px';
   unit.textContent = getIngredientUnit(key);
-  const btn = document.createElement('button');
-  btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
-  btn.onclick = () => div.remove();
-  div.appendChild(dragHandle());
+  div.appendChild(readOnly ? document.createElement('span') : dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
-  div.appendChild(label); div.appendChild(inp); div.appendChild(unit); div.appendChild(btn);
-  makeDraggable(div);
+  div.appendChild(label); div.appendChild(inp); div.appendChild(unit);
+  if (showTopping) {
+    const toppingLabel = document.createElement('label');
+    toppingLabel.style.display = 'flex'; toppingLabel.style.alignItems = 'center'; toppingLabel.style.gap = '3px';
+    toppingLabel.style.fontSize = '11px'; toppingLabel.style.color = 'var(--text3)'; toppingLabel.style.cursor = 'pointer';
+    toppingLabel.style.flexShrink = '0'; toppingLabel.style.whiteSpace = 'nowrap';
+    toppingLabel.title = 'Se agrega después de cortar el roll — no hace falta tenerlo listo antes de armar';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'topping-check'; cb.checked = !!isTopping;
+    if (readOnly) cb.disabled = true;
+    toppingLabel.appendChild(cb);
+    toppingLabel.appendChild(document.createTextNode('Topping'));
+    div.appendChild(toppingLabel);
+  }
+  if (!readOnly) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-remove-x'; btn.title = 'Quitar'; btn.innerHTML = '&times;';
+    btn.onclick = () => div.remove();
+    div.appendChild(btn);
+    makeDraggable(div);
+  }
   return div;
 }
 
@@ -3157,10 +3768,11 @@ function selectIngredientFromDropdown(idx) {
     legacyLinkTarget = null;
   }
 
+  const esRoll = ingDropdownPrefix === 'roll';
   if (legacyLinkTarget) {
     // Reemplaza la fila "sin vincular" por una fila real, conservando la cantidad
     const { row, cantidad } = legacyLinkTarget;
-    const nueva = makeIngRow(item.key, cantidad);
+    const nueva = makeIngRow(item.key, cantidad, false, esRoll, false);
     row.parentNode.insertBefore(nueva, row);
     row.remove();
     legacyLinkTarget = null;
@@ -3170,7 +3782,7 @@ function selectIngredientFromDropdown(idx) {
       existing.querySelector('input').focus();
       existing.querySelector('input').select();
     } else {
-      container.appendChild(makeIngRow(item.key, 1));
+      container.appendChild(makeIngRow(item.key, 1, false, esRoll, false));
     }
   }
   document.getElementById(ingDropdownPrefix+'IngSearch').value = '';
@@ -3211,30 +3823,39 @@ function closeIngredientDropdownOnBlur(prefix) {
   // slight delay so a click (mousedown already handled selection) doesn't get lost
   setTimeout(()=>{ const d=document.getElementById(p+'IngDropdown'); if(d) d.classList.add('hidden'); }, 100);
 }
-function openRollModal(id, dup) {
+function openRollModal(id, dup, readOnly) {
   const roll = id ? ST.rolls.find(r=>r.id===id) : (dup || null);
   const ins = roll?.insumos || {};
-  openModal(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll'),`
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
+  openModal(ro?'Ver roll':(id?'Editar roll':(dup?'Duplicar roll':'Nuevo roll')),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}"></div>
-      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50"></div>
+      <div><label class="form-lbl">Nombre del roll</label><input type="text" id="m_name" class="w-full" value="${roll?.name||''}" ${dis}></div>
+      <div><label class="form-lbl">Piezas por rollo</label><input type="number" id="m_piezas" class="w-full" value="${roll?.piezas_por_rollo||14}" min="1" max="50" ${dis}></div>
     </div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Grupo de rollo blanco <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — rolls con el mismo relleno pero distinta cobertura)</span></label>
-      <select id="m_rolloBlanco" class="w-full">${rolloBlancoGrupoOptions(roll?.rollo_blanco_grupo)}</select></div>
-    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta</div>
-    <div class="ing-search-wrap" style="margin-bottom:10px">
+      <select id="m_rolloBlanco" class="w-full" ${dis}>${rolloBlancoGrupoOptions(roll?.rollo_blanco_grupo)}</select></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;cursor:pointer">
+      <input type="checkbox" id="m_cuentaProductividad" ${roll?.cuenta_productividad!==false?'checked':''} ${dis} style="width:18px;height:18px">
+      <span class="form-lbl" style="margin:0;text-transform:none;font-weight:400">Cuenta para el cálculo de productividad <span style="color:var(--text3)">(desmarcá esto para nigiris, geishas, sashimis y similares — no van a competir por las horas/presupuesto de cada sushiman en la grilla automática)</span></span>
+    </label>
+    <div class="form-lbl" style="margin-bottom:8px">Insumos y semielaborados de la receta <span style="font-weight:400;color:var(--text3);text-transform:none">(marcá "Topping" en lo que se agrega después de cortar el roll — salsas, hilos de batata, etc. — así no se cuenta en la planilla de semielaborados por hora, que es solo para lo que hace falta antes de armar)</span></div>
+    ${ro ? '' : `<div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="rollIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('roll')" onfocus="filterIngredientDropdown('roll')"
         onkeydown="handleIngredientKeydown(event,'roll')" onblur="closeIngredientDropdownOnBlur('roll')">
       <div id="rollIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="rollIngRows" style="margin-bottom:1.25rem"></div>
     <div class="form-lbl" style="margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="rollMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(roll?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('roll', id, roll?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveRoll(${id||'null'})">Guardar</button>`)
   );
+  if (ro) document.querySelectorAll('#rollMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('rollIngRows');
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty)); });
+  const toppingKeys = roll?.toppings || [];
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro, true, toppingKeys.includes(key))); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -3245,14 +3866,18 @@ async function saveRoll(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
   const insumos={};
+  const toppings=[];
   document.querySelectorAll('#rollIngRows .roll-ing-row').forEach(row=>{
-    const v = parseFloat(row.querySelector('input').value)||0;
+    const v = parseFloat(row.querySelector('input[type=number]').value)||0;
     if (v>0) insumos[row.dataset.key] = v;
+    const toppingCheck = row.querySelector('.topping-check');
+    if (toppingCheck && toppingCheck.checked) toppings.push(row.dataset.key);
   });
   const marcas = readMarcaChecks('rollMarcaChecks');
   const piezas_por_rollo = parseInt(document.getElementById('m_piezas').value)||14;
   const rollo_blanco_grupo = document.getElementById('m_rolloBlanco').value || null;
-  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo,rollo_blanco_grupo})});
+  const cuenta_productividad = document.getElementById('m_cuentaProductividad').checked;
+  const res = await fetch(id?`/api/rolls/${id}`:'/api/rolls',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,insumos,marcas,piezas_por_rollo,rollo_blanco_grupo,cuenta_productividad,toppings})});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderRollCfg();
@@ -3302,31 +3927,41 @@ async function syncCodigosVenta(tipo, nombreAnterior, nombreNuevo, containerId) 
     body: JSON.stringify({tipo, nombre_canonico: nombreNuevo, codigos})});
 }
 
-function openComboModal(id) {
-  const combo=id?ST.combos.find(c=>c.id===id):null;
+function duplicateCombo(id) {
+  const combo = ST.combos.find(c=>c.id===id);
+  if(!combo) return;
+  openComboModal(null, {...combo, name: combo.name + ' (copia)'});
+}
+function openComboModal(id, dup, readOnly) {
+  const combo=id?ST.combos.find(c=>c.id===id):(dup||null);
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
   const famOpts=familiaOptions(combo?.family);
   const rollOpts=ST.rolls.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts)).join(''):'';
-  openModal(id?'Editar combo':'Nuevo combo',`
+  const existingRows=combo?Object.entries(combo.rolls).filter(([,q])=>q>0).map(([r,q])=>rollRow(r,q,rollOpts,ro)).join(''):'';
+  openModal(ro?'Ver combo':(id?'Editar combo':(dup?'Duplicar combo':'Nuevo combo')),`
     <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}"></div>
-      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full">${famOpts}</select></div>
+      <div><label class="form-lbl">Nombre del combo</label><input type="text" id="m_name" class="w-full" value="${combo?.name||''}" ${dis}></div>
+      <div><label class="form-lbl">Familia</label><select id="m_fam" class="w-full" ${dis}>${famOpts}</select></div>
     </div>
     <div class="form-lbl" style="margin-bottom:8px">Rolls y piezas</div>
     <div id="rollRows">${existingRows}</div>
-    <button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>
+    ${ro ? '' : `<button class="btn btn-sm" style="margin-top:8px" onclick="addRollRow()"><i class="ti ti-plus"></i> Agregar roll</button>`}
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="comboMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px;margin-bottom:1.25rem">${marcaChecks(combo?.marcas)}</div>
-    ${codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`
+    ${ro ? '' : codigosVentaSection('combo', combo?.name||'', 'comboCodigosVenta')}`,
+    botonSugerirMejora('combo', id, combo?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCombo(${id||'null'})">Guardar</button>`)
   );
+  if (ro) document.querySelectorAll('#comboMarcaChecks input').forEach(cb=>cb.disabled=true);
 }
-function rollRow(name,qty,opts){
+function rollRow(name,qty,opts,readOnly){
+  const dis = readOnly ? 'disabled' : '';
   return `<div class="row" style="margin-bottom:6px">
-    <select style="flex:1">${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
-    <input type="number" value="${qty}" min="1" max="100" style="width:65px">
+    <select style="flex:1" ${dis}>${opts.replace(`value="${name}"`,`value="${name}" selected`)}</select>
+    <input type="number" value="${qty}" min="1" max="100" style="width:65px" ${dis}>
     <span style="font-size:12px;color:var(--text3)">piezas</span>
-    <button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>
+    ${readOnly ? '' : `<button class="btn-remove-x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>`}
   </div>`;
 }
 function addRollRow(){
@@ -3448,36 +4083,34 @@ function mostrarPreviewConversion(html) {
   }
   el.innerHTML = html;
 }
-function openSemiModal(id, dup) {
+function openSemiModal(id, dup, readOnly) {
   const semi = id ? ST.semielaborados.find(s=>s.id===id) : (dup || null);
-  openModal(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado'),`
-    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}"></div>
-    <div class="form-grid" style="margin-bottom:1rem">
-      <div><label class="form-lbl">Clave interna <span style="font-weight:400;color:var(--text3);text-transform:none">(para vincularlo en las recetas de rolls)</span></label>
-        <input type="text" id="m_insumo" class="w-full" value="${semi?.insumo_key||''}" placeholder="Se genera del nombre si lo dejás vacío"></div>
-      <div><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full">
+  const ro = !!readOnly;
+  const dis = ro ? 'disabled' : '';
+  openModal(ro?'Ver semielaborado':(id?'Editar semielaborado':(dup?'Duplicar semielaborado':'Nuevo semielaborado')),`
+    <div style="margin-bottom:1rem"><label class="form-lbl">Nombre</label><input type="text" id="m_name" class="w-full" value="${semi?.name||''}" ${dis}></div>
+    <div style="margin-bottom:1rem"><label class="form-lbl">Unidad</label><select id="m_unit" class="w-full" ${dis}>
         <option value="g" ${semi?.unit==='g'?'selected':''}>Gramos (g)</option>
         <option value="u" ${semi?.unit==='u'?'selected':''}>Unidades (u)</option></select></div>
-    </div>
     <div class="form-grid" style="margin-bottom:1.25rem">
       <div><label class="form-lbl">Tiempo de elaboración <span style="font-weight:400;color:var(--text3);text-transform:none">(minutos)</span></label>
-        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25"></div>
+        <input type="number" id="m_tiempoElab" class="w-full" value="${semi?.tiempo_elaboracion_min??''}" min="0" placeholder="Ej: 25" ${dis}></div>
       <div><label class="form-lbl">Vida útil <span style="font-weight:400;color:var(--text3);text-transform:none">(días)</span></label>
-        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3"></div>
+        <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3" ${dis}></div>
     </div>
-    <div class="alert alert-info" style="margin-bottom:1.25rem">
+    ${ro ? '' : `<div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
-    </div>
+    </div>`}
 
     <div class="sec"><i class="ti ti-clipboard-list"></i> Receta completa</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
+    ${ro ? '' : `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Buscá cada ingrediente en tu tabla de insumos o en tus semielaborados ya cargados. Arrastrá las filas (<i class="ti ti-grip-vertical"></i>) para reordenarlas.</div>
     <div class="ing-search-wrap" style="margin-bottom:10px">
       <input type="text" id="semiRecetaIngSearch" placeholder="Buscar insumo o semielaborado..." class="w-full" autocomplete="off"
         oninput="filterIngredientDropdown('semiReceta')" onfocus="filterIngredientDropdown('semiReceta')"
         onkeydown="handleIngredientKeydown(event,'semiReceta')" onblur="closeIngredientDropdownOnBlur('semiReceta')">
       <div id="semiRecetaIngDropdown" class="ing-dropdown hidden"></div>
-    </div>
+    </div>`}
     <div id="semiRecetaIngRows" style="margin-bottom:1.25rem"></div>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;margin-bottom:1.25rem">
@@ -3498,9 +4131,9 @@ function openSemiModal(id, dup) {
 
     <div class="form-grid" style="background:var(--warn-bg);padding:12px;border-radius:var(--rsm);margin-top:.5rem">
       <div><label class="form-lbl" style="color:#7a5500">⚠ Rendimiento de la receta</label>
-        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850"></div>
+        <input type="number" id="m_rendCant" class="w-full" value="${semi?.rendimiento_cantidad||''}" step="0.1" placeholder="Ej: 850" ${dis}></div>
       <div><label class="form-lbl" style="color:#7a5500">Unidad del rendimiento</label>
-        <select id="m_rendUnid" class="w-full">
+        <select id="m_rendUnid" class="w-full" ${dis}>
           <option value="g" ${semi?.rendimiento_unidad==='g'?'selected':''}>Gramos (g)</option>
           <option value="u" ${semi?.rendimiento_unidad==='u'?'selected':''}>Unidades (u)</option>
           <option value="ml" ${semi?.rendimiento_unidad==='ml'?'selected':''}>Mililitros (ml)</option>
@@ -3510,15 +4143,19 @@ function openSemiModal(id, dup) {
 
     <div class="form-lbl" style="margin-top:1.25rem;margin-bottom:8px">Marca(s) <span style="font-weight:400;color:var(--text3);text-transform:none">(opción múltiple — dejá sin marcar si es compartido o no aplica)</span></div>
     <div id="semiMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(semi?.marcas)}</div>`,
-    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`
+    botonSugerirMejora('semielaborado', id, semi?.name) + (ro ? `<button class="btn" onclick="closeModal()">Cerrar</button>`
+       : `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveSemi(${id||'null'})">Guardar</button>`)
   );
+  if (ro) {
+    document.querySelectorAll('#semiMarcaChecks input').forEach(cb=>cb.disabled=true);
+  }
   // Populate existing recipe rows (formato nuevo con 'key', o formato viejo en texto libre)
   const ingRowsDiv = document.getElementById('semiRecetaIngRows');
   if (semi?.receta?.length) {
     semi.receta.forEach(ing => {
       if (ing.key) {
-        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad));
-      } else {
+        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad, ro));
+      } else if (!ro) {
         ingRowsDiv.appendChild(legacyIngRow(ing.nombre, ing.cantidad, ing.unidad, 'semiReceta'));
       }
     });
@@ -3546,8 +4183,14 @@ async function saveSemi(id) {
   const marcas = readMarcaChecks('semiMarcaChecks');
   const tiempoElabVal = document.getElementById('m_tiempoElab').value;
   const vidaUtilVal = document.getElementById('m_vidaUtil').value;
-  let insumoKey = document.getElementById('m_insumo').value.trim();
-  if (!insumoKey) insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  let insumoKey;
+  if (id) {
+    // Editando uno existente: la clave interna nunca se toca (evita romper vínculos ya usados en rolls/recetas)
+    const original = ST.semielaborados.find(s=>s.id===id);
+    insumoKey = original ? original.insumo_key : '';
+  } else {
+    insumoKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
   const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
               rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas,
               tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
@@ -3561,22 +4204,20 @@ function openInsumoModal(id) {
   const ins=id?ST.insumosMaster.find(i=>i.id===id):null;
   openModal(id?'Editar insumo':'Nuevo insumo',`
     <div style="margin-bottom:1rem"><label class="form-lbl">Nombre visible</label><input type="text" id="m_label" class="w-full" value="${ins?.label||''}"></div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Clave interna (sin espacios, ej: salmon)</label><input type="text" id="m_key" class="w-full" value="${ins?.key||''}" ${id?'readonly':''} style="${id?'background:var(--bg);color:var(--text3)':''}"></div>
     <div class="form-grid" style="margin-bottom:1rem">
       <div><label class="form-lbl">Unidad en receta</label><select id="m_ur" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="g" ${ins?.unidad_receta==='g'?'selected':''}>Gramos (g)</option>
-        <option value="ml" ${ins?.unidad_receta==='ml'?'selected':''}>Mililitros (ml)</option>
-        <option value="u" ${ins?.unidad_receta==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_receta==='hojas'?'selected':''}>Hojas</option></select></div>
+        ${unidadOptions(ins?.unidad_receta)}</select></div>
       <div><label class="form-lbl">Unidad en resumen</label><select id="m_us" class="w-full" onchange="updateFactorSuggestion()">
-        <option value="kg" ${ins?.unidad_resumen==='kg'?'selected':''}>Kilogramos (kg)</option>
-        <option value="L" ${ins?.unidad_resumen==='L'?'selected':''}>Litros (L)</option>
-        <option value="u" ${ins?.unidad_resumen==='u'?'selected':''}>Unidades (u)</option>
-        <option value="hojas" ${ins?.unidad_resumen==='hojas'?'selected':''}>Hojas</option></select></div>
+        ${unidadOptions(ins?.unidad_resumen)}</select></div>
     </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
-      <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
-      <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Factor de conversión (receta → resumen)</label>
+        <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
+      <div><label class="form-lbl">% de aprovechamiento <span style="font-weight:400;color:var(--text3);text-transform:none">(cuánto se usa de lo que se compra)</span></label>
+        <input type="number" id="m_eficiencia" class="w-full" value="${ins?.eficiencia??100}" min="1" max="100" step="1">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">100% = se aprovecha todo. Ej: 85% si hay merma por descarte, mal estado, o resto pegado al envase.</div></div>
+    </div>
     <div style="margin-bottom:1.25rem"><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
       <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>
 
@@ -3620,8 +4261,15 @@ function updateFactorSuggestion() {
 }
 async function saveInsumo(id) {
   const label=document.getElementById('m_label').value.trim();
-  const key=document.getElementById('m_key').value.trim().toLowerCase().replace(/\s+/g,'_');
-  if(!label||!key){alert('Completá nombre y clave');return;}
+  if(!label){alert('Ingresá un nombre');return;}
+  let key;
+  if (id) {
+    // Editando uno existente: la clave interna nunca se toca (evita romper vínculos ya usados en recetas)
+    const original = ST.insumosMaster.find(i=>i.id===id);
+    key = original ? original.key : '';
+  } else {
+    key = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
   const precioVal=document.getElementById('m_precio').value;
   const provPrincipal = document.getElementById('m_provPrincipal').value;
   const provAlt1 = document.getElementById('m_provAlt1').value;
@@ -3631,6 +4279,7 @@ async function saveInsumo(id) {
     unidad_receta:document.getElementById('m_ur').value,
     unidad_resumen:document.getElementById('m_us').value,
     factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
+    eficiencia: Math.min(100, Math.max(1, parseFloat(document.getElementById('m_eficiencia').value) || 100)),
     precio_unidad:precioVal?parseFloat(precioVal):null,
     categoria: document.getElementById('m_categoria').value || null,
     es_80_20: document.getElementById('m_8020').checked,
