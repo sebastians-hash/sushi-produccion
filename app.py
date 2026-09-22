@@ -1029,6 +1029,15 @@ def _slugify_insumo(nombre):
     key = '_'.join(key.split())
     return key or 'insumo'
 
+def _fmt_cant(n):
+    """Redondea a 2 decimales pero sin mostrar decimales de más (0.75 se
+    muestra como '0.75', 3.0 se muestra como '3') — antes se usaba round()
+    sin decimales, que convertía 0.75 hojas en 1 hoja."""
+    r = round(n, 2)
+    if r == int(r):
+        return str(int(r))
+    return f"{r:g}"
+
 @app.route('/api/importar-recetas-pdf', methods=['POST'])
 @admin_required
 def importar_recetas_pdf():
@@ -2233,12 +2242,12 @@ def calcular():
             factor = master['factor_conversion']
             unidad_resumen = master['unidad_resumen']
             converted = total * factor
-            display = f"{round(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
+            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
         else:
             label = FALLBACK_LABELS.get(k, k)
             unit = 'hojas' if k == 'algas' else ('u' if k == 'langos' else 'g')
             if unit == 'g':
-                display = f"{round(total)} g / {total/1000:.2f} kg"
+                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg"
             elif unit == 'hojas':
                 display = f"{total:.1f} hojas"
             else:
