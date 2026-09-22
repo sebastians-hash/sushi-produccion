@@ -216,6 +216,21 @@ def init_db():
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS novedades (
+            id SERIAL PRIMARY KEY,
+            titulo TEXT NOT NULL,
+            desarrollo TEXT NOT NULL,
+            creado_por TEXT NOT NULL,
+            creado_por_nombre TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS novedades_leidas (
+            id SERIAL PRIMARY KEY,
+            novedad_id INTEGER NOT NULL,
+            user_email TEXT NOT NULL,
+            leida_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(novedad_id, user_email)
+        );
         CREATE TABLE IF NOT EXISTS locales (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -639,6 +654,82 @@ def delete_usuario(usuario_id):
         return jsonify({'error': 'No podés eliminar tu propio usuario mientras estás conectado'}), 400
     conn.execute('DELETE FROM usuario_locales WHERE usuario_id=?', (usuario_id,))
     conn.execute('DELETE FROM usuarios WHERE id=?', (usuario_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Novedades (anuncios del admin a todos los usuarios, con lectura por usuario) ──
+@app.route('/api/novedades', methods=['GET'])
+@login_required
+def get_novedades():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM novedades ORDER BY created_at DESC').fetchall()
+    leidas = {r['novedad_id'] for r in conn.execute(
+        'SELECT novedad_id FROM novedades_leidas WHERE user_email=?', (session['user_email'],)).fetchall()}
+    conn.close()
+    return jsonify([{'id': r['id'], 'titulo': r['titulo'], 'desarrollo': r['desarrollo'],
+                     'creado_por_nombre': r['creado_por_nombre'],
+                     'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                     'leida': r['id'] in leidas} for r in rows])
+
+@app.route('/api/novedades/pendientes-count', methods=['GET'])
+@login_required
+def get_novedades_pendientes_count():
+    conn = get_db()
+    count = conn.execute('''
+        SELECT COUNT(*) AS cnt FROM novedades n
+        WHERE NOT EXISTS (
+            SELECT 1 FROM novedades_leidas nl WHERE nl.novedad_id = n.id AND nl.user_email = ?
+        )
+    ''', (session['user_email'],)).fetchone()['cnt']
+    conn.close()
+    return jsonify({'count': count})
+
+@app.route('/api/novedades', methods=['POST'])
+@admin_required
+def create_novedad():
+    data = request.json
+    titulo = (data.get('titulo') or '').strip()
+    desarrollo = (data.get('desarrollo') or '').strip()
+    if not titulo or not desarrollo:
+        return jsonify({'error': 'Completá el título y el desarrollo'}), 400
+    conn = get_db()
+    conn.execute('INSERT INTO novedades (titulo, desarrollo, creado_por, creado_por_nombre) VALUES (?,?,?,?)',
+                 (titulo, desarrollo, session['user_email'], session.get('user_name')))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/novedades/<int:nov_id>', methods=['PUT'])
+@admin_required
+def update_novedad(nov_id):
+    data = request.json
+    titulo = (data.get('titulo') or '').strip()
+    desarrollo = (data.get('desarrollo') or '').strip()
+    if not titulo or not desarrollo:
+        return jsonify({'error': 'Completá el título y el desarrollo'}), 400
+    conn = get_db()
+    conn.execute('UPDATE novedades SET titulo=?, desarrollo=? WHERE id=?', (titulo, desarrollo, nov_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/novedades/<int:nov_id>', methods=['DELETE'])
+@admin_required
+def delete_novedad(nov_id):
+    conn = get_db()
+    conn.execute('DELETE FROM novedades_leidas WHERE novedad_id=?', (nov_id,))
+    conn.execute('DELETE FROM novedades WHERE id=?', (nov_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/novedades/<int:nov_id>/marcar-leida', methods=['POST'])
+@login_required
+def marcar_novedad_leida(nov_id):
+    conn = get_db()
+    conn.execute('INSERT INTO novedades_leidas (novedad_id, user_email) VALUES (?,?) ON CONFLICT (novedad_id, user_email) DO NOTHING',
+                 (nov_id, session['user_email']))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -2821,3 +2912,4 @@ init_db()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
