@@ -228,6 +228,23 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <!-- ── STEP 1 ── -->
   <div id="s1">
     <div class="card">
+      <div class="card-title" style="margin-bottom:.5rem">Fecha y turno</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-lbl">Fecha de la planilla</label>
+          <input type="date" id="planillaFecha" class="w-full" onchange="onPlanillaFechaChange()">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">De esto depende qué sushimanes tienen franco ese día.</div>
+        </div>
+        <div>
+          <label class="form-lbl">Turno</label>
+          <select id="planillaTurno" class="w-full">
+            <option value="Mañana">Mañana</option>
+            <option value="Noche" selected>Noche</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title" style="margin-bottom:.5rem">¿Qué querés considerar para producir?</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:.5rem">
         <label class="scope-option" style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
@@ -345,19 +362,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <div id="s5" class="hidden">
     <div class="card">
       <div class="card-title">Configuración del turno</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
-        <div>
-          <label class="form-lbl">Fecha de la planilla</label>
-          <input type="date" id="planillaFecha" class="w-full">
-        </div>
-        <div>
-          <label class="form-lbl">Turno</label>
-          <select id="planillaTurno" class="w-full">
-            <option value="Mañana">Mañana</option>
-            <option value="Noche" selected>Noche</option>
-          </select>
-        </div>
-      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem">
         <div>
           <label class="form-lbl">Inicio de la grilla</label>
@@ -928,6 +932,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
 });
 
+const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function nombreDiaDePlanilla() {
+  const fechaInput = document.getElementById('planillaFecha');
+  const fecha = fechaInput?.value;
+  const d = fecha ? new Date(fecha+'T00:00:00') : new Date();
+  return DIAS_SEMANA[d.getDay()];
+}
+function onPlanillaFechaChange() {
+  const diaPlanilla = nombreDiaDePlanilla();
+  ST.sushimanes.forEach(s=>{
+    const esFrancoEseDia = (s.dias_franco||[]).includes(diaPlanilla);
+    ST.dailySm[s.id] = {...(ST.dailySm[s.id]||{prod:s.productivity, ingreso:s.horario_ingreso||''}), avail: s.active && !esFrancoEseDia};
+  });
+  renderSmList();
+}
 async function loadConfig() {
   try {
     const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades,posiciones] = await Promise.all([
@@ -953,12 +972,12 @@ async function loadConfig() {
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
     ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades; ST.posiciones=posiciones;
     setupLocalSelector();
-    const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-    const hoyNombre = DIAS_SEMANA[new Date().getDay()];
+    const fechaInputInit = document.getElementById('planillaFecha');
+    if (fechaInputInit && !fechaInputInit.value) fechaInputInit.value = new Date().toISOString().split('T')[0];
     sms.forEach(s=>{
       if(!ST.dailySm[s.id]) {
-        const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
-        ST.dailySm[s.id]={avail: s.active && !esFrancoHoy, prod:s.productivity, ingreso: s.horario_ingreso||''};
+        const esFrancoEseDia = (s.dias_franco||[]).includes(nombreDiaDePlanilla());
+        ST.dailySm[s.id]={avail: s.active && !esFrancoEseDia, prod:s.productivity, ingreso: s.horario_ingreso||''};
       }
     });
     if (IS_ADMIN) {
@@ -1055,11 +1074,7 @@ function goStep(n) {
   });
   if(n===2) renderSales();
   if(n===3) renderProduction();
-  if(n===4) {
-    renderSmList();
-    const fechaInput = document.getElementById('planillaFecha');
-    if (fechaInput && !fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
-  }
+  if(n===4) renderSmList();
 }
 
 function showTab(id, el) {
@@ -1586,17 +1601,16 @@ function getManualTandaCounts() {
 
 function renderSmList() {
   let h='';
-  const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const hoyNombre = DIAS_SEMANA[new Date().getDay()];
+  const diaPlanilla = nombreDiaDePlanilla();
   const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId);
   lista.forEach(s=>{
     const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity,ingreso:s.horario_ingreso||''};
-    const esFrancoHoy = (s.dias_franco||[]).includes(hoyNombre);
+    const esFrancoEseDia = (s.dias_franco||[]).includes(diaPlanilla);
     h+=`<div class="chk-row">
       <input type="checkbox" id="sm${s.id}" ${d.avail?'checked':''}
         onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},avail:this.checked}">
       <div class="avatar">${s.name.slice(0,2).toUpperCase()}</div>
-      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}${esFrancoHoy?' <span class="badge b-warn" style="font-size:10px">Franco hoy</span>':''}</label>
+      <label for="sm${s.id}" style="flex:1;cursor:pointer;font-weight:500">${s.name}${esFrancoEseDia?` <span class="badge b-warn" style="font-size:10px">Franco el ${diaPlanilla}</span>`:''}</label>
       <span style="font-size:12px;color:var(--text3)">Ingreso</span>
       <input type="time" value="${d.ingreso||''}" style="width:110px" step="1800"
         onchange="ST.dailySm[${s.id}]={...ST.dailySm[${s.id}]||{},ingreso:this.value}">
@@ -2164,7 +2178,10 @@ function cancelGridEdits() {
 async function downloadPDF() {
   const btn=document.getElementById('pdfBtn');
   btn.innerHTML='<span class="loader"></span> Generando PDF...'; btn.disabled=true;
-  const fechaDisplay = ST.schedule?.fecha ? new Date(ST.schedule.fecha+'T00:00:00').toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+  const fechaObjPdf = ST.schedule?.fecha ? new Date(ST.schedule.fecha+'T00:00:00') : new Date();
+  const diaSemanaPdf = fechaObjPdf.toLocaleDateString('es-AR', {weekday:'long'});
+  const fechaCorta = fechaObjPdf.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const fechaDisplay = `${diaSemanaPdf.charAt(0).toUpperCase()+diaSemanaPdf.slice(1)} ${fechaCorta}`;
   const semisParaPdf = s => (ST.mostrarRecetasSemis===false) ? s.map(({receta, ...resto})=>resto) : s;
   const payload={
     date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
