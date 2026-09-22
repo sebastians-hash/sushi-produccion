@@ -673,7 +673,7 @@ def get_novedades():
     conn.close()
     return jsonify([{'id': r['id'], 'titulo': r['titulo'], 'desarrollo': r['desarrollo'],
                      'creado_por_nombre': r['creado_por_nombre'],
-                     'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                     'created_at': _fmt_ts(r['created_at']),
                      'leida': r['id'] in leidas} for r in rows])
 
 @app.route('/api/novedades/pendientes-count', methods=['GET'])
@@ -758,7 +758,7 @@ def get_sugerencias():
                      'creado_por': r['creado_por'], 'creado_por_nombre': r['creado_por_nombre'],
                      'referencia_tipo': r['referencia_tipo'], 'referencia_id': r['referencia_id'],
                      'referencia_nombre': r['referencia_nombre'],
-                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+                     'created_at': _fmt_ts(r['created_at']), 'updated_at': _fmt_ts(r['updated_at'])} for r in rows])
 
 @app.route('/api/sugerencias/pendientes-count', methods=['GET'])
 @login_required
@@ -1154,6 +1154,15 @@ def _fmt_cant(n):
     if r == int(r):
         return str(int(r))
     return f"{r:g}"
+
+def _fmt_ts(dt):
+    """Serializa un datetime de la base (guardado en UTC, sin tzinfo adjunto
+    por el driver) marcándolo EXPLÍCITAMENTE como UTC ('Z' al final) — así el
+    navegador lo interpreta bien y lo puede convertir a la hora de Argentina,
+    en vez de asumir por error que ya es la hora local de quien lo mira."""
+    if dt is None:
+        return None
+    return dt.isoformat() + 'Z'
 
 @app.route('/api/importar-recetas-pdf', methods=['POST'])
 @admin_required
@@ -2619,7 +2628,7 @@ def get_planillas():
     conn.close()
     return jsonify([{'id': r['id'], 'local_id': r['local_id'], 'local_name': locales.get(r['local_id'], '?'),
                      'fecha': r['fecha'], 'estado': r['estado'], 'created_by': r['created_by'],
-                     'created_at': str(r['created_at']), 'updated_at': str(r['updated_at'])} for r in rows])
+                     'created_at': _fmt_ts(r['created_at']), 'updated_at': _fmt_ts(r['updated_at'])} for r in rows])
 
 @app.route('/api/planillas/<int:planilla_id>', methods=['GET'])
 @login_required
@@ -2634,7 +2643,7 @@ def get_planilla(planilla_id):
     return jsonify({'id': row['id'], 'local_id': row['local_id'], 'fecha': row['fecha'],
                      'estado': row['estado'], 'data': json.loads(row['data'] or '{}'),
                      'created_by': row['created_by'], 'created_at': str(row['created_at']),
-                     'updated_at': str(row['updated_at'])})
+                     'updated_at': _fmt_ts(row['updated_at'])})
 
 @app.route('/api/planillas', methods=['POST'])
 @login_required
