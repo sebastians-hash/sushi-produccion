@@ -196,6 +196,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    <div class="main-nav-item" id="mni-novedades" onclick="goMainSection('novedades')"><i class="ti ti-speakerphone"></i> Novedades<span id="novedadesBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     {% if is_admin %}
     <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
@@ -708,6 +709,20 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
   </div>
 
+  <div id="mainNovedades" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Novedades</div>
+        {% if is_admin %}<button class="btn btn-sm btn-primary" onclick="openNovedadModal()"><i class="ti ti-plus"></i> Nueva novedad</button>{% endif %}
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1rem">
+        <i class="ti ti-info-circle"></i>
+        <span>{% if is_admin %}Acá podés publicar las mejoras y cambios que se le van haciendo a la app. Todos los usuarios las ven, con un aviso hasta que las abren.{% else %}Las últimas mejoras y cambios de la app. Hacé click en cada una para ver el detalle.{% endif %}</span>
+      </div>
+      <div id="novedadesCfg"></div>
+    </div>
+  </div>
+
   <div id="mainSugerencias" class="hidden">
     <div class="card">
       <div class="row-between" style="margin-bottom:1rem">
@@ -936,6 +951,7 @@ async function loadConfig() {
       ST.usuarios = await fetch('/api/usuarios').then(r=>r.json());
     }
     refreshSugerenciasBadge();
+    refreshNovedadesBadge();
   } catch(e){ console.error('loadConfig',e); }
 }
 
@@ -943,7 +959,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',sugerencias:'mainSugerencias',admin:'mainAdmin'};
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -953,6 +969,7 @@ function goMainSection(name) {
   if(name==='recetas') renderRollCfg();
   if(name==='insumos') renderInsumoCfg();
   if(name==='equivalencias'){ renderEquivalenciaCfg(); }
+  if(name==='novedades'){ renderNovedadesCfg(); }
   if(name==='sugerencias'){ renderSugerenciasCfg(); }
   if(name==='admin') renderUsuarioCfg();
 }
@@ -2780,6 +2797,89 @@ function listaPorTipo(tipo) {
 }
 function equivalenciaProductoOptions(tipo, selected) {
   return listaPorTipo(tipo).map(n=>`<option value="${n}" ${n===selected?'selected':''}>${n}</option>`).join('');
+}
+
+async function refreshNovedadesBadge() {
+  try {
+    const res = await fetch('/api/novedades/pendientes-count');
+    const { count } = await res.json();
+    const badge = document.getElementById('novedadesBadge');
+    badge.textContent = count > 9 ? '9+' : count;
+    badge.classList.toggle('hidden', !count);
+  } catch(e) { /* no molestar al usuario si esto falla */ }
+}
+
+async function renderNovedadesCfg() {
+  const res = await fetch('/api/novedades');
+  ST.novedades = await res.json();
+  refreshNovedadesBadge();
+  const cont = document.getElementById('novedadesCfg');
+  if (!ST.novedades.length) {
+    cont.innerHTML = '<div class="empty">Todavía no hay novedades publicadas.</div>';
+    return;
+  }
+  cont.innerHTML = ST.novedades.map(n => {
+    const fecha = n.created_at ? new Date(n.created_at).toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '';
+    return `<div class="novedad-item" style="border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:10px;overflow:hidden;${n.leida?'':'border-color:var(--blue);background:var(--blue-bg)'}">
+      <div style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="toggleNovedad(${n.id})">
+        ${n.leida?'':'<span style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0" title="Sin leer"></span>'}
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${n.titulo}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">${fecha}${n.creado_por_nombre?' — '+n.creado_por_nombre:''}</div>
+        </div>
+        ${IS_ADMIN?`<div class="row" style="gap:4px" onclick="event.stopPropagation()">
+          <button class="btn btn-sm" onclick="openNovedadModal(${n.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="deleteNovedad(${n.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>`:''}
+        <i class="ti ti-chevron-down" id="novChevron_${n.id}" style="transition:transform .15s"></i>
+      </div>
+      <div id="novBody_${n.id}" class="hidden" style="padding:0 16px 16px 34px;white-space:pre-wrap;font-size:13px;color:var(--text2);line-height:1.6">${n.desarrollo}</div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleNovedad(id) {
+  const body = document.getElementById(`novBody_${id}`);
+  const chevron = document.getElementById(`novChevron_${id}`);
+  const abriendo = body.classList.contains('hidden');
+  body.classList.toggle('hidden');
+  chevron.style.transform = abriendo ? 'rotate(180deg)' : '';
+  const n = ST.novedades.find(x=>x.id===id);
+  if (abriendo && n && !n.leida) {
+    n.leida = true;
+    await fetch(`/api/novedades/${id}/marcar-leida`, {method:'POST'});
+    refreshNovedadesBadge();
+    const item = document.getElementById(`novBody_${id}`).closest('.novedad-item');
+    item.style.borderColor = 'var(--border)';
+    item.style.background = '';
+    item.querySelector('span[title="Sin leer"]')?.remove();
+  }
+}
+
+function openNovedadModal(id) {
+  const n = id ? ST.novedades.find(x=>x.id===id) : null;
+  openModal(id?'Editar novedad':'Nueva novedad', `
+    <div style="margin-bottom:1rem"><label class="form-lbl">Título</label>
+      <input type="text" id="m_titulo" class="w-full" value="${n?.titulo||''}" placeholder="Ej: Nueva grilla de producción"></div>
+    <div><label class="form-lbl">Desarrollo</label>
+      <textarea id="m_desarrollo" class="w-full" rows="8" placeholder="Contá el detalle de la novedad...">${n?.desarrollo||''}</textarea></div>`,
+    `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveNovedad(${id||'null'})">Guardar</button>`
+  );
+}
+async function saveNovedad(id) {
+  const titulo = document.getElementById('m_titulo').value.trim();
+  const desarrollo = document.getElementById('m_desarrollo').value.trim();
+  if (!titulo || !desarrollo) { alert('Completá el título y el desarrollo'); return; }
+  const res = await fetch(id?`/api/novedades/${id}`:'/api/novedades', {method:id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({titulo, desarrollo})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  closeModal();
+  renderNovedadesCfg();
+}
+async function deleteNovedad(id) {
+  if(!confirm('¿Eliminar esta novedad? Todos los usuarios van a dejar de verla.')) return;
+  await fetch(`/api/novedades/${id}`, {method:'DELETE'});
+  renderNovedadesCfg();
 }
 
 const TIPO_SUGERENCIA_LABELS = { mejora: 'Mejora', correccion_receta: 'Corrección de receta', nueva_herramienta: 'Nueva herramienta' };
