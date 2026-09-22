@@ -62,7 +62,7 @@ def cover_band(date_str, global_pct, width, label=None, turno=None):
     turno_txt = f"  |  Turno&#160;{turno}" if turno else ""
     t = Table([[ logo_cell,
                  Paragraph("PLANILLA DE PRODUCCION", title_style),
-                 Paragraph(f"{date_str}{turno_txt}  |  {global_pct}% de la venta", sub_style) ]],
+                 Paragraph(f"{date_str}{turno_txt}    {global_pct}%", sub_style) ]],
               colWidths=[left_col_w, right_w*0.57, right_w*0.43])
     t.setStyle(TableStyle([
         ('BACKGROUND',    (0,0),(-1,-1), BG_DARK),
