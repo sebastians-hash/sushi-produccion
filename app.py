@@ -357,6 +357,10 @@ def init_db():
     END $$;""")
 
     # Sembrar las unidades que ya se usaban (antes fijas en el código) + las que se pidieron de arranque
+    # Las novedades ya publicadas mostraban el nombre real del admin que las cargó;
+    # ahora siempre deberían figurar como enviadas por "Kata".
+    c.execute("UPDATE novedades SET creado_por_nombre='Kata' WHERE creado_por_nombre IS DISTINCT FROM 'Kata'")
+
     ya_hay_unidades = c.execute('SELECT COUNT(*) AS n FROM unidades').fetchone()['n']
     if not ya_hay_unidades:
         unidades_iniciales = [
@@ -695,7 +699,7 @@ def create_novedad():
         return jsonify({'error': 'Completá el título y el desarrollo'}), 400
     conn = get_db()
     conn.execute('INSERT INTO novedades (titulo, desarrollo, creado_por, creado_por_nombre) VALUES (?,?,?,?)',
-                 (titulo, desarrollo, session['user_email'], session.get('user_name')))
+                 (titulo, desarrollo, session['user_email'], 'Kata'))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
