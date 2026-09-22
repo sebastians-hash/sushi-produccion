@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime
 from gen_pdf import build_pdf
+from gen_xlsx import build_insumos_xlsx
 from parse_receta import parse_receta_pdf, match_insumo, formato_to_unidad
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -2104,6 +2105,7 @@ def calcular():
                  for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+    proveedores_db = {r['id']: r['name'] for r in conn.execute('SELECT id, name FROM proveedores').fetchall()}
 
     # Equivalencias: mismo producto, distinto nombre segun la marca que lo vendio
     def norm(s):
@@ -2276,6 +2278,37 @@ def calcular():
     # (o "otros productos": porciones, ensaladas, entradas, platos calientes)
     # incluyen su insumo_key en su receta (no depende de una lista manual)
     semis_by_key = {s['insumo_key']: s['name'] for s in semis_db}
+    semis_by_key_full = {s['insumo_key']: s for s in semis_db}
+
+    # Para el reporte de "insumos totales" (neto de recetas + lo que se gasta
+    # PREPARANDO cada semielaborado) hace falta bajar hasta los insumos crudos,
+    # aunque un semielaborado use OTRO semielaborado en su propia receta.
+    insumo_totals_expandido = dict(insumo_totals)
+    insumos_sin_vincular = {}  # ingredientes de receta sin 'key' -> no se pueden ligar a un insumo real
+
+    def expandir_insumos_de_semi(semi_key, cantidad_necesaria, visitados=frozenset()):
+        if semi_key in visitados:
+            return  # corta ante una dependencia circular entre semielaborados
+        semi_row = semis_by_key_full.get(semi_key)
+        if not semi_row:
+            return
+        receta = json.loads(semi_row['receta'] or '[]')
+        rend_cant = semi_row['rendimiento_cantidad'] or 0
+        if not receta or rend_cant <= 0:
+            return
+        scale = cantidad_necesaria / rend_cant
+        for ing in receta:
+            cant = ing['cantidad'] * scale
+            k = ing.get('key')
+            if k and insumos_master.get(k):
+                insumo_totals_expandido[k] = insumo_totals_expandido.get(k, 0) + cant
+            elif k and semis_by_key_full.get(k):
+                expandir_insumos_de_semi(k, cant, visitados | {semi_key})
+            else:
+                nombre = ing.get('nombre') or k or '?'
+                unidad = ing.get('unidad', 'g')
+                clave = f"{nombre}|{unidad}"
+                insumos_sin_vincular[clave] = insumos_sin_vincular.get(clave, 0) + cant
 
     def resolve_ing(ing):
         """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
@@ -2308,6 +2341,7 @@ def calcular():
                 total += amt * otro['qty']
                 used_in.append(otro['name'])
         if total > 0:
+            expandir_insumos_de_semi(semi['insumo_key'], total)
             unit = semi['unit']
             display = (f"{round(total)} g / {total/1000:.2f} kg" if unit == 'g'
                        else f"{round(total)} u")
@@ -2342,12 +2376,42 @@ def calcular():
                 }
             semis_out.append(semi_out)
 
+    # Reporte de "insumos totales": todo lo que hace falta comprar, sumando lo que
+    # se usa directo mas lo que se gasta PREPARANDO cada semielaborado (ya bajado
+    # a insumos crudos), con la categoria/proveedor de cada uno para poder pedirlo.
+    insumos_totales_out = []
+    for k, total_receta in sorted(insumo_totals_expandido.items(), key=lambda x: -x[1]):
+        master = insumos_master.get(k)
+        eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
+        total_bruto = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        insumos_totales_out.append({
+            'insumo': master['label'] if master else FALLBACK_LABELS.get(k, k),
+            'cantidad_neta': round(total_receta, 2),
+            'unidad': master['unidad_receta'] if master else 'g',
+            'eficiencia': eficiencia,
+            'cantidad_bruta': round(total_bruto, 2),
+            'categoria': (master.get('categoria') if master else None) or '',
+            'proveedor': (proveedores_db.get(master.get('proveedor_principal_id')) if master else None) or '',
+        })
+    for clave, total_receta in sorted(insumos_sin_vincular.items(), key=lambda x: -x[1]):
+        nombre, unidad = clave.rsplit('|', 1)
+        insumos_totales_out.append({
+            'insumo': nombre + ' (sin vincular a un insumo)',
+            'cantidad_neta': round(total_receta, 2),
+            'unidad': unidad,
+            'eficiencia': 100,
+            'cantidad_bruta': round(total_receta, 2),
+            'categoria': '',
+            'proveedor': '',
+        })
+
     return jsonify({
         'production': production,
         'insumos': insumos_out,
         'semis': semis_out,
         'otrosProductos': otros_productos_out,
-        'rollosBlancos': rollos_blancos_out
+        'rollosBlancos': rollos_blancos_out,
+        'insumosTotales': insumos_totales_out
     })
 
 # ── Generar PDF ──
@@ -2457,6 +2521,20 @@ def generar_pdf():
     return send_file(tmp.name, as_attachment=True,
                      download_name=f'produccion_{date_str}.pdf',
                      mimetype='application/pdf')
+
+@app.route('/api/insumos-totales-xlsx', methods=['POST'])
+@login_required
+def generar_insumos_totales_xlsx():
+    body = request.json
+    rows = body.get('insumosTotales', [])
+    date_str = body.get('date', datetime.now().strftime('%d-%m-%Y'))
+    global_pct = body.get('globalPct', 100)
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_insumos_xlsx(rows, date_str, global_pct, tmp.name)
+    return send_file(tmp.name, as_attachment=True,
+                     download_name=f'insumos_totales_{date_str}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── Importar recetas desde Excel ──────────────────────────────────────────
 @app.route('/api/importar/rolls', methods=['POST'])
