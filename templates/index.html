@@ -1335,7 +1335,7 @@ async function doConfirm() {
       }
     }
     const totR=ST.production.filter(r=>r.cuentaProductividad!==false).reduce((s,r)=>s+r.qty,0);
-    const totC=ST.sales.reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
+    const totC=ST.sales.filter(p=>!p.code.startsWith('op_')).reduce((s,p)=>s+Math.round(getAdjQty(p)*gPct/100),0);
     const tiempoEstimado = Math.ceil(totR / 35);
     document.getElementById('sumMetrics').innerHTML=`
       <div class="metric"><div class="metric-lbl">Combos</div><div class="metric-val">${totC}</div></div>
