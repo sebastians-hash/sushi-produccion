@@ -2393,13 +2393,15 @@ function renderInsumoCfg() {
     return true;
   });
 
-  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="text-align:center">Aprovech.</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(i=>{
+    const efic = i.eficiencia ?? 100;
     h+=`<tr><td style="font-weight:600">${i.label}</td>
       <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
       <td style="text-align:center">${i.es_80_20?'<span class="badge b-warn">80/20</span>':'—'}</td>
       <td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
       <td style="text-align:right;font-family:monospace">${i.factor_conversion}</td>
+      <td style="text-align:center">${efic<100?`<span class="badge b-warn" title="Se ajusta la cantidad a comprar por esta merma estimada">${efic}%</span>`:'<span style="color:var(--text3)">100%</span>'}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openInsumoModal(${i.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('insumos',${i.id},renderInsumoCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
@@ -4081,9 +4083,14 @@ function openInsumoModal(id) {
       <div><label class="form-lbl">Unidad en resumen</label><select id="m_us" class="w-full" onchange="updateFactorSuggestion()">
         ${unidadOptions(ins?.unidad_resumen)}</select></div>
     </div>
-    <div style="margin-bottom:1rem"><label class="form-lbl">Factor de conversión (receta → resumen)</label>
-      <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
-      <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div><label class="form-lbl">Factor de conversión (receta → resumen)</label>
+        <input type="number" id="m_factor" class="w-full" value="${ins?.factor_conversion??0.001}" step="0.0001">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Ej: g→kg = 0.001. Se sugiere automático al elegir unidades.</div></div>
+      <div><label class="form-lbl">% de aprovechamiento <span style="font-weight:400;color:var(--text3);text-transform:none">(cuánto se usa de lo que se compra)</span></label>
+        <input type="number" id="m_eficiencia" class="w-full" value="${ins?.eficiencia??100}" min="1" max="100" step="1">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">100% = se aprovecha todo. Ej: 85% si hay merma por descarte, mal estado, o resto pegado al envase.</div></div>
+    </div>
     <div style="margin-bottom:1.25rem"><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
       <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>
 
@@ -4145,6 +4152,7 @@ async function saveInsumo(id) {
     unidad_receta:document.getElementById('m_ur').value,
     unidad_resumen:document.getElementById('m_us').value,
     factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
+    eficiencia: Math.min(100, Math.max(1, parseFloat(document.getElementById('m_eficiencia').value) || 100)),
     precio_unidad:precioVal?parseFloat(precioVal):null,
     categoria: document.getElementById('m_categoria').value || null,
     es_80_20: document.getElementById('m_8020').checked,
