@@ -1063,6 +1063,7 @@ const STEP_DIV_IDS = [1, 2, 4, 5]; // paso lógico (1..4) -> sufijo real del div
 function goStep(n) {
   if(n>1&&n<5&&!ST.sales.length) return;
   ST.prevStep=ST.step; ST.step=n;
+  window.scrollTo({top: 0, behavior: 'instant'});
   STEP_DIV_IDS.forEach((divId, idx)=>{
     const logicalN = idx+1;
     document.getElementById('s'+divId).classList.toggle('hidden', logicalN!==n);
