@@ -228,6 +228,20 @@ input[type=range]{width:100%;accent-color:var(--text)}
   <!-- ── STEP 1 ── -->
   <div id="s1">
     <div class="card">
+      <div class="card-title" style="margin-bottom:.5rem">¿Qué querés considerar para producir?</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:.5rem">
+        <label class="scope-option" style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
+          <input type="radio" name="scopeProduccion" value="combos" style="width:16px;height:16px"> <span>Solo Combos</span>
+        </label>
+        <label class="scope-option" style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
+          <input type="radio" name="scopeProduccion" value="especiales" style="width:16px;height:16px"> <span>Solo Especiales <span style="font-weight:400;color:var(--text3);font-size:12px">(porciones, ensaladas, entradas, platos calientes)</span></span>
+        </label>
+        <label class="scope-option" style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
+          <input type="radio" name="scopeProduccion" value="todos" checked style="width:16px;height:16px"> <span>Todos los productos</span>
+        </label>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title">Carga de venta del día</div>
       <div class="drop" id="dropZone" onclick="document.getElementById('fi').click()"
         ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('over')"
@@ -1115,6 +1129,9 @@ function parseOneFile(file) {
   });
 }
 
+function getScopeProduccion() {
+  return document.querySelector('input[name="scopeProduccion"]:checked')?.value || 'todos';
+}
 async function processFiles(files) {
   const parsed = await Promise.all(files.map(parseOneFile));
   const fallidos = parsed.filter(p=>p.error);
@@ -1125,8 +1142,10 @@ async function processFiles(files) {
     return;
   }
 
+  const scope = getScopeProduccion();
   const grp={};
   let ignoradas=0;
+  let excluidasPorFiltro=0;
 
   function addToGroup(key, name, family, matched, qty) {
     if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
@@ -1144,26 +1163,30 @@ async function processFiles(files) {
       const qtyRaw=parseFloat(r[qi])||0;
       if(!qtyRaw) return;
 
-      const foundCombo=findCombo(code,rawName);
+      const rawCombo = findCombo(code,rawName);
+      const foundCombo = scope!=='especiales' ? rawCombo : null;
       if(foundCombo){
         // Coincidencia directa (o por código de venta) con un combo existente
         const key=code||rawName.toLowerCase().replace(/\s+/g,'');
         addToGroup(key, foundCombo.match.name, foundCombo.match.family, true, qtyRaw*foundCombo.factor);
         return;
       }
+      if(rawCombo && scope==='especiales'){ excluidasPorFiltro++; return; }
 
       // Ver si matchea con "otros productos" (porciones, ensaladas, entradas, platos calientes)
-      const foundOtro=findOtroProducto(code,rawName);
+      const rawOtro = findOtroProducto(code,rawName);
+      const foundOtro = scope!=='combos' ? rawOtro : null;
       if(foundOtro){
         const key='op_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
         addToGroup(key, foundOtro.match.name, TIPO_OTRO_LABELS[foundOtro.match.tipo]||'Otros', true, qtyRaw*foundOtro.factor);
         return;
       }
+      if(rawOtro && scope==='combos'){ excluidasPorFiltro++; return; }
 
       // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
       // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
       // Separamos por "+" y tratamos de matchear cada parte por separado.
-      if(rawName.includes('+')){
+      if(scope!=='especiales' && rawName.includes('+')){
         const parts = rawName.split('+').map(p=>p.trim()).filter(Boolean);
         if(parts.length > 1){
           const matchedParts = parts.map(p=>findCombo('', p));
@@ -1190,6 +1213,7 @@ async function processFiles(files) {
     ? `${validos.length} archivos combinados (${nombresArchivos}) — ${ST.sales.length} productos cargados`
     : `${nombresArchivos} — ${ST.sales.length} productos cargados`;
   if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
+  if(excluidasPorFiltro>0) msg+=` (${excluidasPorFiltro} fila${excluidasPorFiltro===1?'':'s'} excluida${excluidasPorFiltro===1?'':'s'} por el filtro de "${scope==='combos'?'Solo Combos':'Solo Especiales'}")`;
   if(fallidos.length) msg+=` — ATENCIÓN: no se pudieron leer: ${fallidos.map(f=>f.file.name+' ('+f.error+')').join(', ')}`;
   showStatus(fallidos.length ? 'warn' : 'success', msg);
   ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
@@ -1230,12 +1254,14 @@ function showStatus(type,msg) {
 
 // ── Manual entry: load all combos at qty 0, ready to adjust in step 2 ──
 function loadManual() {
-  const combosVisibles = ST.combos.filter(c => visibleParaLocalActual(c.marcas));
-  const otrosVisibles = ST.otrosProductos.filter(p => visibleParaLocalActual(p.marcas));
+  const scope = getScopeProduccion();
+  const combosVisibles = scope!=='especiales' ? ST.combos.filter(c => visibleParaLocalActual(c.marcas)) : [];
+  const otrosVisibles = scope!=='combos' ? ST.otrosProductos.filter(p => visibleParaLocalActual(p.marcas)) : [];
   if (!combosVisibles.length && !otrosVisibles.length) {
+    const scopeTxt = scope==='combos' ? 'combos' : scope==='especiales' ? 'otros productos' : 'combos ni otros productos';
     alert(localActualTieneFiltroMarca()
-      ? 'No hay combos ni otros productos de las marcas habilitadas para este local.'
-      : 'No hay combos ni otros productos configurados todavía. Cargalos en Configuración.');
+      ? `No hay ${scopeTxt} de las marcas habilitadas para este local.`
+      : `No hay ${scopeTxt} configurados todavía. Cargalos en Configuración.`);
     return;
   }
   const comboEntries = combosVisibles.map(c => ({
@@ -2315,17 +2341,28 @@ async function renderHistorialCfg() {
   if (!ST.currentLocalId) { document.getElementById('historialCfg').innerHTML = '<div class="empty">Elegí un local primero.</div>'; return; }
   const planillas = await fetch(`/api/planillas?local_id=${ST.currentLocalId}`).then(r=>r.json());
   ST.historial = planillas;
-  let h = '<table><thead><tr><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:100px"></th></tr></thead><tbody>';
+  let h = '<table><thead><tr><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:170px"></th></tr></thead><tbody>';
   planillas.forEach(p=>{
     const estadoBadge = p.estado==='confirmada' ? '<span class="badge b-green">Confirmada</span>' : '<span class="badge b-warn">Borrador</span>';
     h += `<tr><td style="font-weight:600">${p.fecha}</td><td>${estadoBadge}</td>
       <td style="font-size:12px;color:var(--text2)">${p.created_by||'—'}</td>
       <td style="font-size:12px;color:var(--text3)">${new Date(p.updated_at).toLocaleString('es-AR')}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button></td></tr>`;
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button>
+        <button class="btn btn-sm btn-danger" onclick="borrarPlanilla(${p.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
   });
   h += '</tbody></table>';
   if (!planillas.length) h = '<div class="empty">Todavía no hay planillas guardadas para este local.</div>';
   document.getElementById('historialCfg').innerHTML = h;
+}
+async function borrarPlanilla(id) {
+  if (!confirm('¿Eliminar esta planilla del historial? Esta acción no se puede deshacer.')) return;
+  const res = await fetch(`/api/planillas/${id}`, {method:'DELETE'});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  if (ST.currentPlanillaId === id) ST.currentPlanillaId = null;
+  renderHistorialCfg();
 }
 
 async function abrirPlanilla(id) {
