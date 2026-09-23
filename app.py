@@ -9,8 +9,23 @@ from parse_receta import parse_receta_pdf, match_insumo, formato_to_unidad
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import secrets as _secrets_module
+
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'CAMBIAR-ESTA-CLAVE-EN-PRODUCCION')
+_flask_secret_env = os.environ.get('FLASK_SECRET_KEY')
+if _flask_secret_env:
+    app.secret_key = _flask_secret_env
+else:
+    # Nunca usar una clave fija como respaldo: quien la vea (por ejemplo en el
+    # repositorio) podria falsificar sesiones y hacerse pasar por cualquier
+    # usuario, incluido un admin. Si falta la variable de entorno, generamos
+    # una clave aleatoria por arranque — las sesiones no van a sobrevivir un
+    # redeploy hasta que se configure FLASK_SECRET_KEY, pero al menos no queda
+    # una puerta predecible abierta.
+    app.secret_key = _secrets_module.token_hex(32)
+    print('ADVERTENCIA: falta la variable de entorno FLASK_SECRET_KEY. '
+          'Usando una clave aleatoria temporal — configurala en Railway cuanto antes '
+          '(las sesiones actuales se van a cerrar solas en el proximo redeploy).')
 # Railway (y la mayoria de plataformas cloud) terminan el HTTPS en su proxy y
 # reenvian a la app como HTTP interno. Sin esto, url_for(..., _external=True)
 # generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
@@ -496,53 +511,6 @@ def handle_error(e):
     raise e
 
 # ── Auth routes ──────────────────────────────────────────────────────────
-@app.route('/debug/env')
-@admin_required
-def debug_env():
-    """Ruta temporal de diagnostico. Borrar despues de resolver el problema de login."""
-    def mask(val, keep_start=12, keep_end=8):
-        if not val:
-            return 'NO CONFIGURADA (vacia o None)'
-        val = str(val)
-        if len(val) <= keep_start + keep_end:
-            return f'(muy corta, {len(val)} caracteres) {val[:3]}...'
-        return f'{val[:keep_start]}...{val[-keep_end:]}  (longitud total: {len(val)})'
-
-    client_id = os.environ.get('GOOGLE_CLIENT_ID')
-    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
-    secret_key = os.environ.get('FLASK_SECRET_KEY')
-    admin_email = os.environ.get('ADMIN_EMAIL')
-    db_url = os.environ.get('DATABASE_URL')
-
-    db_status = 'NO CONFIGURADA — la app no puede guardar datos de forma persistente sin esto'
-    db_conn_test = 'N/A'
-    if db_url:
-        db_status = mask(db_url, keep_start=15, keep_end=10)
-        try:
-            test_conn = get_db()
-            test_conn.execute('SELECT 1')
-            test_conn.close()
-            db_conn_test = 'OK — se pudo conectar y ejecutar una consulta de prueba'
-        except Exception as e:
-            db_conn_test = f'ERROR al conectar: {e}'
-
-    lines = [
-        f"DATABASE_URL: {db_status}",
-        f"  -> prueba de conexion: {db_conn_test}",
-        "",
-        f"GOOGLE_CLIENT_ID: {mask(client_id)}",
-        f"  -> termina en .apps.googleusercontent.com: {str(client_id).strip().endswith('.apps.googleusercontent.com') if client_id else 'N/A'}",
-        f"  -> tiene espacios al inicio/final sin recortar: {(client_id != client_id.strip()) if client_id else 'N/A'}",
-        "",
-        f"GOOGLE_CLIENT_SECRET: {'CONFIGURADA (longitud ' + str(len(client_secret)) + ')' if client_secret else 'NO CONFIGURADA'}",
-        "",
-        f"FLASK_SECRET_KEY: {'CONFIGURADA' if secret_key else 'NO CONFIGURADA (usando valor por defecto, inseguro)'}",
-        "",
-        f"ADMIN_EMAIL: {admin_email if admin_email else 'NO CONFIGURADA'}",
-        "",
-        f"URL de callback que la app va a pedirle a Google: {url_for('auth_callback', _external=True)}",
-    ]
-    return "<pre style='font-family:monospace;font-size:14px;padding:20px'>" + "\n".join(lines) + "</pre>"
 
 @app.route('/login')
 def login_page():
