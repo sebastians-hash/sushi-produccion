@@ -32,9 +32,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .main-nav-item{padding:10px 16px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:6px;transition:color .12s,border-color .12s;user-select:none}
 .main-nav-item:hover{color:var(--text2)}
 .main-nav-item.active{color:var(--text);border-bottom-color:var(--text)}
-.main-nav-admin{margin-left:auto;margin-bottom:0;padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:20px;background:var(--surface);color:var(--text2)!important}
-.main-nav-admin:hover{background:var(--bg);border-color:var(--text3)}
-.main-nav-admin.active{background:var(--text);color:#fff!important;border-color:var(--text)}
+.main-nav-calc{padding:6px 14px;font-size:13px;font-weight:700;border:1px solid var(--blue);border-radius:20px;background:var(--blue-bg);color:var(--blue)!important;margin:0 4px}
+.main-nav-calc:hover{background:var(--blue);color:#fff!important}
+.main-nav-calc.active{background:var(--blue);color:#fff!important}
 .step{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:default;border-right:1px solid var(--border);background:var(--bg);transition:background .12s;user-select:none}
 .step:last-child{border-right:none}
 .step-n{display:block;font-size:15px;font-weight:700;margin-bottom:1px}
@@ -184,12 +184,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
       </div>
       {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
+      {% if is_admin %}<button class="btn btn-sm" onclick="goMainSection('admin')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Administración"><i class="ti ti-settings"></i></button>{% endif %}
       <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i> Salir</a>
     </div>
   </header>
 
   <div class="main-nav">
     <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
+    <div class="main-nav-item main-nav-calc" id="mni-calculadora" onclick="openCalculadoraModal()" title="Calculadora rápida de producción"><i class="ti ti-calculator"></i> Calculadora</div>
     <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
     <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
     {% if is_admin %}
@@ -198,9 +200,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
     <div class="main-nav-item" id="mni-novedades" onclick="goMainSection('novedades')"><i class="ti ti-speakerphone"></i> Novedades<span id="novedadesBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
-    {% if is_admin %}
-    <div class="main-nav-item main-nav-admin" id="mni-admin" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i> Administración</div>
-    {% endif %}
   </div>
 
   <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
@@ -2839,6 +2838,98 @@ async function saveUnidad(id) {
 }
 function unidadOptions(selected) {
   return ST.unidades.map(u=>`<option value="${u.simbolo}" ${selected===u.simbolo?'selected':''}>${u.nombre} (${u.simbolo})</option>`).join('');
+}
+
+// ── Calculadora rápida de producción (acceso directo desde el menú) ──
+let calcComboSeleccionado = null;
+let calcDropdownItems = [];
+let calcDropdownActiveIdx = -1;
+
+function openCalculadoraModal() {
+  calcComboSeleccionado = null;
+  calcDropdownItems = [];
+  calcDropdownActiveIdx = -1;
+  openModal('Calculadora rápida de producción', `
+    <div style="margin-bottom:1rem">
+      <label class="form-lbl">Combo</label>
+      <div class="ing-search-wrap">
+        <input type="text" id="calcComboSearch" class="w-full" placeholder="Buscá un combo por nombre..." autocomplete="off"
+          oninput="filterCalcCombo()" onfocus="filterCalcCombo()" onkeydown="calcComboKeydown(event)"
+          onblur="setTimeout(()=>document.getElementById('calcComboDropdown').classList.add('hidden'),150)">
+        <div id="calcComboDropdown" class="ing-dropdown hidden"></div>
+      </div>
+    </div>
+    <div style="margin-bottom:1.25rem">
+      <label class="form-lbl">Cantidad de combos a armar</label>
+      <input type="number" id="calcCantidad" class="w-full" value="1" min="1" step="1" oninput="recalcularCalculadora()">
+    </div>
+    <div id="calcResultado"></div>
+  `, `<button class="btn" onclick="closeModal()">Cerrar</button>`);
+  setTimeout(()=>document.getElementById('calcComboSearch').focus(), 50);
+}
+
+function filterCalcCombo() {
+  const input = document.getElementById('calcComboSearch');
+  const dropdown = document.getElementById('calcComboDropdown');
+  const q = normalizeSearchText(input.value.trim());
+  calcDropdownItems = q
+    ? ST.combos.filter(c=>normalizeSearchText(c.name).includes(q))
+    : ST.combos;
+  calcDropdownActiveIdx = -1;
+  renderCalcDropdown();
+  dropdown.classList.remove('hidden');
+}
+function renderCalcDropdown() {
+  const dropdown = document.getElementById('calcComboDropdown');
+  if (!calcDropdownItems.length) {
+    dropdown.innerHTML = '<div class="ing-item-empty">No se encontraron combos</div>';
+    return;
+  }
+  dropdown.innerHTML = calcDropdownItems.map((c,idx)=>`
+    <div class="ing-item${idx===calcDropdownActiveIdx?' active':''}" data-idx="${idx}"
+         onmousedown="event.preventDefault();selectCalcCombo(${idx})">
+      <span>${c.name}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--text3)">${c.family||''}</span>
+    </div>`).join('');
+}
+function calcComboKeydown(event) {
+  const dropdown = document.getElementById('calcComboDropdown');
+  if (dropdown.classList.contains('hidden') || !calcDropdownItems.length) return;
+  if (event.key==='ArrowDown') { event.preventDefault(); calcDropdownActiveIdx=Math.min(calcDropdownActiveIdx+1,calcDropdownItems.length-1); renderCalcDropdown(); }
+  else if (event.key==='ArrowUp') { event.preventDefault(); calcDropdownActiveIdx=Math.max(calcDropdownActiveIdx-1,0); renderCalcDropdown(); }
+  else if (event.key==='Enter') { event.preventDefault(); if(calcDropdownActiveIdx>=0) selectCalcCombo(calcDropdownActiveIdx); }
+  else if (event.key==='Escape') { dropdown.classList.add('hidden'); }
+}
+function selectCalcCombo(idx) {
+  const combo = calcDropdownItems[idx];
+  if (!combo) return;
+  calcComboSeleccionado = combo;
+  document.getElementById('calcComboSearch').value = combo.name;
+  document.getElementById('calcComboDropdown').classList.add('hidden');
+  recalcularCalculadora();
+}
+function recalcularCalculadora() {
+  const cont = document.getElementById('calcResultado');
+  if (!calcComboSeleccionado) { cont.innerHTML=''; return; }
+  const cantidad = Math.max(0, parseInt(document.getElementById('calcCantidad').value) || 0);
+  const filas = Object.entries(calcComboSeleccionado.rolls||{}).filter(([,piezasPorUnidad])=>piezasPorUnidad>0);
+  if (!filas.length) {
+    cont.innerHTML = '<div class="empty">Este combo no tiene rolls cargados en su receta.</div>';
+    return;
+  }
+  let h = `<div class="form-lbl" style="margin-bottom:8px">Necesitás para ${cantidad} combo${cantidad===1?'':'s'} de "${calcComboSeleccionado.name}"</div>
+    <table><thead><tr><th>Roll</th><th style="text-align:right">Piezas exactas</th><th style="text-align:right">Rollos</th></tr></thead><tbody>`;
+  filas.forEach(([rollName, piezasPorUnidad])=>{
+    const piezasExactas = piezasPorUnidad * cantidad;
+    const roll = ST.rolls.find(r=>r.name===rollName);
+    const piezasPorRollo = roll?.piezas_por_rollo || 14;
+    const rollosNecesarios = Math.ceil(piezasExactas / piezasPorRollo);
+    h += `<tr><td style="font-weight:600">${rollName}</td>
+      <td style="text-align:right">${piezasExactas}</td>
+      <td style="text-align:right;font-weight:700;color:var(--blue)">${rollosNecesarios}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  cont.innerHTML = h;
 }
 
 // ── Proveedores (con contactos) ──
