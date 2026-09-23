@@ -191,6 +191,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
       </div>
       {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
+      <button class="btn btn-sm" onclick="goMainSection('novedades')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);position:relative" title="Novedades"><i class="ti ti-speakerphone"></i><span id="novedadesBadge" class="hidden" style="position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4"></span></button>
+      <button class="btn btn-sm" onclick="goMainSection('manual')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Manual de uso"><i class="ti ti-book"></i></button>
       {% if is_admin %}<button class="btn btn-sm" onclick="goMainSection('admin')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Administración"><i class="ti ti-settings"></i></button>{% endif %}
       <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i> Salir</a>
     </div>
@@ -205,9 +207,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
-    <div class="main-nav-item" id="mni-novedades" onclick="goMainSection('novedades')"><i class="ti ti-speakerphone"></i> Novedades<span id="novedadesBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
-    <div class="main-nav-item" id="mni-manual" onclick="goMainSection('manual')"><i class="ti ti-book"></i> Manual</div>
   </div>
 
   <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
