@@ -235,7 +235,8 @@ def init_db():
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
-            marcas TEXT NOT NULL DEFAULT '[]'
+            marcas TEXT NOT NULL DEFAULT '[]',
+            tiene_salon BOOLEAN NOT NULL DEFAULT FALSE
         );
         CREATE TABLE IF NOT EXISTS usuario_locales (
             id SERIAL PRIMARY KEY,
@@ -338,6 +339,8 @@ def init_db():
     local_cols = get_columns('locales')
     if 'marcas' not in local_cols:
         c.execute("ALTER TABLE locales ADD COLUMN marcas TEXT NOT NULL DEFAULT '[]'")
+    if 'tiene_salon' not in local_cols:
+        c.execute("ALTER TABLE locales ADD COLUMN tiene_salon BOOLEAN NOT NULL DEFAULT FALSE")
 
     marca_cols = get_columns('marcas')
     if 'orden' not in marca_cols:
@@ -840,7 +843,8 @@ def get_locales():
         rows = conn.execute(f'SELECT * FROM locales WHERE id IN ({placeholders}) ORDER BY name', tuple(allowed)).fetchall()
     conn.close()
     return jsonify([{'id': r['id'], 'name': r['name'], 'active': bool(r['active']),
-                     'marcas': json.loads(r['marcas'] or '[]')} for r in rows])
+                     'marcas': json.loads(r['marcas'] or '[]'),
+                     'tiene_salon': bool(r['tiene_salon'])} for r in rows])
 
 @app.route('/api/locales', methods=['POST'])
 @admin_required
@@ -848,8 +852,9 @@ def create_local():
     data = request.json
     conn = get_db()
     try:
-        conn.execute('INSERT INTO locales (name, active, marcas) VALUES (?,?,?)',
-                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', []))))
+        conn.execute('INSERT INTO locales (name, active, marcas, tiene_salon) VALUES (?,?,?,?)',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', [])),
+                      bool(data.get('tiene_salon', False))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -864,8 +869,9 @@ def update_local(local_id):
     data = request.json
     conn = get_db()
     try:
-        conn.execute('UPDATE locales SET name=?, active=?, marcas=? WHERE id=?',
-                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', [])), local_id))
+        conn.execute('UPDATE locales SET name=?, active=?, marcas=?, tiene_salon=? WHERE id=?',
+                     (data['name'].strip(), int(data.get('active', True)), json.dumps(data.get('marcas', [])),
+                      bool(data.get('tiene_salon', False)), local_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -995,7 +1001,10 @@ def restore_data():
     counts['unidades'] = upsert('unidades', data.get('unidades', []), 'simbolo', ['nombre', 'simbolo', 'orden'])
     counts['proveedores'] = upsert('proveedores', data.get('proveedores', []), 'name', ['name', 'contactos'])
     counts['rollo_blanco_grupos'] = upsert('rollo_blanco_grupos', data.get('rollo_blanco_grupos', []), 'name', ['name'])
-    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active', 'marcas'])
+    for l in data.get('locales', []):
+        if l.get('tiene_salon') is None:
+            l['tiene_salon'] = False
+    counts['locales'] = upsert('locales', data.get('locales', []), 'name', ['name', 'active', 'marcas', 'tiene_salon'])
 
     # usuario_locales: clave compuesta, reemplazo completo simple (igual que equivalencias)
     ul_rows = data.get('usuario_locales', [])
@@ -2341,8 +2350,32 @@ def calcular():
                     canonico, factor = equiv_match
                     otro = otros_db.get(canonico)
 
+        # En Salón se venden piezas de rolls sueltas (sin combo), a diferencia de
+        # Delivery donde solo se venden combos armados. Si no matcheó como combo ni
+        # como otro producto, probamos matchear directo contra un roll — la cantidad
+        # ahí representa PIEZAS vendidas, no rollos, y se convierte más abajo.
+        roll_directo = None
         if not combo and not otro:
-            # No matchea ningun combo ni otro producto por ningun medio: se ignora por completo
+            roll_directo_nombre = None
+            if s['name'] in rolls_db:
+                roll_directo_nombre = s['name']
+            elif s['code'] in rolls_db:
+                roll_directo_nombre = s['code']
+            if not roll_directo_nombre:
+                name_lower = s['name'].lower().replace(' ', '')
+                for rname in rolls_db:
+                    if rname.lower().replace(' ', '') == name_lower:
+                        roll_directo_nombre = rname
+                        break
+            if not roll_directo_nombre:
+                equiv_r = equiv_roll.get(norm(s['name'])) or equiv_roll.get(norm(s['code']))
+                if equiv_r and equiv_r in rolls_db:
+                    roll_directo_nombre = equiv_r
+            if roll_directo_nombre:
+                roll_directo = roll_directo_nombre
+
+        if not combo and not otro and not roll_directo:
+            # No matchea ningun combo, otro producto ni roll suelto por ningun medio: se ignora por completo
             continue
 
         # El factor (si vino de un codigo con equivalencia, ej "UPS"=0.5) se aplica sobre
@@ -2352,6 +2385,14 @@ def calcular():
         adj_qty = max(0, round(effective_qty + (effective_qty * a / 100 if adj_mode == 'pct' else a)))
         final_qty = round(adj_qty * global_pct / 100)
         if final_qty <= 0:
+            continue
+
+        if roll_directo:
+            # Acá final_qty son PIEZAS vendidas sueltas (no rollos) — se convierte
+            # igual que adentro de un combo, redondeando siempre para arriba.
+            piezas_por_rollo = roll_piezas_db.get(roll_directo, 14) or 14
+            rolls_needed = -(-final_qty // piezas_por_rollo)
+            roll_totals[roll_directo] = roll_totals.get(roll_directo, 0) + rolls_needed
             continue
 
         if combo:
