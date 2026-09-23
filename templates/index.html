@@ -260,6 +260,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div class="card">
       <div class="card-title">Carga de venta del día</div>
+      <div id="canalCargaWrap" class="hidden" style="display:flex;gap:10px;margin-bottom:1rem">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
+          <input type="radio" name="canalCarga" value="delivery" checked style="width:16px;height:16px"> <span>Delivery <span style="font-weight:400;color:var(--text3);font-size:12px">(se arman las cajas antes)</span></span>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;cursor:pointer">
+          <input type="radio" name="canalCarga" value="salon" style="width:16px;height:16px"> <span>Salón <span style="font-weight:400;color:var(--text3);font-size:12px">(se arma en el momento)</span></span>
+        </label>
+      </div>
       <div class="drop" id="dropZone" onclick="document.getElementById('fi').click()"
         ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('over')"
         ondragleave="this.classList.remove('over')">
@@ -1023,6 +1031,7 @@ function setupLocalSelector() {
   if (ST.locales.length <= 1) {
     wrap.classList.add('hidden');
     ST.currentLocalId = ST.locales.length ? ST.locales[0].id : null;
+    actualizarVisibilidadCanalCarga();
     return;
   }
   wrap.classList.remove('hidden');
@@ -1030,9 +1039,21 @@ function setupLocalSelector() {
     ST.currentLocalId = ST.locales[0].id;
   }
   sel.innerHTML = ST.locales.map(l=>`<option value="${l.id}" ${l.id===ST.currentLocalId?'selected':''}>${l.name}</option>`).join('');
+  actualizarVisibilidadCanalCarga();
+}
+function actualizarVisibilidadCanalCarga() {
+  const local = ST.locales.find(l=>l.id===ST.currentLocalId);
+  const wrap = document.getElementById('canalCargaWrap');
+  if (!wrap) return;
+  wrap.classList.toggle('hidden', !(local && local.tiene_salon));
+  if (!local || !local.tiene_salon) {
+    const deliveryRadio = document.querySelector('input[name="canalCarga"][value="delivery"]');
+    if (deliveryRadio) deliveryRadio.checked = true;
+  }
 }
 function onLocalChange() {
   ST.currentLocalId = parseInt(document.getElementById('localSelector').value);
+  actualizarVisibilidadCanalCarga();
   renderSmCfg();
   renderHistorialCfg();
   renderComboCfg();
@@ -1113,9 +1134,9 @@ function showTab(id, el) {
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('over');
-  if(e.dataTransfer.files.length) processFiles([...e.dataTransfer.files]);
+  if(e.dataTransfer.files.length) processFiles([...e.dataTransfer.files], getCanalCarga());
 }
-function loadFile(e){ if(e.target.files.length) processFiles([...e.target.files]); }
+function loadFile(e){ if(e.target.files.length) processFiles([...e.target.files], getCanalCarga()); }
 
 // Lee y parsea UN archivo, devuelve sus filas (sin agrupar todavia) o null si falla
 function parseOneFile(file) {
@@ -1148,7 +1169,11 @@ function parseOneFile(file) {
 function getScopeProduccion() {
   return document.querySelector('input[name="scopeProduccion"]:checked')?.value || 'todos';
 }
-async function processFiles(files) {
+function getCanalCarga() {
+  return document.querySelector('input[name="canalCarga"]:checked')?.value || 'delivery';
+}
+async function processFiles(files, canal) {
+  canal = canal || 'delivery';
   const parsed = await Promise.all(files.map(parseOneFile));
   const fallidos = parsed.filter(p=>p.error);
   const validos = parsed.filter(p=>!p.error);
@@ -1164,7 +1189,7 @@ async function processFiles(files) {
   let excluidasPorFiltro=0;
 
   function addToGroup(key, name, family, matched, qty) {
-    if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched};
+    if(!grp[key]) grp[key]={code:key,name,qty:0,family,matched,canal};
     // Si el mismo código viene con nombres distintos entre filas (típico de datos
     // mal cargados en el sistema de ventas), nos quedamos con el más descriptivo
     // (el más largo) en vez de congelarnos con el primero que aparezca.
@@ -1199,6 +1224,16 @@ async function processFiles(files) {
       }
       if(rawOtro && scope==='combos'){ excluidasPorFiltro++; return; }
 
+      // En Salón se venden piezas de rolls sueltas, sin combo (Delivery no tiene esto).
+      const rawRoll = canal==='salon' ? findRoll(code,rawName) : null;
+      const foundRoll = scope!=='combos' ? rawRoll : null;
+      if(foundRoll){
+        const key='rd_'+(code||rawName.toLowerCase().replace(/\s+/g,''));
+        addToGroup(key, foundRoll.match.name, 'Piezas sueltas', true, qtyRaw*foundRoll.factor);
+        return;
+      }
+      if(rawRoll && scope==='combos'){ excluidasPorFiltro++; return; }
+
       // Si no matcheó directo y el nombre tiene "+", puede ser una promo que
       // junta varios combos (ej: "Black 15 + Limited 15 + Tokyo 15").
       // Separamos por "+" y tratamos de matchear cada parte por separado.
@@ -1223,16 +1258,21 @@ async function processFiles(files) {
     });
   });
 
-  ST.sales=Object.values(grp).filter(s=>s.qty>0);
+  const nuevasDeEsteCanal = Object.values(grp).filter(s=>s.qty>0);
+  const eraCargaVacia = !ST.sales.length;
+  // Se reemplazan solo las filas de ESTE canal (por si se vuelve a subir un archivo
+  // corregido) — lo que ya estaba cargado de OTRO canal se mantiene intacto.
+  ST.sales = [...ST.sales.filter(s=>(s.canal||'delivery')!==canal), ...nuevasDeEsteCanal];
   const nombresArchivos = validos.map(v=>v.file.name).join(', ');
+  const canalTxt = canal==='salon' ? ' (Salón)' : '';
   let msg = validos.length>1
-    ? `${validos.length} archivos combinados (${nombresArchivos}) — ${ST.sales.length} productos cargados`
-    : `${nombresArchivos} — ${ST.sales.length} productos cargados`;
+    ? `${validos.length} archivos combinados${canalTxt} (${nombresArchivos}) — ${nuevasDeEsteCanal.length} productos cargados`
+    : `${nombresArchivos}${canalTxt} — ${nuevasDeEsteCanal.length} productos cargados`;
   if(ignoradas>0) msg+=` (${ignoradas} fila${ignoradas===1?'':'s'} sin código registrado, se ignoraron)`;
   if(excluidasPorFiltro>0) msg+=` (${excluidasPorFiltro} fila${excluidasPorFiltro===1?'':'s'} excluida${excluidasPorFiltro===1?'':'s'} por el filtro de "${scope==='combos'?'Solo Combos':'Solo Especiales'}")`;
   if(fallidos.length) msg+=` — ATENCIÓN: no se pudieron leer: ${fallidos.map(f=>f.file.name+' ('+f.error+')').join(', ')}`;
   showStatus(fallidos.length ? 'warn' : 'success', msg);
-  ST.currentPlanillaId = null; // nueva carga = nueva planilla, no seguir pisando una vieja
+  if (eraCargaVacia) ST.currentPlanillaId = null; // nueva carga desde cero = nueva planilla, no seguir pisando una vieja
   guardarProgresoPlanilla('borrador');
   setTimeout(()=>goStep(2),500);
 }
@@ -1256,6 +1296,19 @@ function findOtroProducto(code, name) {
   const equiv = ST.equivalencias.find(e=>e.tipo==='otro_producto' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
   if (equiv) {
     match = ST.otrosProductos.find(p=>n(p.name)===n(equiv.nombre_canonico));
+    if (match) return {match, factor: equiv.factor||1};
+  }
+  return null;
+}
+function findRoll(code, name) {
+  // Matchea piezas de rolls vendidas sueltas (sin combo) -- solo pasa en Salón,
+  // Delivery siempre vende todo armado en combos.
+  const n=s=>s.toLowerCase().replace(/[\s-_]/g,'');
+  let match = ST.rolls.find(r=>n(r.name)===n(code)||n(r.name)===n(name));
+  if (match) return {match, factor:1};
+  const equiv = ST.equivalencias.find(e=>e.tipo==='roll' && (n(e.nombre_alias)===n(code)||n(e.nombre_alias)===n(name)));
+  if (equiv) {
+    match = ST.rolls.find(r=>n(r.name)===n(equiv.nombre_canonico));
     if (match) return {match, factor: equiv.factor||1};
   }
   return null;
@@ -1473,13 +1526,25 @@ function buildProductionTablesHtml(prod) {
 
   let ch='<table><thead><tr><th>Combo</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
   const combosConQty = (prod.combos||[]).filter(c=>c.qty>0);
-  const familiasCombos = {};
-  combosConQty.forEach(c=>{ (familiasCombos[c.family||'Otros']=familiasCombos[c.family||'Otros']||[]).push(c); });
+  const hayAlgunSalon = combosConQty.some(c=>c.canal==='salon');
   if (combosConQty.length) {
-    Object.keys(familiasCombos).sort((a,b)=>a.localeCompare(b)).forEach(fam=>{
-      ch+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${fam}</span></td></tr>`;
-      familiasCombos[fam].sort((a,b)=>a.name.localeCompare(b.name)).forEach(c=>{
-        ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`;
+    // Si hay algo de salón mezclado con delivery, separamos primero por canal
+    // (se arman distinto: cajas con anticipación vs. al momento) y recién
+    // adentro de cada uno agrupamos por familia, como ya se hacía.
+    const canales = hayAlgunSalon ? ['delivery','salon'] : [(combosConQty[0].canal||'delivery')];
+    canales.forEach(canal=>{
+      const items = combosConQty.filter(c=>(c.canal||'delivery')===canal);
+      if (!items.length) return;
+      if (hayAlgunSalon) {
+        ch+=`<tr class="fam-row" style="background:var(--beige2)"><td colspan="2"><strong>${canal==='salon'?'SALÓN':'DELIVERY'}</strong></td></tr>`;
+      }
+      const familiasCombos = {};
+      items.forEach(c=>{ (familiasCombos[c.family||'Otros']=familiasCombos[c.family||'Otros']||[]).push(c); });
+      Object.keys(familiasCombos).sort((a,b)=>a.localeCompare(b)).forEach(fam=>{
+        ch+=`<tr class="fam-row"><td colspan="2"><span class="badge b-blue">${fam}</span></td></tr>`;
+        familiasCombos[fam].sort((a,b)=>a.name.localeCompare(b.name)).forEach(c=>{
+          ch+=`<tr><td>${c.name}</td><td style="text-align:right">${c.qty}</td></tr>`;
+        });
       });
     });
   } else {
@@ -1517,7 +1582,7 @@ function toggleDetalleRecetasSemis() {
   renderProduction();
 }
 function renderProduction() {
-  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100), family:s.family}));
+  const combosPrincipal = ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name, qty:Math.round(getAdjQty(s)*ST.globalPct/100), family:s.family, canal:s.canal||'delivery'}));
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
   const mainData = usarJunto
     ? ST.combinedProduction
@@ -2187,7 +2252,7 @@ async function downloadPDF() {
   const payload={
     date:fechaDisplay, turno:ST.schedule?.turno||'', globalPct:ST.globalPct,
     production:ST.production, insumos:ST.insumos, semis:semisParaPdf(ST.semis),
-    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100),family:s.family})).filter(c=>c.qty>0),
+    combos:ST.sales.filter(s=>!s.code.startsWith('op_')).map(s=>({name:s.name,qty:Math.round(getAdjQty(s)*ST.globalPct/100),family:s.family,canal:s.canal||'delivery'})).filter(c=>c.qty>0),
     schedule:ST.schedule, rollosBlancos:ST.rollosBlancos,
     semiHourly: ST.schedule ? computeSemiHourlyGrid() : []
   };
@@ -3537,10 +3602,11 @@ async function deleteUsuario(id) {
 function renderLocalCfg() {
   const filtro = valorFiltro('filtro_locales');
   const lista = ST.locales.filter(l => coincideBusqueda(filtro, l.name));
-  let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Local</th><th>Estado</th><th style="text-align:center">Salón</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(l=>{
     h+=`<tr><td style="font-weight:600">${l.name}</td>
       <td><span class="badge ${l.active?'b-green':'b-red'}">${l.active?'Activo':'Inactivo'}</span></td>
+      <td style="text-align:center">${l.tiene_salon?'<span class="badge b-blue">Sí</span>':'<span style="color:var(--text3)">—</span>'}</td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-sm" onclick="openLocalModal(${l.id})" title="Editar"><i class="ti ti-edit"></i> Editar</button>
         <button class="btn btn-sm btn-danger" onclick="deleteItem('locales',${l.id},renderLocalCfg)" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
@@ -3559,6 +3625,10 @@ function openLocalModal(id) {
       <option value="1" ${l?.active!==false?'selected':''}>Activo</option>
       <option value="0" ${l?.active===false?'selected':''}>Inactivo</option>
     </select></div>
+    <div style="margin-bottom:1.25rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="m_tieneSalon" ${l?.tiene_salon?'checked':''} style="width:16px;height:16px">
+      <span>Este local tiene Salón <span style="font-weight:400;color:var(--text3)">(además de Delivery) — habilita cargar y planificar la venta de salón por separado</span></span>
+    </label></div>
     <div class="form-lbl" style="margin-bottom:8px">Marcas habilitadas <span style="font-weight:400;color:var(--text3);text-transform:none">(opcional — sin ninguna marcada, este local ve todo el catálogo sin filtrar; si marcás alguna, solo va a ver los productos de esas marcas)</span></div>
     <div id="localMarcaChecks" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rsm);padding:10px">${marcaChecks(l?.marcas)}</div>`,
     `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveLocal(${id||'null'})">Guardar</button>`
@@ -3568,7 +3638,7 @@ async function saveLocal(id) {
   const name=document.getElementById('m_name').value.trim();
   if(!name){alert('Ingresá un nombre');return;}
   const marcas = readMarcaChecks('localMarcaChecks');
-  const data={name, active: document.getElementById('m_active').value==='1', marcas};
+  const data={name, active: document.getElementById('m_active').value==='1', marcas, tiene_salon: document.getElementById('m_tieneSalon').checked};
   const res = await fetch(id?`/api/locales/${id}`:'/api/locales',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const result = await res.json();
   if (result.error) { alert(result.error); return; }
