@@ -3050,7 +3050,7 @@ async function renderNovedadesCfg() {
       <div style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="toggleNovedad(${n.id})">
         ${n.leida?'':'<span style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0" title="Sin leer"></span>'}
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${n.titulo}</div>
+          <div style="font-weight:700;font-size:14px">${escapeHtml(n.titulo)}</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px">${fecha}${n.creado_por_nombre?' — '+n.creado_por_nombre:''}</div>
         </div>
         ${IS_ADMIN?`<div class="row" style="gap:4px" onclick="event.stopPropagation()">
@@ -3059,7 +3059,7 @@ async function renderNovedadesCfg() {
         </div>`:''}
         <i class="ti ti-chevron-down" id="novChevron_${n.id}" style="transition:transform .15s"></i>
       </div>
-      <div id="novBody_${n.id}" class="hidden" style="padding:0 16px 16px 34px;white-space:pre-wrap;font-size:13px;color:var(--text2);line-height:1.6">${n.desarrollo}</div>
+      <div id="novBody_${n.id}" class="hidden" style="padding:0 16px 16px 34px;white-space:pre-wrap;font-size:13px;color:var(--text2);line-height:1.6">${escapeHtml(n.desarrollo)}</div>
     </div>`;
   }).join('');
 }
@@ -3138,12 +3138,12 @@ async function renderSugerenciasCfg() {
     h += `<div class="card" style="margin-bottom:10px;border:1px solid var(--border)">
       <div class="row-between" style="margin-bottom:6px;align-items:flex-start">
         <div>
-          <div style="font-weight:700;font-size:15px">${s.titulo}</div>
+          <div style="font-weight:700;font-size:15px">${escapeHtml(s.titulo)}</div>
           <div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">
             <span class="badge b-blue">${TIPO_SUGERENCIA_LABELS[s.tipo] || s.tipo}</span>
             <span class="badge ${ESTADO_SUGERENCIA_BADGE[s.estado]}">${ESTADO_SUGERENCIA_LABELS[s.estado]}</span>
-            ${s.referencia_tipo ? `<span class="badge" style="background:var(--bg2);color:var(--text2)"><i class="ti ti-link"></i> ${REFERENCIA_TIPO_LABELS[s.referencia_tipo]}: ${s.referencia_nombre}</span>` : ''}
-            ${IS_ADMIN ? `<span style="font-size:12px;color:var(--text3)">${s.creado_por_nombre || s.creado_por}</span>` : ''}
+            ${s.referencia_tipo ? `<span class="badge" style="background:var(--bg2);color:var(--text2)"><i class="ti ti-link"></i> ${REFERENCIA_TIPO_LABELS[s.referencia_tipo]}: ${escapeHtml(s.referencia_nombre)}</span>` : ''}
+            ${IS_ADMIN ? `<span style="font-size:12px;color:var(--text3)">${escapeHtml(s.creado_por_nombre || s.creado_por)}</span>` : ''}
             <span style="font-size:12px;color:var(--text3)">${fmtFechaAR(s.created_at)}</span>
           </div>
         </div>
@@ -3152,10 +3152,10 @@ async function renderSugerenciasCfg() {
           <button class="btn btn-sm btn-danger" onclick="deleteSugerencia(${s.id})" title="Eliminar"><i class="ti ti-trash"></i> Borrar</button>
         </div>
       </div>
-      <div style="font-size:13px;color:var(--text2);white-space:pre-wrap">${s.descripcion}</div>
+      <div style="font-size:13px;color:var(--text2);white-space:pre-wrap">${escapeHtml(s.descripcion)}</div>
       ${s.respuesta_admin ? `<div style="margin-top:10px;background:var(--bg);border-left:3px solid var(--blue);border-radius:var(--rsm);padding:8px 12px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Respuesta</div>
-        <div style="font-size:13px;white-space:pre-wrap">${s.respuesta_admin}</div>
+        <div style="font-size:13px;white-space:pre-wrap">${escapeHtml(s.respuesta_admin)}</div>
       </div>` : ''}
     </div>`;
   });
@@ -3203,7 +3203,7 @@ async function saveSugerencia() {
 function openResponderSugerenciaModal(id) {
   const s = ST.sugerencias.find(x=>x.id===id);
   openModal('Responder sugerencia', `
-    <div style="margin-bottom:1rem;font-size:13px;color:var(--text2)"><strong>${s.titulo}</strong><br>${s.descripcion}</div>
+    <div style="margin-bottom:1rem;font-size:13px;color:var(--text2)"><strong>${escapeHtml(s.titulo)}</strong><br>${escapeHtml(s.descripcion)}</div>
     <div style="margin-bottom:1rem"><label class="form-lbl">Estado</label><select id="m_estadoSugerencia" class="w-full">
       ${Object.entries(ESTADO_SUGERENCIA_LABELS).map(([k,label])=>`<option value="${k}" ${s.estado===k?'selected':''}>${label}</option>`).join('')}
     </select></div>
@@ -4060,6 +4060,15 @@ let ingDropdownActiveIdx = -1;
 let ingDropdownItems = [];
 let ingDropdownPrefix = 'roll';
 
+function escapeHtml(s) {
+  // Evita que texto libre escrito por un usuario (título/descripción de una
+  // sugerencia, una novedad, etc.) se interprete como HTML al mostrarlo —
+  // sin esto, alguien podría meter un <script> y que se ejecute en la
+  // pantalla de otra persona que solo está leyendo lo que escribió.
+  const div = document.createElement('div');
+  div.textContent = s ?? '';
+  return div.innerHTML;
+}
 function normalizeSearchText(s) {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
