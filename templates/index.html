@@ -35,6 +35,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .main-nav-calc{padding:6px 14px;font-size:13px;font-weight:700;border:1px solid var(--blue);border-radius:20px;background:var(--blue-bg);color:var(--blue)!important;margin:0 4px}
 .main-nav-calc:hover{background:var(--blue);color:#fff!important}
 .main-nav-calc.active{background:var(--blue);color:#fff!important}
+.manual-item:hover{background:var(--bg2)}
+#manualContenido h3{font-size:20px;font-weight:700;color:var(--text);margin-bottom:14px}
+#manualContenido h4{font-size:15px;font-weight:700;color:var(--text);margin-top:20px;margin-bottom:8px}
+#manualContenido p{font-size:14px;line-height:1.65;color:var(--text2);margin-bottom:12px}
+#manualContenido ul{margin:0 0 14px 0;padding-left:22px}
+#manualContenido li{font-size:14px;line-height:1.65;color:var(--text2);margin-bottom:6px;list-style:disc}
+#manualContenido strong{color:var(--text);font-weight:700}
 .step{flex:1;padding:9px 4px;text-align:center;font-size:11px;color:var(--text3);cursor:default;border-right:1px solid var(--border);background:var(--bg);transition:background .12s;user-select:none}
 .step:last-child{border-right:none}
 .step-n{display:block;font-size:15px;font-weight:700;margin-bottom:1px}
@@ -200,6 +207,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
     <div class="main-nav-item" id="mni-novedades" onclick="goMainSection('novedades')"><i class="ti ti-speakerphone"></i> Novedades<span id="novedadesBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
+    <div class="main-nav-item" id="mni-manual" onclick="goMainSection('manual')"><i class="ti ti-book"></i> Manual</div>
   </div>
 
   <div id="localSelectorWrap" class="hidden card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
@@ -762,6 +770,15 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
   </div>
 
+  <div id="mainManual" class="hidden">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;min-height:520px">
+        <div id="manualIndice" style="width:260px;flex-shrink:0;border-right:1px solid var(--border);padding:1rem 0;background:var(--bg)"></div>
+        <div id="manualContenido" style="flex:1;padding:1.5rem 2rem;max-width:720px"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
@@ -999,7 +1016,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',admin:'mainAdmin'};
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',manual:'mainManual',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -1011,6 +1028,7 @@ function goMainSection(name) {
   if(name==='equivalencias'){ renderEquivalenciaCfg(); }
   if(name==='novedades'){ renderNovedadesCfg(); }
   if(name==='sugerencias'){ renderSugerenciasCfg(); }
+  if(name==='manual'){ renderManual(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -2836,6 +2854,105 @@ async function saveUnidad(id) {
   if (result.error) { alert(result.error); return; }
   closeModal(); await loadConfig(); renderUnidadCfg();
 }
+// ── Manual de uso (solo funciones de usuario, sin lo de administración) ──
+const MANUAL_TOPICS = [
+  { key:'primeros-pasos', icon:'ti-login', titulo:'Primeros pasos', html:`
+    <h3>Primeros pasos</h3>
+    <p>Entrás a Kata con tu cuenta de Google — no hace falta usuario ni contraseña propios. Si tu cuenta todavía no fue habilitada, pedile a un administrador que te agregue desde Administración → Usuarios.</p>
+    <h4>Elegir el local</h4>
+    <p>Si trabajás en más de un local, vas a ver un selector arriba de todo (al lado del menú). Cambiarlo actualiza automáticamente el equipo de sushimanes, el historial y el catálogo que ves — cada local tiene lo suyo.</p>
+    <div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Si tu usuario no tiene acceso a ningún local, o al local que necesitás, pedile a un administrador que te lo habilite.</span></div>
+  `},
+  { key:'armar-planilla', icon:'ti-clipboard-list', titulo:'Armar una planilla', html:`
+    <h3>Armar una planilla de producción</h3>
+    <p>Es el corazón de la app: 4 pasos que te llevan desde la venta del día hasta la grilla horaria de producción.</p>
+    <h4>Paso 1 — Venta</h4>
+    <ul>
+      <li><strong>Fecha y turno:</strong> elegí para qué día y turno (Mañana / Intermedio / Noche) estás planificando. De esto depende, por ejemplo, qué sushimanes tienen franco ese día — elegilo antes de seguir.</li>
+      <li><strong>Qué considerar para producir:</strong> Solo Combos, Solo Especiales (porciones, ensaladas, entradas, platos calientes) o Todos los productos.</li>
+      <li><strong>Delivery / Salón:</strong> si tu local tiene Salón habilitado, vas a ver este selector antes de subir el archivo — elegí el canal correcto para cada archivo que subas. Podés cargar primero uno y después el otro sin perder nada.</li>
+      <li><strong>Cargar la venta:</strong> subí el Excel (podés arrastrar varios archivos juntos, por ejemplo uno por marca) o usá "Cargar información manualmente" para ingresar las cantidades vos mismo, combo por combo.</li>
+    </ul>
+    <h4>Paso 2 — Ajuste</h4>
+    <p>Ajustá las cantidades si hace falta (por porcentaje o cantidad fija, por producto o con un porcentaje global). También podés dividir la producción en dos planillas si una parte se va a producir más tarde.</p>
+    <h4>Paso 3 — Producción</h4>
+    <p>Acá ves todo lo que hay que preparar: combos a armar (agrupados por familia, y por canal si tenés Salón), rollos a producir, insumos necesarios y semielaborados — con la receta ya adaptada a la cantidad que necesitás de cada uno.</p>
+    <h4>Paso 4 — Planificación</h4>
+    <p>Marcá qué sushimanes están disponibles ese día (los que tienen franco se detectan solos), ajustá su horario de ingreso y productividad si hace falta, y generá la grilla horaria — te arma automáticamente qué produce cada uno y a qué hora, respetando cuándo entra cada persona.</p>
+  `},
+  { key:'pdf', icon:'ti-file-download', titulo:'Descargar el PDF', html:`
+    <h3>Descargar el PDF</h3>
+    <p>Una vez armada la planilla, el botón para descargar el PDF completo está en el último paso (Planificación). Genera un documento listo para imprimir con:</p>
+    <ul>
+      <li>Combos a armar y rollos a producir (en páginas separadas)</li>
+      <li>Insumos necesarios</li>
+      <li>Semielaborados (con la receta adaptada, si la tenés cargada)</li>
+      <li>Grilla de producción por hora</li>
+      <li>Semielaborados por hora</li>
+    </ul>
+    <p>Si dividiste la producción en dos planillas, el PDF incluye también las páginas de la segunda planilla, bien identificadas.</p>
+  `},
+  { key:'insumos-excel', icon:'ti-file-spreadsheet', titulo:'Insumos totales (Excel)', html:`
+    <h3>Descargar insumos totales en Excel</h3>
+    <p>En el paso de Producción, al lado de "Insumos necesarios", hay un botón para descargar un Excel con el total de insumos que hacen falta — sumando lo que se usa directo en las recetas más lo que se gasta preparando cada semielaborado.</p>
+    <p>Incluye, para cada insumo: cantidad neta (lo que pide la receta), % de aprovechamiento, cantidad bruta (lo que hay que comprar, ya con la merma aplicada), categoría y proveedor — pensado para armar el pedido de compra directamente.</p>
+  `},
+  { key:'historial', icon:'ti-history', titulo:'Historial de planillas', html:`
+    <h3>Historial de planillas</h3>
+    <p>Dentro de "Planilla de producción", la pestaña Historial muestra todas las planillas guardadas de tu local — borradores en progreso y planillas confirmadas.</p>
+    <ul>
+      <li><strong>Abrir:</strong> retoma la planilla exactamente donde la dejaste, con todos los datos cargados.</li>
+      <li><strong>Borrar:</strong> elimina la planilla del historial — te pide confirmación antes, porque no se puede deshacer.</li>
+    </ul>
+  `},
+  { key:'calculadora', icon:'ti-calculator', titulo:'Calculadora rápida', html:`
+    <h3>Calculadora rápida de producción</h3>
+    <p>Pensada para el momento en que termina la producción principal y hay que armar combos sueltos, sin tener que calcular de memoria cuántos rollos hacen falta.</p>
+    <p>La encontrás destacada en el menú principal. Buscá el combo por nombre (te va mostrando coincidencias a medida que escribís), poné la cantidad, y te muestra al instante, para cada roll de ese combo:</p>
+    <ul>
+      <li><strong>Piezas exactas</strong> que necesitás (sin redondear)</li>
+      <li><strong>Rollos necesarios</strong> (redondeado siempre para arriba — no se puede producir medio rollo)</li>
+    </ul>
+  `},
+  { key:'consultar-recetas', icon:'ti-eye', titulo:'Consultar combos y rollos', html:`
+    <h3>Consultar combos y rollos</h3>
+    <p>En Productos y en Recetas podés ver el catálogo completo, aunque no seas admin — los botones de crear/editar no van a aparecer, pero sí "Ver" en cada fila, que te abre la composición completa (para un roll, incluso te muestra una calculadora para escalar la receta a la cantidad que necesites).</p>
+  `},
+  { key:'equivalencias', icon:'ti-arrows-right-left', titulo:'Equivalencias', html:`
+    <h3>Consultar equivalencias</h3>
+    <p>La sección Equivalencias muestra, para cada combo/roll/producto, con qué nombre o código lo vende cada marca — útil para entender por qué algo del Excel matcheó (o no) con un producto del catálogo. Como usuario la ves en modo de solo lectura; si encontrás algo mal cargado, avisale a un administrador.</p>
+  `},
+  { key:'sugerencias', icon:'ti-bulb', titulo:'Enviar una sugerencia', html:`
+    <h3>Enviar una sugerencia</h3>
+    <p>Desde la sección Sugerencias podés proponer mejoras, avisar de un error en una receta, o pedir una herramienta nueva. Elegí el tipo, escribí un título y el detalle, y mandala — vas a ver el estado (nueva, en revisión, aceptada, rechazada, implementada) y la respuesta del administrador cuando la responda, con un aviso hasta que la leas.</p>
+  `},
+  { key:'novedades', icon:'ti-speakerphone', titulo:'Novedades', html:`
+    <h3>Novedades</h3>
+    <p>Ahí se publican las mejoras y cambios que se le van haciendo a la app. Vas a ver un aviso con la cantidad de novedades sin leer hasta que las abras — con un click se despliega el detalle completo y queda marcada como leída, solo para vos.</p>
+  `},
+];
+function renderManual() {
+  const indice = document.getElementById('manualIndice');
+  indice.innerHTML = MANUAL_TOPICS.map((t,i)=>`
+    <div class="manual-item" id="manualItem_${t.key}" onclick="mostrarTemaManual('${t.key}')"
+         style="padding:10px 18px;cursor:pointer;font-size:13.5px;display:flex;align-items:center;gap:8px;border-left:3px solid transparent">
+      <i class="ti ${t.icon}" style="font-size:15px;flex-shrink:0"></i><span>${t.titulo}</span>
+    </div>`).join('');
+  mostrarTemaManual(MANUAL_TOPICS[0].key);
+}
+function mostrarTemaManual(key) {
+  const tema = MANUAL_TOPICS.find(t=>t.key===key);
+  if (!tema) return;
+  document.getElementById('manualContenido').innerHTML = tema.html;
+  document.querySelectorAll('.manual-item').forEach(el=>{
+    const activo = el.id === 'manualItem_'+key;
+    el.style.borderLeftColor = activo ? 'var(--blue)' : 'transparent';
+    el.style.background = activo ? 'var(--blue-bg)' : '';
+    el.style.color = activo ? 'var(--blue)' : '';
+    el.style.fontWeight = activo ? '600' : '400';
+  });
+}
+
 function unidadOptions(selected) {
   return ST.unidades.map(u=>`<option value="${u.simbolo}" ${selected===u.simbolo?'selected':''}>${u.nombre} (${u.simbolo})</option>`).join('');
 }
