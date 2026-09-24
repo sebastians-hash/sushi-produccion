@@ -244,11 +244,14 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showProdSubTab('hist',this)"><i class="ti ti-history"></i> Historial</div>
     </div>
     <div id="prodFlowTab">
-  <div class="steps">
-    <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
-    <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
-    <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
-    <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
+  <div class="row-between" style="margin-bottom:1.75rem;gap:12px">
+    <div class="steps" style="margin-bottom:0;flex:1">
+      <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
+      <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
+      <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
+      <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
+    </div>
+    <button class="btn btn-sm" onclick="nuevaPlanilla()" style="flex-shrink:0" title="Borra todo lo cargado y arranca desde cero"><i class="ti ti-file-plus"></i> Nueva planilla</button>
   </div>
 
   <!-- ── STEP 1 ── -->
@@ -1266,6 +1269,38 @@ function toggleCardCollapse(headerEl) {
   const chevron = headerEl.querySelector('.collapse-chevron');
   body.classList.toggle('collapsed');
   chevron?.classList.toggle('collapsed');
+}
+function nuevaPlanilla() {
+  if (ST.sales.length && !confirm('¿Empezar una planilla nueva? Se borra todo lo cargado en esta (ventas, ajustes, producción y grilla) — si tenías algo sin guardar, se pierde.')) return;
+
+  // Estado de la planilla en curso (NO se toca el catálogo: combos, rolls,
+  // insumos, sushimanes, locales, etc. — eso sigue viviendo en ST igual que antes).
+  ST.step = 1; ST.prevStep = 1;
+  ST.sales = []; ST.adj = {}; ST.globalPct = 100;
+  ST.production = []; ST.insumos = {}; ST.semis = []; ST.otrosVenta = []; ST.rollosBlancos = [];
+  ST.schedule = null; ST.editingGrid = false; ST.scheduleBackup = null;
+  ST.currentPlanillaId = null;
+  ST.dividirPlanilla = false; ST.remainingProduction = null; ST.combinedProduction = null; ST.viewMode = 'separado';
+  ST.dailySm = {};
+  ST.excluidosDeGrilla = new Set();
+  ST.smTocadosManualmente = new Set();
+
+  // Inputs de la pantalla: fecha (vuelve a hoy), turno, alcance de carga y canal
+  const fechaInput = document.getElementById('planillaFecha');
+  if (fechaInput) fechaInput.value = new Date().toISOString().split('T')[0];
+  const turnoInput = document.getElementById('planillaTurno');
+  if (turnoInput) turnoInput.value = 'Noche';
+  const scopeTodos = document.querySelector('input[name="scopeProduccion"][value="todos"]');
+  if (scopeTodos) scopeTodos.checked = true;
+  const canalDelivery = document.querySelector('input[name="canalCarga"][value="delivery"]');
+  if (canalDelivery) canalDelivery.checked = true;
+  const fi = document.getElementById('fi');
+  if (fi) fi.value = '';
+  const fStatus = document.getElementById('fStatus');
+  if (fStatus) fStatus.classList.add('hidden');
+
+  actualizarBotonContinuarVenta();
+  goStep(1);
 }
 function getScopeProduccion() {
   return document.querySelector('input[name="scopeProduccion"]:checked')?.value || 'todos';
