@@ -244,18 +244,25 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showProdSubTab('hist',this)"><i class="ti ti-history"></i> Historial</div>
     </div>
     <div id="prodFlowTab">
-  <div class="row-between" style="margin-bottom:1.75rem;gap:12px">
-    <div class="steps" style="margin-bottom:0;flex:1">
-      <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
-      <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
-      <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
-      <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
-    </div>
-    <button class="btn btn-sm" onclick="nuevaPlanilla()" style="flex-shrink:0" title="Borra todo lo cargado y arranca desde cero"><i class="ti ti-file-plus"></i> Nueva planilla</button>
+  <div class="steps">
+    <div class="step active" id="si1"><span class="step-n">1</span>Venta</div>
+    <div class="step" id="si2"><span class="step-n">2</span>Ajuste</div>
+    <div class="step" id="si4"><span class="step-n">3</span>Producción</div>
+    <div class="step" id="si5"><span class="step-n">4</span>Planif.</div>
   </div>
 
   <!-- ── STEP 1 ── -->
   <div id="s1">
+    <div id="s1Gate" class="card" style="text-align:center;padding:2.5rem 1.5rem">
+      <i class="ti ti-file-alert" style="font-size:32px;color:var(--text3)"></i>
+      <div class="card-title" style="margin:.75rem 0 .5rem">Para evitar mezclar datos de otra planilla, elegí cómo empezar</div>
+      <div style="color:var(--text2);font-size:13px;margin-bottom:1.5rem;max-width:480px;margin-left:auto;margin-right:auto">No se puede cargar una venta nueva hasta confirmar si arrancás desde cero o retomás una planilla guardada.</div>
+      <button class="btn btn-primary" onclick="nuevaPlanilla()" style="font-size:18px;font-weight:700;padding:18px 40px;letter-spacing:.03em;margin-bottom:14px"><i class="ti ti-file-plus" style="font-size:22px"></i> COMENZAR NUEVA PLANILLA</button>
+      <div>
+        <button class="btn btn-sm" onclick="irAlHistorialDesdeGate()"><i class="ti ti-history"></i> Ver historial</button>
+      </div>
+    </div>
+    <div id="s1Contenido" class="hidden">
     <div class="card">
       <div class="card-title" style="margin-bottom:.5rem">Fecha y turno</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -315,6 +322,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
     <div id="continuarVentaWrap" class="hidden flex-end">
       <button class="btn btn-primary" onclick="goStep(2)">Continuar a Ajustar cantidades <i class="ti ti-arrow-right"></i></button>
+    </div>
     </div>
   </div>
 
@@ -989,7 +997,8 @@ const ST = {
   combos:[], rolls:[], semielaborados:[], sushimanes:[], insumosMaster:[], marcas:[], usuarios:[], familias:[], otrosProductos:[], equivalencias:[], categoriasInsumos:[], zonasAlmacenamiento:[], proveedores:[], rolloBlancoGrupos:[], rollosBlancos:[],
   locales:[], currentLocalId:null, currentPlanillaId:null, historial:[],
   dividirPlanilla:false, remainingProduction:null, combinedProduction:null, viewMode:'separado',
-  dailySm:{}
+  dailySm:{},
+  planillaIniciada:false
 };
 
 const INSUMO_LABELS = {
@@ -1191,7 +1200,7 @@ function goStep(n) {
     if(logicalN<n) si.onclick=()=>goStep(logicalN);
     else si.onclick=null;
   });
-  if(n===1) actualizarBotonContinuarVenta();
+  if(n===1) { actualizarGateStep1(); actualizarBotonContinuarVenta(); }
   if(n===2) renderSales();
   if(n===3) renderProduction();
   if(n===4) renderSmList();
@@ -1284,6 +1293,7 @@ function nuevaPlanilla() {
   ST.dailySm = {};
   ST.excluidosDeGrilla = new Set();
   ST.smTocadosManualmente = new Set();
+  ST.planillaIniciada = true;
 
   // Inputs de la pantalla: fecha (vuelve a hoy), turno, alcance de carga y canal
   const fechaInput = document.getElementById('planillaFecha');
@@ -1299,8 +1309,20 @@ function nuevaPlanilla() {
   const fStatus = document.getElementById('fStatus');
   if (fStatus) fStatus.classList.add('hidden');
 
+  actualizarGateStep1();
   actualizarBotonContinuarVenta();
   goStep(1);
+}
+function actualizarGateStep1() {
+  const gate = document.getElementById('s1Gate');
+  const contenido = document.getElementById('s1Contenido');
+  if (!gate || !contenido) return;
+  gate.classList.toggle('hidden', ST.planillaIniciada);
+  contenido.classList.toggle('hidden', !ST.planillaIniciada);
+}
+function irAlHistorialDesdeGate() {
+  const histTab = [...document.querySelectorAll('#mainProduccion > .tabs .tab')].find(t=>t.textContent.includes('Historial'));
+  if (histTab) showProdSubTab('hist', histTab);
 }
 function getScopeProduccion() {
   return document.querySelector('input[name="scopeProduccion"]:checked')?.value || 'todos';
@@ -2714,6 +2736,7 @@ async function abrirPlanilla(id) {
   const p = await fetch(`/api/planillas/${id}`).then(r=>r.json());
   if (p.error) { alert(p.error); return; }
   const d = p.data || {};
+  ST.planillaIniciada = true;
   ST.currentPlanillaId = p.id;
   ST.currentLocalId = p.local_id;
   ST.sales = d.sales || [];
