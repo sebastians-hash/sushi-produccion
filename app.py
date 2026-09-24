@@ -2535,27 +2535,21 @@ def calcular():
         aplica_inef = master.get('aplica_ineficiencia', True) if master else True
         extra_ineficiencia = total_receta * (porcentaje_ineficiencia / 100) if aplica_inef else 0
         total = total_por_merma + extra_ineficiencia
-        notas = []
-        if eficiencia < 100:
-            notas.append(f"{round(100-eficiencia)}% de merma estimada")
-        if extra_ineficiencia > 0:
-            notas.append(f"{_fmt_cant(porcentaje_ineficiencia)}% de ineficiencia")
-        nota_eficiencia = f" — incluye {' + '.join(notas)}" if notas else ""
         if master:
             label = master['label']
             factor = master['factor_conversion']
             unidad_resumen = master['unidad_resumen']
             converted = total * factor
-            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}{nota_eficiencia}"
+            display = f"{_fmt_cant(total)} {master['unidad_receta']} / {converted:.2f} {unidad_resumen}"
         else:
             label = FALLBACK_LABELS.get(k, k)
             unit = 'hojas' if k == 'algas' else ('u' if k == 'langos' else 'g')
             if unit == 'g':
-                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg{nota_eficiencia}"
+                display = f"{_fmt_cant(total)} g / {total/1000:.2f} kg"
             elif unit == 'hojas':
-                display = f"{total:.1f} hojas{nota_eficiencia}"
+                display = f"{total:.1f} hojas"
             else:
-                display = f"{round(total)} u{nota_eficiencia}"
+                display = f"{round(total)} u"
         insumos_out[k] = {
             'label': label,
             'total': round(total, 1) if total < 100 else round(total),
