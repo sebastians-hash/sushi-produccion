@@ -24,7 +24,8 @@
   --r:8px;--rsm:5px;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
-.app{max-width:980px;margin:0 auto;padding:1.5rem 1rem}
+.app{max-width:1320px;margin:0 auto;padding:1.5rem 1rem}
+.full-bleed{width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;box-sizing:border-box;padding-left:2rem;padding-right:2rem}
 .hdr{display:flex;align-items:center;gap:12px;margin-bottom:1.75rem;padding:12px 16px;background:#5F5E5A;border-radius:var(--r);color:#fff}
 .hdr .hdr-title{color:#fff;font-size:18px;font-weight:700}
 .hdr .hdr-sub{color:rgba(255,255,255,.65);font-size:12px}
@@ -36,6 +37,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .main-nav-calc{padding:6px 14px;font-size:13px;font-weight:700;border:1px solid var(--blue);border-radius:20px;background:var(--blue-bg);color:var(--blue)!important;margin:0 4px}
 .main-nav-calc:hover{background:var(--blue);color:#fff!important}
 .main-nav-calc.active{background:var(--blue);color:#fff!important}
+.header-icon-btn{display:inline-flex;align-items:center;justify-content:center;position:relative;
+  width:34px;height:34px;flex-shrink:0;border-radius:8px;cursor:pointer;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:#fff;
+  font-size:16px;transition:background .15s}
+.header-icon-btn:hover{background:rgba(255,255,255,.28)}
+.header-icon-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
+  border-radius:9px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4;min-width:16px;text-align:center}
+.header-divider{width:1px;height:24px;background:rgba(255,255,255,.2);margin:0 2px}
 .manual-item:hover{background:var(--bg2)}
 #manualContenido h3{font-size:20px;font-weight:700;color:var(--text);margin-bottom:14px}
 #manualContenido h4{font-size:15px;font-weight:700;color:var(--text);margin-top:20px;margin-bottom:8px}
@@ -192,9 +201,13 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <div style="font-size:10px;color:rgba(255,255,255,.6)">{{ 'Administrador' if is_admin else 'Usuario' }}</div>
       </div>
       {% if user_picture %}<img src="{{ user_picture }}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0">{% endif %}
-      <button class="btn btn-sm" onclick="goMainSection('novedades')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);position:relative" title="Novedades"><i class="ti ti-speakerphone"></i><span id="novedadesBadge" class="hidden" style="position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4"></span></button>
-      <button class="btn btn-sm" onclick="goMainSection('manual')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Manual de uso"><i class="ti ti-book"></i></button>
-      {% if is_admin %}<button class="btn btn-sm" onclick="goMainSection('admin')" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Administración"><i class="ti ti-settings"></i></button>{% endif %}
+      <div class="header-divider"></div>
+      <button class="header-icon-btn" onclick="goMainSection('novedades')" title="Novedades">
+        <i class="ti ti-speakerphone"></i><span id="novedadesBadge" class="header-icon-badge hidden"></span>
+      </button>
+      <button class="header-icon-btn" onclick="goMainSection('manual')" title="Manual de uso"><i class="ti ti-book"></i></button>
+      {% if is_admin %}<button class="header-icon-btn" onclick="goMainSection('admin')" title="Administración"><i class="ti ti-settings"></i></button>{% endif %}
+      <div class="header-divider"></div>
       <a href="/logout" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" title="Cerrar sesión"><i class="ti ti-logout"></i> Salir</a>
     </div>
   </header>
@@ -436,7 +449,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div></div>
       <button class="btn btn-primary" onclick="calcSchedule()"><i class="ti ti-calendar"></i> Calcular grilla</button>
     </div>
-    <div id="schedRes" class="hidden">
+    <div id="schedRes" class="hidden full-bleed">
       <div class="card">
         <div class="row-between" style="margin-bottom:.75rem">
           <div class="sec" style="margin:0"><i class="ti ti-clock"></i> Grilla de producción por hora</div>
