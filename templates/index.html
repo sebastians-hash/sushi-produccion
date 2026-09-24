@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Kata — Planificador de Producción</title>
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
@@ -909,6 +910,29 @@ input[type=range]{width:100%;accent-color:var(--text)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+// Intercepta TODOS los fetch() de la app para agregar el token CSRF en los
+// pedidos que cambian datos (POST/PUT/DELETE/PATCH) — un solo punto central,
+// así no hace falta tocar cada uno de los llamados fetch() que hay repartidos
+// por toda la app uno por uno.
+(function() {
+  const originalFetch = window.fetch;
+  const metodosProtegidos = ['POST', 'PUT', 'DELETE', 'PATCH'];
+  window.fetch = function(url, options) {
+    options = options || {};
+    const method = (options.method || 'GET').toUpperCase();
+    if (metodosProtegidos.includes(method)) {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      if (csrfToken) {
+        if (options.headers instanceof Headers) {
+          options.headers.set('X-CSRFToken', csrfToken);
+        } else {
+          options.headers = { ...(options.headers || {}), 'X-CSRFToken': csrfToken };
+        }
+      }
+    }
+    return originalFetch(url, options);
+  };
+})();
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 window.CURRENT_USER_EMAIL = {{ user_email|tojson }};
 // ═══════════════════════════════════════════════════════
