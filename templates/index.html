@@ -173,7 +173,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
   max-height:240px;overflow-y:auto;z-index:50}
 .ing-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px}
 .ing-item:hover,.ing-item.active{background:var(--bg)}
-.ing-item-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
+.ing-item-badge{font-size:10px;font-weight:700;padding:2px 4px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em;width:34px;text-align:center}
 .ing-item-badge.insumo{background:var(--blue-bg);color:var(--blue)}
 .ing-item-badge.semi{background:var(--green-bg);color:var(--green)}
 .roll-ing-row.dragging{opacity:.4}
@@ -4242,7 +4242,8 @@ function tipoBadge(type) {
   const b = document.createElement('span');
   b.className = `ing-item-badge ${type}`;
   b.style.flexShrink = '0';
-  b.textContent = type === 'insumo' ? 'Insumo' : 'Semielaborado';
+  b.textContent = type === 'insumo' ? 'INS' : 'SE';
+  b.title = type === 'insumo' ? 'Insumo' : 'Semielaborado';
   return b;
 }
 
@@ -4376,7 +4377,7 @@ function renderIngredientDropdown() {
   dropdown.innerHTML = ingDropdownItems.map((item,idx)=>`
     <div class="ing-item${idx===ingDropdownActiveIdx?' active':''}" data-idx="${idx}"
          onmousedown="event.preventDefault();selectIngredientFromDropdown(${idx})">
-      <span class="ing-item-badge ${item.type}">${item.type==='insumo'?'Insumo':'Semielaborado'}</span>
+      <span class="ing-item-badge ${item.type}" title="${item.type==='insumo'?'Insumo':'Semielaborado'}">${item.type==='insumo'?'INS':'SE'}</span>
       <span>${item.label}</span>
     </div>`).join('');
 }
