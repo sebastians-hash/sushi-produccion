@@ -1044,7 +1044,7 @@ function onPlanillaFechaChange() {
 }
 async function loadConfig() {
   try {
-    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades,posiciones,ineficienciaCfg] = await Promise.all([
+    const [combos,rolls,semis,sms,insM,marcas,familias,otrosProd,equivalencias,categoriasIns,zonasAlm,proveedores,rolloBlancoGrupos,locales,unidades,posiciones,ineficienciaCfg,tiposContenedor] = await Promise.all([
       fetch('/api/combos').then(r=>r.json()),
       fetch('/api/rolls').then(r=>r.json()),
       fetch('/api/semielaborados').then(r=>r.json()),
@@ -1062,11 +1062,13 @@ async function loadConfig() {
       fetch('/api/unidades').then(r=>r.json()),
       fetch('/api/posiciones').then(r=>r.json()),
       fetch('/api/configuracion/porcentaje-ineficiencia').then(r=>r.json()),
+      fetch('/api/tipos-contenedor').then(r=>r.json()),
     ]);
     ST.combos=combos; ST.rolls=rolls; ST.semielaborados=semis; ST.sushimanes=sms; ST.insumosMaster=insM; ST.marcas=marcas;
     ST.familias=familias; ST.otrosProductos=otrosProd; ST.equivalencias=equivalencias;
     ST.categoriasInsumos=categoriasIns; ST.zonasAlmacenamiento=zonasAlm; ST.proveedores=proveedores;
     ST.rolloBlancoGrupos=rolloBlancoGrupos; ST.locales=locales; ST.unidades=unidades; ST.posiciones=posiciones;
+    ST.tiposContenedor=tiposContenedor;
     ST.porcentajeIneficiencia = ineficienciaCfg.porcentaje;
     const pInefInput = document.getElementById('m_porcentajeIneficiencia');
     if (pInefInput) pInefInput.value = ST.porcentajeIneficiencia;
@@ -2565,19 +2567,24 @@ function mostrarUsosIngrediente(key, nombre) {
 function renderSemiCfg() {
   const filtro = valorFiltro('filtro_semis');
   const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name) && visibleParaLocalActual(s.marcas));
-  let h='<table><thead><tr><th>Semielaborado</th><th>Usos</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Semielaborado</th><th>Usos</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Zona</th><th>Contenedor</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
     const rendDisplay = (s.rendimiento_cantidad > 0)
       ? `<span class="badge b-warn">${s.rendimiento_cantidad} ${s.rendimiento_unidad}</span>`
       : '<span style="color:var(--text3)">—</span>';
     const tiempoDisplay = s.tiempo_elaboracion_min ? `${s.tiempo_elaboracion_min} min` : '<span style="color:var(--text3)">—</span>';
     const vidaDisplay = s.vida_util_dias ? `${s.vida_util_dias} día${s.vida_util_dias===1?'':'s'}` : '<span style="color:var(--text3)">—</span>';
+    const zonaDisplay = s.zona_almacenamiento ? `<span class="badge b-blue">${s.zona_almacenamiento}</span>` : '<span style="color:var(--text3)">—</span>';
+    const contenedorNombre = ST.tiposContenedor.find(t=>t.id===s.tipo_contenedor_id)?.name;
+    const contenedorDisplay = contenedorNombre ? `<span class="badge b-green">${contenedorNombre}</span>` : '<span style="color:var(--text3)">—</span>';
     h+=`<tr><td style="font-weight:600">${s.name}</td>
       <td><button class="btn btn-sm" onclick='mostrarUsosIngrediente("${s.insumo_key}",${JSON.stringify(s.name)})' title="Ver en qué recetas se usa"><i class="ti ti-eye"></i> Ver usos</button></td>
       <td><button class="btn btn-sm" onclick="openSemiModal(${s.id},null,true)" title="Ver receta y usar la calculadora"><i class="ti ti-eye"></i> Ver receta</button></td>
       <td>${rendDisplay}</td>
       <td style="text-align:center;font-size:12px">${tiempoDisplay}</td>
       <td style="text-align:center;font-size:12px">${vidaDisplay}</td>
+      <td>${zonaDisplay}</td>
+      <td>${contenedorDisplay}</td>
       <td style="font-size:11px">${marcaBadges(s.marcas)}</td>
       <td><div class="row" style="gap:4px">
         ${IS_ADMIN ? `
@@ -2756,11 +2763,12 @@ function renderInsumoCfg() {
     return true;
   });
 
-  let h='<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="text-align:center">Aprovech.</th><th style="text-align:center">Inefic.</th><th style="width:90px"></th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th><th>Usos</th><th>Categoría</th><th style="text-align:center">80/20</th><th>Unidad receta</th><th>Unidad resumen</th><th style="text-align:right">Factor</th><th style="text-align:center">Aprovech.</th><th style="text-align:center">Inefic.</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(i=>{
     const efic = i.eficiencia ?? 100;
     const aplicaInef = i.aplica_ineficiencia ?? true;
     h+=`<tr><td style="font-weight:600">${i.label}</td>
+      <td><button class="btn btn-sm" onclick='mostrarUsosIngrediente("${i.key}",${JSON.stringify(i.label)})' title="Ver en qué recetas se usa"><i class="ti ti-eye"></i> Ver usos</button></td>
       <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
       <td style="text-align:center">${i.es_80_20?'<span class="badge b-warn">80/20</span>':'—'}</td>
       <td><span class="badge b-blue">${i.unidad_receta}</span></td><td><span class="badge b-green">${i.unidad_resumen}</span></td>
@@ -2961,6 +2969,10 @@ async function saveZona(id) {
 }
 function zonaOptions(selected) {
   const opts = ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}" ${selected===z.name?'selected':''}>${z.name}</option>`).join('');
+  return `<option value="">Sin asignar</option>` + opts;
+}
+function tipoContenedorOptions(selectedId) {
+  const opts = (ST.tiposContenedor||[]).map(t=>`<option value="${t.id}" ${selectedId===t.id?'selected':''}>${t.name}</option>`).join('');
   return `<option value="">Sin asignar</option>` + opts;
 }
 
@@ -4173,6 +4185,87 @@ async function movePosicion(id, direction) {
   await fetch('/api/posiciones/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.posiciones.map(p=>p.id)})});
 }
 
+// ── Tipos de contenedor (para los semielaborados: tupper, batea, bandeja...) ──
+function openTiposContenedorModal() {
+  openModalW('Tipos de contenedor', '<div id="tiposContenedorListWrap"></div>', `<button class="btn" onclick="closeModalW()">Cerrar</button>`);
+  renderTiposContenedorModal();
+}
+function renderTiposContenedorModal() {
+  let h = `<div class="row" style="gap:6px;margin-bottom:1rem">
+    <input type="text" id="nuevoTipoContenedorInput" class="w-full" placeholder="Nombre del tipo de contenedor (ej: Tupper, Batea, Bandeja)">
+    <button class="btn btn-primary" onclick="crearTipoContenedor()" style="flex-shrink:0"><i class="ti ti-plus"></i> Agregar</button>
+  </div>`;
+  if (!ST.tiposContenedor.length) {
+    h += '<div class="empty">Todavía no cargaste ningún tipo de contenedor.</div>';
+  } else {
+    h += '<table><thead><tr><th>Tipo de contenedor</th><th style="width:150px"></th></tr></thead><tbody>';
+    ST.tiposContenedor.forEach((t,i)=>{
+      const esPrimera = i===0, esUltima = i===ST.tiposContenedor.length-1;
+      h += `<tr><td id="tcNombre_${t.id}" style="font-weight:600">${t.name}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn btn-sm" onclick="moveTipoContenedor(${t.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+          <button class="btn btn-sm" onclick="moveTipoContenedor(${t.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+          <button class="btn btn-sm" onclick="editarTipoContenedor(${t.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="eliminarTipoContenedor(${t.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div></td></tr>`;
+    });
+    h += '</tbody></table>';
+  }
+  document.getElementById('tiposContenedorListWrap').innerHTML = h;
+}
+function refrescarSelectTipoContenedorSiEstaAbierto() {
+  const sel = document.getElementById('m_tipoContenedor');
+  if (sel) { const val = sel.value; sel.innerHTML = tipoContenedorOptions(val?parseInt(val):null); }
+}
+async function crearTipoContenedor() {
+  const input = document.getElementById('nuevoTipoContenedorInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/tipos-contenedor', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderTiposContenedorModal();
+  refrescarSelectTipoContenedorSiEstaAbierto();
+}
+function editarTipoContenedor(id) {
+  const t = ST.tiposContenedor.find(x=>x.id===id);
+  const celda = document.getElementById(`tcNombre_${id}`);
+  celda.innerHTML = `<input type="text" id="editTc_${id}" class="w-full" value="${t.name}" onkeydown="if(event.key==='Enter')guardarTipoContenedor(${id})">`;
+  document.getElementById(`editTc_${id}`).focus();
+  const fila = celda.closest('tr');
+  fila.querySelector('td:last-child').innerHTML = `
+    <div class="row" style="gap:4px">
+      <button class="btn btn-sm btn-primary" onclick="guardarTipoContenedor(${id})">Guardar</button>
+      <button class="btn btn-sm" onclick="renderTiposContenedorModal()">Cancelar</button>
+    </div>`;
+}
+async function guardarTipoContenedor(id) {
+  const name = document.getElementById(`editTc_${id}`).value.trim();
+  if (!name) return;
+  const res = await fetch(`/api/tipos-contenedor/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  await loadConfig();
+  renderTiposContenedorModal();
+  refrescarSelectTipoContenedorSiEstaAbierto();
+}
+async function eliminarTipoContenedor(id) {
+  if(!confirm('¿Eliminar este tipo de contenedor? Los semielaborados que lo tenían asignado quedarán sin tipo de contenedor.')) return;
+  await fetch(`/api/tipos-contenedor/${id}`, {method:'DELETE'});
+  await loadConfig();
+  renderTiposContenedorModal();
+  refrescarSelectTipoContenedorSiEstaAbierto();
+}
+async function moveTipoContenedor(id, direction) {
+  const idx = ST.tiposContenedor.findIndex(t=>t.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= ST.tiposContenedor.length) return;
+  [ST.tiposContenedor[idx], ST.tiposContenedor[swapIdx]] = [ST.tiposContenedor[swapIdx], ST.tiposContenedor[idx]];
+  renderTiposContenedorModal();
+  await fetch('/api/tipos-contenedor/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.tiposContenedor.map(t=>t.id)})});
+}
+
 // ── Roll modal ──
 // Helpers: resolve label/unit for any ingredient key (raw insumo OR semielaborado)
 function getIngredientLabel(key) {
@@ -4723,6 +4816,15 @@ function openSemiModal(id, dup, readOnly) {
       <div><label class="form-lbl">Vida útil <span style="font-weight:400;color:var(--text3);text-transform:none">(días)</span></label>
         <input type="number" id="m_vidaUtil" class="w-full" value="${semi?.vida_util_dias??''}" min="0" placeholder="Ej: 3" ${dis}></div>
     </div>
+    <div class="form-grid" style="margin-bottom:1.25rem">
+      <div><label class="form-lbl">Zona de almacenamiento</label><select id="m_zonaSemi" class="w-full" ${dis}>${zonaOptions(semi?.zona_almacenamiento)}</select></div>
+      <div><label class="form-lbl">Tipo de contenedor <span style="font-weight:400;color:var(--text3);text-transform:none">(tupper, batea, bandeja...)</span></label>
+        <div class="row" style="gap:6px">
+          <select id="m_tipoContenedor" class="w-full" ${dis}>${tipoContenedorOptions(semi?.tipo_contenedor_id)}</select>
+          ${ro ? '' : `<button type="button" class="btn btn-sm" onclick="openTiposContenedorModal()" title="Gestionar tipos de contenedor" style="flex-shrink:0"><i class="ti ti-settings"></i></button>`}
+        </div>
+      </div>
+    </div>
     ${ro ? '' : `<div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
@@ -4819,7 +4921,9 @@ async function saveSemi(id) {
   const data={name, insumo_key: insumoKey, unit:document.getElementById('m_unit').value,
               rolls: [], receta, rendimiento_cantidad, rendimiento_unidad, marcas,
               tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
-              vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null};
+              vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null,
+              zona_almacenamiento: document.getElementById('m_zonaSemi').value || null,
+              tipo_contenedor_id: document.getElementById('m_tipoContenedor').value ? parseInt(document.getElementById('m_tipoContenedor').value) : null};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
