@@ -2545,20 +2545,52 @@ function renderRollCfg() {
   document.getElementById('rollCfg').innerHTML=h;
 }
 
+function combosQueUsanRoll(rollName) {
+  return ST.combos.filter(c => (c.rolls[rollName]||0) > 0).map(c => c.name);
+}
+function rollsQueDependenDeSemi(semiInsumoKey, visitados) {
+  visitados = visitados || new Set();
+  if (visitados.has(semiInsumoKey)) return [];
+  visitados.add(semiInsumoKey);
+  const rollsDirectos = ST.rolls.filter(r => (r.insumos[semiInsumoKey]||0) > 0).map(r => r.name);
+  // Un semielaborado puede a su vez ser ingrediente de OTRO semielaborado (anidado) —
+  // en ese caso hay que seguir la cadena hasta llegar a los rolls de verdad.
+  const otrosRolls = [];
+  ST.semielaborados.forEach(s => {
+    if (s.insumo_key === semiInsumoKey) return;
+    if ((s.receta||[]).some(i => i.key === semiInsumoKey)) {
+      otrosRolls.push(...rollsQueDependenDeSemi(s.insumo_key, visitados));
+    }
+  });
+  return [...new Set([...rollsDirectos, ...otrosRolls])];
+}
 function mostrarUsosIngrediente(key, nombre) {
-  const usos = [];
-  ST.rolls.forEach(r => { if ((r.insumos[key]||0) > 0) usos.push({tipo:'Roll', nombre:r.name}); });
-  ST.otrosProductos.forEach(p => { if ((p.insumos[key]||0) > 0) usos.push({tipo:TIPO_OTRO_LABELS[p.tipo]||'Producto', nombre:p.name}); });
+  const filas = []; // {receta, productos}
+  ST.rolls.forEach(r => {
+    if ((r.insumos[key]||0) > 0) {
+      const combos = combosQueUsanRoll(r.name);
+      filas.push({receta: `Roll: ${r.name}`, productos: combos.length ? combos.join(', ') : '<span style="color:var(--text3)">Ningún combo lo usa todavía</span>'});
+    }
+  });
+  ST.otrosProductos.forEach(p => {
+    if ((p.insumos[key]||0) > 0) {
+      filas.push({receta: `<span style="color:var(--text3)">Uso directo (${TIPO_OTRO_LABELS[p.tipo]||'producto'})</span>`, productos: p.name});
+    }
+  });
   ST.semielaborados.forEach(s => {
     if (s.insumo_key === key) return; // no contarse a si mismo
-    if ((s.receta||[]).some(i => i.key === key)) usos.push({tipo:'Semielaborado', nombre:s.name});
+    if ((s.receta||[]).some(i => i.key === key)) {
+      const rolls = rollsQueDependenDeSemi(s.insumo_key);
+      const combos = [...new Set(rolls.flatMap(rn => combosQueUsanRoll(rn)))];
+      filas.push({receta: `Semielaborado: ${s.name}`, productos: combos.length ? combos.join(', ') : '<span style="color:var(--text3)">Ningún combo lo usa todavía</span>'});
+    }
   });
   let bodyHtml;
-  if (!usos.length) {
+  if (!filas.length) {
     bodyHtml = '<div class="empty">Todavía no se usa en ninguna receta.</div>';
   } else {
-    bodyHtml = '<table><thead><tr><th>Tipo</th><th>Receta</th></tr></thead><tbody>' +
-      usos.map(u => `<tr><td><span class="badge b-blue">${u.tipo}</span></td><td style="font-weight:600">${u.nombre}</td></tr>`).join('') +
+    bodyHtml = '<table><thead><tr><th>Semielaborado o receta</th><th>Productos</th></tr></thead><tbody>' +
+      filas.map(f => `<tr><td style="font-weight:600">${f.receta}</td><td>${f.productos}</td></tr>`).join('') +
       '</tbody></table>';
   }
   openModal(`¿Dónde se usa "${nombre}"?`, bodyHtml, `<button class="btn" onclick="closeModal()">Cerrar</button>`);
