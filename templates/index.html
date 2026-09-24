@@ -45,6 +45,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header-icon-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
   border-radius:9px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4;min-width:16px;text-align:center}
 .header-divider{width:1px;height:24px;background:rgba(255,255,255,.2);margin:0 2px}
+.sec-collapsible{cursor:pointer}
+.collapse-chevron{transition:transform .15s;flex-shrink:0}
+.collapse-chevron.collapsed{transform:rotate(-90deg)}
+.collapsible-body.collapsed{display:none}
 .manual-item:hover{background:var(--bg2)}
 #manualContenido h3{font-size:20px;font-weight:700;color:var(--text);margin-bottom:14px}
 #manualContenido h4{font-size:15px;font-weight:700;color:var(--text);margin-top:20px;margin-bottom:8px}
@@ -358,16 +362,22 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab vista-prod-tab active" id="vistaProd_separado" onclick="setVistaProduccion('separado')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--purple);margin-right:5px"></span>Separado</div>
       <div class="tab vista-prod-tab" id="vistaProd_junto" onclick="setVistaProduccion('junto')">Todo junto (100%)</div>
     </div>
-    <div class="card"><div class="sec"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir</div><div id="rollsTbl"></div></div>
-    <div class="card hidden" id="rollosBlancosCard"><div class="sec"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)</div><div id="rollosBlancosTbl"></div></div>
-    <div class="card"><div class="sec row-between"><span><i class="ti ti-package"></i> Insumos necesarios</span>
-      <button class="btn btn-sm" onclick="descargarInsumosTotalesXlsx()" title="Incluye lo que se usa directo más lo que se gasta preparando los semielaborados"><i class="ti ti-file-spreadsheet"></i> Descargar insumos totales (Excel)</button>
-    </div><div id="insumosTbl"></div></div>
-    <div class="card"><div class="sec row-between"><span><i class="ti ti-chef-hat"></i> Semielaborados</span>
-      <button class="btn btn-sm" id="btnToggleRecetas" onclick="toggleDetalleRecetasSemis()"><i class="ti ti-eye-off"></i> Ocultar recetas adaptadas</button>
-    </div><div id="semiTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-salad"></i> Otros productos a preparar</div><div id="otrosTbl"></div></div>
-    <div class="card"><div class="sec"><i class="ti ti-box"></i> Combos a armar</div><div id="combosTbl"></div></div>
+    <div class="card"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-tools-kitchen-2"></i> Rollos a producir<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="rollsTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card hidden" id="rollosBlancosCard"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-layers-union"></i> Rollos blancos (bases compartidas)<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="rollosBlancosTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card"><div class="sec row-between sec-collapsible" onclick="toggleCardCollapse(this)"><span><i class="ti ti-package"></i> Insumos necesarios <span id="insumosNotaGlobal" style="font-weight:400;font-size:11px;color:var(--text3);text-transform:none"></span></span>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-sm" onclick="event.stopPropagation();descargarInsumosTotalesXlsx()" title="Incluye lo que se usa directo más lo que se gasta preparando los semielaborados"><i class="ti ti-file-spreadsheet"></i> Descargar insumos totales (Excel)</button>
+        <i class="ti ti-chevron-down collapse-chevron collapsed"></i>
+      </div>
+    </div><div id="insumosTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card"><div class="sec row-between sec-collapsible" onclick="toggleCardCollapse(this)"><span><i class="ti ti-chef-hat"></i> Semielaborados</span>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-sm" id="btnToggleRecetas" onclick="event.stopPropagation();toggleDetalleRecetasSemis()"><i class="ti ti-eye-off"></i> Ocultar recetas adaptadas</button>
+        <i class="ti ti-chevron-down collapse-chevron collapsed"></i>
+      </div>
+    </div><div id="semiTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-salad"></i> Otros productos a preparar<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="otrosTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-box"></i> Combos a armar<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="combosTbl" class="collapsible-body collapsed"></div></div>
     <div class="card card-planilla2 hidden" id="remainingProdCard">
       <div class="sec"><i class="ti ti-clock-hour-4"></i> Planilla 2 — Producción restante <span id="remainingProdPct"></span> — para más tarde</div>
       <div class="alert alert-info" style="margin-bottom:1rem">
@@ -1249,6 +1259,12 @@ function parseOneFile(file) {
   });
 }
 
+function toggleCardCollapse(headerEl) {
+  const body = headerEl.nextElementSibling;
+  const chevron = headerEl.querySelector('.collapse-chevron');
+  body.classList.toggle('collapsed');
+  chevron?.classList.toggle('collapsed');
+}
 function getScopeProduccion() {
   return document.querySelector('input[name="scopeProduccion"]:checked')?.value || 'todos';
 }
@@ -1380,6 +1396,12 @@ async function processFiles(files, canal) {
   if (eraCargaVacia) ST.currentPlanillaId = null; // nueva carga desde cero = nueva planilla, no seguir pisando una vieja
   guardarProgresoPlanilla('borrador');
   actualizarBotonContinuarVenta();
+  // Los locales sin Salón vuelven a avanzar solos, como siempre — solo con Salón
+  // hace falta quedarse en el paso 1 por si falta cargar el otro canal.
+  const localActual = ST.locales.find(l=>l.id===ST.currentLocalId);
+  if (!localActual || !localActual.tiene_salon) {
+    setTimeout(()=>goStep(2), 500);
+  }
 }
 
 
@@ -1696,6 +1718,16 @@ function renderProduction() {
   const built = buildProductionTablesHtml(mainData);
   document.getElementById('rollsTbl').innerHTML=built.rollsHtml;
   document.getElementById('insumosTbl').innerHTML=built.insumosHtml;
+  const insumosVals = Object.values(mainData.insumos||{});
+  const hayMerma = insumosVals.some(v=>v.eficiencia<100);
+  const hayInef = insumosVals.some(v=>v.aplica_ineficiencia);
+  const notaEl = document.getElementById('insumosNotaGlobal');
+  if (notaEl) {
+    const partes = [];
+    if (hayMerma) partes.push('porcentaje de merma estimada');
+    if (hayInef) partes.push(`${ST.porcentajeIneficiencia}% de ineficiencia`);
+    notaEl.textContent = partes.length ? `(incluye ${partes.join(' + ')})` : '';
+  }
   document.getElementById('semiTbl').innerHTML=built.semisHtml;
   document.getElementById('otrosTbl').innerHTML=built.otrosHtml;
   document.getElementById('combosTbl').innerHTML=built.combosHtml;
