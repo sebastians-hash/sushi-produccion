@@ -31,6 +31,47 @@ else:
 # generaria URLs http:// en vez de https://, rompiendo el callback de Google OAuth.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+# ── Endurecer la cookie de sesion ──
+# HTTPONLY: JavaScript nunca puede leerla (ya es el default de Flask, lo dejamos explicito).
+# SECURE: el navegador nunca la manda por HTTP sin cifrar (Railway siempre sirve por HTTPS).
+# SAMESITE=Lax: el navegador no la manda en pedidos que cambian datos (POST/PUT/DELETE)
+# iniciados desde OTRO sitio — es la primera barrera contra CSRF.
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# ── Proteccion CSRF ──
+# Cada pedido que cambia datos (POST/PUT/DELETE) tiene que venir con un token
+# que solo esta pagina pudo haber generado — evita que otro sitio web use tu
+# sesion abierta para mandar pedidos en tu nombre sin que te des cuenta.
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import generate_csrf, CSRFError
+csrf = CSRFProtect(app)
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Tu sesión venció o la página se quedó vieja — recargá e intentá de nuevo.'}), 400
+    return redirect('/login')
+
+# ── Limite de pedidos ──
+# Que nadie pueda mandar miles de pedidos seguidos a la app. x_for=1 en el
+# ProxyFix de arriba hace que esto identifique al visitante real, no al proxy
+# de Railway (que si no, seria "una sola persona" mandando todo el trafico).
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+limiter = Limiter(app=app, key_func=get_remote_address, default_limits=['300 per minute'],
+                   storage_uri='memory://')
+
+# ── Headers de seguridad en cada respuesta ──
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
 # DATABASE_URL la provee Railway automaticamente al agregar un servicio de PostgreSQL
 # y vincularlo a esta app. Es una base de datos administrada: los datos NO se pierden
 # con cada deploy, a diferencia de un archivo SQLite en el filesystem del contenedor.
@@ -519,11 +560,13 @@ def login_page():
     return render_template('login.html')
 
 @app.route('/auth/google')
+@limiter.limit('20 per minute')
 def auth_google():
     redirect_uri = url_for('auth_callback', _external=True)
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/auth/callback')
+@limiter.limit('20 per minute')
 def auth_callback():
     token = google.authorize_access_token()
     user_info = token.get('userinfo')
