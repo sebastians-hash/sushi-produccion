@@ -200,7 +200,12 @@ def init_db():
             proveedor_principal_id INTEGER,
             proveedor_alt1_id INTEGER,
             proveedor_alt2_id INTEGER,
-            eficiencia REAL NOT NULL DEFAULT 100
+            eficiencia REAL NOT NULL DEFAULT 100,
+            aplica_ineficiencia BOOLEAN NOT NULL DEFAULT TRUE
+        );
+        CREATE TABLE IF NOT EXISTS configuracion (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS categorias_insumos (
             id SERIAL PRIMARY KEY,
@@ -420,6 +425,8 @@ def init_db():
     # ahora siempre deberían figurar como enviadas por "Kata".
     c.execute("UPDATE novedades SET creado_por_nombre='Kata' WHERE creado_por_nombre IS DISTINCT FROM 'Kata'")
 
+    c.execute("INSERT INTO configuracion (clave, valor) VALUES ('porcentaje_ineficiencia', '12') ON CONFLICT (clave) DO NOTHING")
+
     ya_hay_unidades = c.execute('SELECT COUNT(*) AS n FROM unidades').fetchone()['n']
     if not ya_hay_unidades:
         unidades_iniciales = [
@@ -483,6 +490,7 @@ def init_db():
         'proveedor_alt1_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt1_id INTEGER",
         'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
         'eficiencia': "ALTER TABLE insumos ADD COLUMN eficiencia REAL NOT NULL DEFAULT 100",
+        'aplica_ineficiencia': "ALTER TABLE insumos ADD COLUMN aplica_ineficiencia BOOLEAN NOT NULL DEFAULT TRUE",
     }
     for col, stmt in insumo_new_cols.items():
         if col not in insumo_cols:
@@ -985,11 +993,14 @@ def restore_data():
             i['es_80_20'] = False
         if i.get('eficiencia') is None:
             i['eficiencia'] = 100
+        if i.get('aplica_ineficiencia') is None:
+            i['aplica_ineficiencia'] = True
     counts['insumos'] = upsert('insumos', data.get('insumos', []), 'key',
                               ['key', 'label', 'unidad_receta', 'unidad_resumen',
                                'factor_conversion', 'precio_unidad', 'categoria', 'es_80_20',
                                'comentario', 'marca_producto', 'marca_tipo', 'zona_almacenamiento',
-                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id', 'eficiencia'])
+                               'proveedor_principal_id', 'proveedor_alt1_id', 'proveedor_alt2_id', 'eficiencia',
+                               'aplica_ineficiencia'])
     for m in data.get('marcas', []):
         if m.get('orden') is None:
             m['orden'] = 0
@@ -2210,6 +2221,31 @@ def delete_marca(marca_id):
     return jsonify({'ok': True})
 
 # ── Insumos (tabla maestra de unidades) ──
+@app.route('/api/configuracion/porcentaje-ineficiencia', methods=['GET'])
+@login_required
+def get_porcentaje_ineficiencia():
+    conn = get_db()
+    row = conn.execute("SELECT valor FROM configuracion WHERE clave='porcentaje_ineficiencia'").fetchone()
+    conn.close()
+    return jsonify({'porcentaje': float(row['valor']) if row else 12})
+
+@app.route('/api/configuracion/porcentaje-ineficiencia', methods=['PUT'])
+@admin_required
+def set_porcentaje_ineficiencia():
+    data = request.json
+    try:
+        valor = float(data.get('porcentaje'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'El porcentaje tiene que ser un número'}), 400
+    if valor < 0 or valor > 100:
+        return jsonify({'error': 'El porcentaje tiene que estar entre 0 y 100'}), 400
+    conn = get_db()
+    conn.execute('''INSERT INTO configuracion (clave, valor) VALUES ('porcentaje_ineficiencia', ?)
+                     ON CONFLICT (clave) DO UPDATE SET valor=EXCLUDED.valor''', (str(valor),))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 @app.route('/api/insumos', methods=['GET'])
 @login_required
 def get_insumos():
@@ -2227,6 +2263,7 @@ def get_insumos():
         'proveedor_alt1_id': r['proveedor_alt1_id'],
         'proveedor_alt2_id': r['proveedor_alt2_id'],
         'eficiencia': r['eficiencia'],
+        'aplica_ineficiencia': bool(r['aplica_ineficiencia']),
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
@@ -2237,14 +2274,14 @@ def create_insumo():
     try:
         conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
                         categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
-                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia,aplica_ineficiencia)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
-                      data.get('eficiencia', 100) or 100))
+                      data.get('eficiencia', 100) or 100, bool(data.get('aplica_ineficiencia', True))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2262,13 +2299,14 @@ def update_insumo(ins_id):
         conn.execute('''UPDATE insumos SET key=?, label=?, unidad_receta=?, unidad_resumen=?,
                         factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
                         marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
-                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=?, eficiencia=? WHERE id=?''',
+                        proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=?, eficiencia=?,
+                        aplica_ineficiencia=? WHERE id=?''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
-                      data.get('eficiencia', 100) or 100,
+                      data.get('eficiencia', 100) or 100, bool(data.get('aplica_ineficiencia', True)),
                       ins_id))
         conn.commit()
     except IntegrityError:
@@ -2312,6 +2350,8 @@ def calcular():
                  for r in conn.execute('SELECT name, tipo, insumos, rolls FROM otros_productos').fetchall()}
     semis_db  = conn.execute('SELECT * FROM semielaborados').fetchall()
     insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+    _config_row = conn.execute("SELECT valor FROM configuracion WHERE clave='porcentaje_ineficiencia'").fetchone()
+    porcentaje_ineficiencia = float(_config_row['valor']) if _config_row else 12
     proveedores_db = {r['id']: r['name'] for r in conn.execute('SELECT id, name FROM proveedores').fetchall()}
 
     # Equivalencias: mismo producto, distinto nombre segun la marca que lo vendio
@@ -2488,8 +2528,19 @@ def calcular():
         eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
         # Lo que pide la receta no es lo que hay que comprar: si hay merma (fruta/verdura
         # que se pudre, producto que queda pegado al envase, etc.), hay que comprar de más.
-        total = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
-        nota_eficiencia = f" — incluye {round(100-eficiencia)}% de merma estimada" if eficiencia < 100 else ""
+        # Esto se calcula SIEMPRE sobre la receta original (independiente de la ineficiencia).
+        total_por_merma = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        # La ineficiencia (trabajo artesanal: nunca se usa la cantidad exacta) tambien se
+        # calcula sobre la receta original, y se SUMA aparte al final — no se combinan.
+        aplica_inef = master.get('aplica_ineficiencia', True) if master else True
+        extra_ineficiencia = total_receta * (porcentaje_ineficiencia / 100) if aplica_inef else 0
+        total = total_por_merma + extra_ineficiencia
+        notas = []
+        if eficiencia < 100:
+            notas.append(f"{round(100-eficiencia)}% de merma estimada")
+        if extra_ineficiencia > 0:
+            notas.append(f"{_fmt_cant(porcentaje_ineficiencia)}% de ineficiencia")
+        nota_eficiencia = f" — incluye {' + '.join(notas)}" if notas else ""
         if master:
             label = master['label']
             factor = master['factor_conversion']
@@ -2510,6 +2561,7 @@ def calcular():
             'total': round(total, 1) if total < 100 else round(total),
             'total_receta': round(total_receta, 1) if total_receta < 100 else round(total_receta),
             'eficiencia': eficiencia,
+            'aplica_ineficiencia': aplica_inef,
             'display': display
         }
 
@@ -2622,12 +2674,16 @@ def calcular():
     for k, total_receta in sorted(insumo_totals_expandido.items(), key=lambda x: -x[1]):
         master = insumos_master.get(k)
         eficiencia = (master['eficiencia'] if master and master.get('eficiencia') else 100) or 100
-        total_bruto = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        total_por_merma = total_receta / (eficiencia / 100) if eficiencia > 0 else total_receta
+        aplica_inef = master.get('aplica_ineficiencia', True) if master else True
+        extra_ineficiencia = total_receta * (porcentaje_ineficiencia / 100) if aplica_inef else 0
+        total_bruto = total_por_merma + extra_ineficiencia
         insumos_totales_out.append({
             'insumo': master['label'] if master else FALLBACK_LABELS.get(k, k),
             'cantidad_neta': round(total_receta, 2),
             'unidad': master['unidad_receta'] if master else 'g',
             'eficiencia': eficiencia,
+            'aplica_ineficiencia': aplica_inef,
             'cantidad_bruta': round(total_bruto, 2),
             'categoria': (master.get('categoria') if master else None) or '',
             'proveedor': (proveedores_db.get(master.get('proveedor_principal_id')) if master else None) or '',
