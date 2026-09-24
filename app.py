@@ -183,6 +183,11 @@ def init_db():
             name TEXT UNIQUE NOT NULL,
             orden INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS tipos_contenedor (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS insumos (
             id SERIAL PRIMARY KEY,
             key TEXT UNIQUE NOT NULL,
@@ -369,6 +374,10 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN tiempo_elaboracion_min INTEGER")
     if 'vida_util_dias' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN vida_util_dias INTEGER")
+    if 'zona_almacenamiento' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN zona_almacenamiento TEXT")
+    if 'tipo_contenedor_id' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN tipo_contenedor_id INTEGER")
 
     otro_cols = get_columns('otros_productos')
     if 'rolls' not in otro_cols:
@@ -1937,7 +1946,9 @@ def get_semielaborados():
                      'rendimiento_unidad': r['rendimiento_unidad'],
                      'marcas': json.loads(r['marcas'] or '[]'),
                      'tiempo_elaboracion_min': r['tiempo_elaboracion_min'],
-                     'vida_util_dias': r['vida_util_dias']} for r in rows])
+                     'vida_util_dias': r['vida_util_dias'],
+                     'zona_almacenamiento': r['zona_almacenamiento'],
+                     'tipo_contenedor_id': r['tipo_contenedor_id']} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 @admin_required
@@ -1947,15 +1958,17 @@ def create_semi():
     try:
         conn.execute('''INSERT INTO semielaborados
                         (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas,
-                         tiempo_elaboracion_min, vida_util_dias)
-                        VALUES (?,?,?,?,?,?,?,?,?,?)''',
+                         tiempo_elaboracion_min, vida_util_dias, zona_almacenamiento, tipo_contenedor_id)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
                       data.get('rendimiento_unidad', 'g'),
                       json.dumps(data.get('marcas', [])),
                       data.get('tiempo_elaboracion_min') or None,
-                      data.get('vida_util_dias') or None))
+                      data.get('vida_util_dias') or None,
+                      data.get('zona_almacenamiento') or None,
+                      data.get('tipo_contenedor_id') or None))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -1972,14 +1985,16 @@ def update_semi(semi_id):
     try:
         conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
                         receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=?,
-                        tiempo_elaboracion_min=?, vida_util_dias=? WHERE id=?''',
+                        tiempo_elaboracion_min=?, vida_util_dias=?, zona_almacenamiento=?, tipo_contenedor_id=? WHERE id=?''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
                       data.get('rendimiento_unidad', 'g'),
                       json.dumps(data.get('marcas', [])),
                       data.get('tiempo_elaboracion_min') or None,
-                      data.get('vida_util_dias') or None, semi_id))
+                      data.get('vida_util_dias') or None,
+                      data.get('zona_almacenamiento') or None,
+                      data.get('tipo_contenedor_id') or None, semi_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2154,6 +2169,68 @@ def reorder_posiciones():
     conn = get_db()
     for idx, pos_id in enumerate(ids):
         conn.execute('UPDATE posiciones SET orden=? WHERE id=?', (idx, pos_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Tipos de contenedor (para saber dónde se guarda cada semielaborado) ──
+@app.route('/api/tipos-contenedor', methods=['GET'])
+@login_required
+def get_tipos_contenedor():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM tipos_contenedor ORDER BY orden, name').fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'name': r['name'], 'orden': r['orden']} for r in rows])
+
+@app.route('/api/tipos-contenedor', methods=['POST'])
+@admin_required
+def create_tipo_contenedor():
+    data = request.json
+    conn = get_db()
+    try:
+        siguiente_orden = conn.execute('SELECT COALESCE(MAX(orden),0)+1 AS n FROM tipos_contenedor').fetchone()['n']
+        conn.execute('INSERT INTO tipos_contenedor (name, orden) VALUES (?,?)', (data['name'].strip(), siguiente_orden))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe un tipo de contenedor con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/tipos-contenedor/<int:tc_id>', methods=['PUT'])
+@admin_required
+def update_tipo_contenedor(tc_id):
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute('UPDATE tipos_contenedor SET name=? WHERE id=?', (data['name'].strip(), tc_id))
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Ya existe otro tipo de contenedor con ese nombre'}), 400
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/tipos-contenedor/<int:tc_id>', methods=['DELETE'])
+@admin_required
+def delete_tipo_contenedor(tc_id):
+    conn = get_db()
+    conn.execute('UPDATE semielaborados SET tipo_contenedor_id=NULL WHERE tipo_contenedor_id=?', (tc_id,))
+    conn.execute('DELETE FROM tipos_contenedor WHERE id=?', (tc_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/tipos-contenedor/reorder', methods=['PUT'])
+@admin_required
+def reorder_tipos_contenedor():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, tc_id in enumerate(ids):
+        conn.execute('UPDATE tipos_contenedor SET orden=? WHERE id=?', (idx, tc_id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
