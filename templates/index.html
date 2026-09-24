@@ -1770,22 +1770,24 @@ function getManualTandaCounts() {
   return counts;
 }
 
+function ordenarPorTurnoYHorario(a, b) {
+  const ORDEN_TURNO = {'Mañana':0,'Intermedio':1,'Noche':2};
+  const ta = ORDEN_TURNO[a.turno] ?? 3;
+  const tb = ORDEN_TURNO[b.turno] ?? 3;
+  if(ta!==tb) return ta-tb;
+  // a.ingreso/b.ingreso ya viene resuelto en los objetos de la grilla; para la lista
+  // de disponibilidad (objetos de sushiman completos) hay que resolverlo aca mismo.
+  const ia = a.ingreso || ST.dailySm[a.id]?.ingreso || a.horario_ingreso || '';
+  const ib = b.ingreso || ST.dailySm[b.id]?.ingreso || b.horario_ingreso || '';
+  if(!ia && !ib) return 0;
+  if(!ia) return 1; // sin horario cargado, al final de su turno
+  if(!ib) return -1;
+  return ia.localeCompare(ib);
+}
 function renderSmList() {
   let h='';
   const diaPlanilla = nombreDiaDePlanilla();
-  const ORDEN_TURNO = {'Mañana':0,'Intermedio':1,'Noche':2};
-  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId).slice().sort((a,b)=>{
-    const ta = ORDEN_TURNO[a.turno] ?? 3;
-    const tb = ORDEN_TURNO[b.turno] ?? 3;
-    if(ta!==tb) return ta-tb;
-    const da = ST.dailySm[a.id]||{}; const db = ST.dailySm[b.id]||{};
-    const ia = da.ingreso || a.horario_ingreso || '';
-    const ib = db.ingreso || b.horario_ingreso || '';
-    if(!ia && !ib) return 0;
-    if(!ia) return 1; // sin horario cargado, al final de su turno
-    if(!ib) return -1;
-    return ia.localeCompare(ib);
-  });
+  const lista = ST.sushimanes.filter(s=>s.local_id===ST.currentLocalId).slice().sort(ordenarPorTurnoYHorario);
   lista.forEach(s=>{
     const d=ST.dailySm[s.id]||{avail:s.active,prod:s.productivity,ingreso:s.horario_ingreso||''};
     const esFrancoEseDia = (s.dias_franco||[]).includes(diaPlanilla);
@@ -1988,7 +1990,7 @@ function calcSchedule(preservarExclusiones) {
   ST.schedule={
     startTime:fmt(startMins), rollsEndTime:fmt(endMins), endTime:cierreTotal,
     fecha:fechaPlanilla, turno:turnoPlanilla,
-    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||''})),
+    sushimanes:avail.map(s=>({id:s.id,name:s.name,prod:ST.dailySm[s.id]?.prod||s.productivity,ingreso:ST.dailySm[s.id]?.ingreso||'',turno:s.turno})).sort(ordenarPorTurnoYHorario),
     hours:scheduleHours
   };
   ST.editingGrid=false;
