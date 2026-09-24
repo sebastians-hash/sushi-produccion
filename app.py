@@ -2442,6 +2442,10 @@ def calcular():
     conn.close()
 
     roll_totals = {}
+    roll_piezas_totals = {}  # piezas SIN redondear, de todas las fuentes juntas — se
+                              # redondea a rollos una sola vez al final, no fuente por fuente
+                              # (sumar 3 rollos + 2 rollos + 2 rollos redondeados aparte sobre-cuenta
+                              # respecto a sumar las piezas de las 3 fuentes y redondear una vez)
     otros_totals = {}  # nombre -> {tipo, qty}
     direct_insumo_totals = {}  # insumos que vienen DIRECTO de "otros productos" (no de rolls)
 
@@ -2516,11 +2520,10 @@ def calcular():
             continue
 
         if roll_directo:
-            # Acá final_qty son PIEZAS vendidas sueltas (no rollos) — se convierte
-            # igual que adentro de un combo, redondeando siempre para arriba.
-            piezas_por_rollo = roll_piezas_db.get(roll_directo, 14) or 14
-            rolls_needed = -(-final_qty // piezas_por_rollo)
-            roll_totals[roll_directo] = roll_totals.get(roll_directo, 0) + rolls_needed
+            # Acá final_qty son PIEZAS vendidas sueltas (no rollos) — se acumulan
+            # junto con lo que aporten combos/otros productos al mismo roll, y se
+            # redondea a rollos una sola vez al final (ver roll_piezas_totals).
+            roll_piezas_totals[roll_directo] = roll_piezas_totals.get(roll_directo, 0) + final_qty
             continue
 
         if combo:
@@ -2528,9 +2531,7 @@ def calcular():
                 if not piezas:
                     continue
                 roll_name = equiv_roll.get(norm(roll_name), roll_name)
-                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
-                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
-                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
+                roll_piezas_totals[roll_name] = roll_piezas_totals.get(roll_name, 0) + piezas * final_qty
             continue
 
         if otro:
@@ -2550,9 +2551,15 @@ def calcular():
                 if not piezas:
                     continue
                 roll_name = equiv_roll.get(norm(roll_name), roll_name)
-                piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
-                rolls_needed = -(-piezas * final_qty // piezas_por_rollo)
-                roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
+                roll_piezas_totals[roll_name] = roll_piezas_totals.get(roll_name, 0) + piezas * final_qty
+
+    # Recién acá, con TODAS las fuentes ya sumadas en piezas crudas, se redondea
+    # a rollos una sola vez por roll — evita sobre-contar cuando varios combos u
+    # otros productos comparten el mismo roll en cantidades chicas.
+    for roll_name, piezas_totales in roll_piezas_totals.items():
+        piezas_por_rollo = roll_piezas_db.get(roll_name, 14) or 14
+        rolls_needed = -(-piezas_totales // piezas_por_rollo)
+        roll_totals[roll_name] = roll_totals.get(roll_name, 0) + rolls_needed
 
     production = sorted(
         [{'name': k, 'qty': v, 'piezasPorRollo': roll_piezas_db.get(k, 14) or 14,
