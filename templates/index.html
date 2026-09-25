@@ -666,7 +666,10 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="card">
         <div class="row-between" style="margin-bottom:1rem">
           <div class="card-title" style="margin:0">Rolls</div>
-          {% if is_admin %}<button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>{% endif %}
+          <div class="row" style="gap:6px">
+            {% if is_admin %}<button class="btn btn-sm" onclick="openOrdenProduccionModal()" title="Definir qué rolls conviene producir más temprano"><i class="ti ti-arrows-sort"></i> Orden de producción</button>{% endif %}
+            {% if is_admin %}<button class="btn btn-sm" onclick="openRollModal()"><i class="ti ti-plus"></i> Nuevo roll</button>{% endif %}
+          </div>
         </div>
         <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_rolls" class="w-full" placeholder="Buscar roll..." oninput="renderRollCfg()"></div>
         <div id="rollCfg"></div>
@@ -2068,6 +2071,16 @@ function buildHourAssign(avail, startMins, prodH, manualTandaCounts) {
     if(!bestSm) return;
     assignedTandas[bestSm.id].push(tanda);
     remainingBudget[bestSm.id]-=tanda.qty;
+  });
+
+  // El reparto de arriba decide QUIEN hace cada tanda (para que quede balanceado);
+  // ahora, adentro de lo que le tocó a cada sushiman, se reordena por la prioridad
+  // de producción de cada roll — así los que conviene hacer temprano quedan
+  // primeros en su cola y terminan asignados a las primeras horas de esa persona.
+  const ordenPorRoll = {};
+  ST.rolls.forEach(r => { ordenPorRoll[r.name] = r.orden_produccion ?? 0; });
+  avail.forEach(sm=>{
+    assignedTandas[sm.id].sort((a,b)=>(ordenPorRoll[a.name]??999999)-(ordenPorRoll[b.name]??999999));
   });
 
   // El objetivo por hora se recalcula en base a lo que CADA UNO realmente tiene
@@ -4581,6 +4594,40 @@ async function movePosicion(id, direction) {
   [ST.posiciones[idx], ST.posiciones[swapIdx]] = [ST.posiciones[swapIdx], ST.posiciones[idx]];
   renderPosicionesModal();
   await fetch('/api/posiciones/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: ST.posiciones.map(p=>p.id)})});
+}
+
+// ── Orden de producción de los rolls (cuáles conviene hacer más temprano) ──
+function openOrdenProduccionModal() {
+  openModalW('Orden de producción de los rolls', '<div id="ordenProduccionListWrap"></div>', `<button class="btn" onclick="closeModalW()">Cerrar</button>`);
+  renderOrdenProduccionModal();
+}
+function renderOrdenProduccionModal() {
+  const lista = [...ST.rolls].sort((a,b)=>(a.orden_produccion??0)-(b.orden_produccion??0));
+  let h = `<div class="alert alert-info" style="margin-bottom:1rem">
+    <i class="ti ti-info-circle"></i>
+    <span>Los de más arriba se producen primero cuando se arma la grilla automáticamente. Subí los que conviene hacer más temprano (por ejemplo, por vida útil corta o porque llevan más tiempo de armado).</span>
+  </div>`;
+  h += '<table><thead><tr><th style="width:40px">#</th><th>Roll</th><th style="width:100px"></th></tr></thead><tbody>';
+  lista.forEach((r,i)=>{
+    const esPrimera = i===0, esUltima = i===lista.length-1;
+    h += `<tr><td style="color:var(--text3)">${i+1}</td><td style="font-weight:600">${r.name}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm" onclick="moveOrdenProduccion(${r.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
+        <button class="btn btn-sm" onclick="moveOrdenProduccion(${r.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
+      </div></td></tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('ordenProduccionListWrap').innerHTML = h;
+}
+async function moveOrdenProduccion(id, direction) {
+  const lista = [...ST.rolls].sort((a,b)=>(a.orden_produccion??0)-(b.orden_produccion??0));
+  const idx = lista.findIndex(r=>r.id===id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= lista.length) return;
+  [lista[idx], lista[swapIdx]] = [lista[swapIdx], lista[idx]];
+  lista.forEach((r,i)=>{ r.orden_produccion = i; });
+  renderOrdenProduccionModal();
+  await fetch('/api/rolls/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: lista.map(r=>r.id)})});
 }
 
 // ── Tipos de contenedor (para los semielaborados: tupper, batea, bandeja...) ──
