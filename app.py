@@ -207,7 +207,8 @@ def init_db():
             proveedor_alt1_id INTEGER,
             proveedor_alt2_id INTEGER,
             eficiencia REAL NOT NULL DEFAULT 100,
-            aplica_ineficiencia BOOLEAN NOT NULL DEFAULT TRUE
+            aplica_ineficiencia BOOLEAN NOT NULL DEFAULT TRUE,
+            es_salmon BOOLEAN NOT NULL DEFAULT FALSE
         );
         CREATE TABLE IF NOT EXISTS configuracion (
             clave TEXT PRIMARY KEY,
@@ -521,6 +522,7 @@ def init_db():
         'proveedor_alt2_id': "ALTER TABLE insumos ADD COLUMN proveedor_alt2_id INTEGER",
         'eficiencia': "ALTER TABLE insumos ADD COLUMN eficiencia REAL NOT NULL DEFAULT 100",
         'aplica_ineficiencia': "ALTER TABLE insumos ADD COLUMN aplica_ineficiencia BOOLEAN NOT NULL DEFAULT TRUE",
+        'es_salmon': "ALTER TABLE insumos ADD COLUMN es_salmon BOOLEAN NOT NULL DEFAULT FALSE",
     }
     for col, stmt in insumo_new_cols.items():
         if col not in insumo_cols:
@@ -1990,9 +1992,7 @@ def get_semielaborados():
                      'tiempo_elaboracion_min': r['tiempo_elaboracion_min'],
                      'vida_util_dias': r['vida_util_dias'],
                      'zona_almacenamiento': r['zona_almacenamiento'],
-                     'tipo_contenedor_id': r['tipo_contenedor_id'],
-                     'es_salmon': bool(r['es_salmon']),
-                     'peso_por_unidad_g': r['peso_por_unidad_g']} for r in rows])
+                     'tipo_contenedor_id': r['tipo_contenedor_id']} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 @admin_required
@@ -2002,8 +2002,8 @@ def create_semi():
     try:
         conn.execute('''INSERT INTO semielaborados
                         (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas,
-                         tiempo_elaboracion_min, vida_util_dias, zona_almacenamiento, tipo_contenedor_id, es_salmon, peso_por_unidad_g)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                         tiempo_elaboracion_min, vida_util_dias, zona_almacenamiento, tipo_contenedor_id)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
@@ -2012,9 +2012,7 @@ def create_semi():
                       data.get('tiempo_elaboracion_min') or None,
                       data.get('vida_util_dias') or None,
                       data.get('zona_almacenamiento') or None,
-                      data.get('tipo_contenedor_id') or None,
-                      bool(data.get('es_salmon', False)),
-                      data.get('peso_por_unidad_g') or None))
+                      data.get('tipo_contenedor_id') or None))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2031,8 +2029,7 @@ def update_semi(semi_id):
     try:
         conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
                         receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=?,
-                        tiempo_elaboracion_min=?, vida_util_dias=?, zona_almacenamiento=?, tipo_contenedor_id=?,
-                        es_salmon=?, peso_por_unidad_g=? WHERE id=?''',
+                        tiempo_elaboracion_min=?, vida_util_dias=?, zona_almacenamiento=?, tipo_contenedor_id=? WHERE id=?''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
@@ -2041,9 +2038,7 @@ def update_semi(semi_id):
                       data.get('tiempo_elaboracion_min') or None,
                       data.get('vida_util_dias') or None,
                       data.get('zona_almacenamiento') or None,
-                      data.get('tipo_contenedor_id') or None,
-                      bool(data.get('es_salmon', False)),
-                      data.get('peso_por_unidad_g') or None, semi_id))
+                      data.get('tipo_contenedor_id') or None, semi_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2390,6 +2385,7 @@ def get_insumos():
         'proveedor_alt2_id': r['proveedor_alt2_id'],
         'eficiencia': r['eficiencia'],
         'aplica_ineficiencia': bool(r['aplica_ineficiencia']),
+        'es_salmon': bool(r['es_salmon']),
     } for r in rows])
 
 @app.route('/api/insumos', methods=['POST'])
@@ -2400,14 +2396,15 @@ def create_insumo():
     try:
         conn.execute('''INSERT INTO insumos (key,label,unidad_receta,unidad_resumen,factor_conversion,precio_unidad,
                         categoria,es_80_20,comentario,marca_producto,marca_tipo,zona_almacenamiento,
-                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia,aplica_ineficiencia)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                        proveedor_principal_id,proveedor_alt1_id,proveedor_alt2_id,eficiencia,aplica_ineficiencia,es_salmon)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
-                      data.get('eficiencia', 100) or 100, bool(data.get('aplica_ineficiencia', True))))
+                      data.get('eficiencia', 100) or 100, bool(data.get('aplica_ineficiencia', True)),
+                      bool(data.get('es_salmon', False))))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2426,13 +2423,14 @@ def update_insumo(ins_id):
                         factor_conversion=?, precio_unidad=?, categoria=?, es_80_20=?, comentario=?,
                         marca_producto=?, marca_tipo=?, zona_almacenamiento=?,
                         proveedor_principal_id=?, proveedor_alt1_id=?, proveedor_alt2_id=?, eficiencia=?,
-                        aplica_ineficiencia=? WHERE id=?''',
+                        aplica_ineficiencia=?, es_salmon=? WHERE id=?''',
                      (data['key'], data['label'], data['unidad_receta'], data['unidad_resumen'],
                       data['factor_conversion'], data.get('precio_unidad'),
                       data.get('categoria'), int(bool(data.get('es_80_20'))), data.get('comentario'),
                       data.get('marca_producto'), data.get('marca_tipo'), data.get('zona_almacenamiento'),
                       data.get('proveedor_principal_id'), data.get('proveedor_alt1_id'), data.get('proveedor_alt2_id'),
                       data.get('eficiencia', 100) or 100, bool(data.get('aplica_ineficiencia', True)),
+                      bool(data.get('es_salmon', False)),
                       ins_id))
         conn.commit()
     except IntegrityError:
@@ -2728,6 +2726,33 @@ def calcular():
                 clave = f"{nombre}|{unidad}"
                 insumos_sin_vincular[clave] = insumos_sin_vincular.get(clave, 0) + cant
 
+    def calcular_salmon_en_semi(semi_key, cantidad_necesaria, visitados=frozenset()):
+        """Baja por la receta de un semielaborado (siguiendo semielaborados
+        anidados) y devuelve cuantos gramos de insumos marcados 'es_salmon'
+        contiene, proporcional a la cantidad pedida. Así se detecta solo qué
+        semielaborados llevan salmón — sin tener que marcarlos uno por uno,
+        basta con marcar el insumo base "Salmón" una sola vez."""
+        if semi_key in visitados:
+            return 0
+        semi_row = semis_by_key_full.get(semi_key)
+        if not semi_row:
+            return 0
+        receta = json.loads(semi_row['receta'] or '[]')
+        rend_cant = semi_row['rendimiento_cantidad'] or 0
+        if not receta or rend_cant <= 0:
+            return 0
+        scale = cantidad_necesaria / rend_cant
+        total_salmon = 0
+        for ing in receta:
+            cant = ing['cantidad'] * scale
+            k = ing.get('key')
+            if k and insumos_master.get(k):
+                if insumos_master[k].get('es_salmon'):
+                    total_salmon += cant
+            elif k and semis_by_key_full.get(k):
+                total_salmon += calcular_salmon_en_semi(k, cant, visitados | {semi_key})
+        return total_salmon
+
     def resolve_ing(ing):
         """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
         el formato: nuevo (con 'key' hacia insumos/semielaborados) o viejo (texto libre)."""
@@ -2794,16 +2819,9 @@ def calcular():
                         } for ing in receta
                     ]
                 }
-            if semi['es_salmon']:
-                peso_unidad = semi['peso_por_unidad_g']
-                if unit == 'u' and peso_unidad:
-                    peso_g = total * peso_unidad
-                    # El display se deja igual que cualquier semielaborado (solo la
-                    # cantidad a preparar, ej. "3 u") — el peso_por_unidad_g se usa
-                    # nada mas que puertas adentro para sumar el total de mas abajo.
-                else:
-                    peso_g = total if unit == 'g' else total  # ya viene en gramos si no es por unidad
-                salmon_limpio_total_g += peso_g
+            peso_salmon_g = calcular_salmon_en_semi(semi['insumo_key'], total)
+            if peso_salmon_g > 0:
+                salmon_limpio_total_g += peso_salmon_g
                 salmon_out.append(semi_out)
             else:
                 semis_out.append(semi_out)
