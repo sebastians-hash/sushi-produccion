@@ -735,6 +735,11 @@ input[type=range]{width:100%;accent-color:var(--text)}
             <button class="btn btn-sm" onclick="openImportarRecetasModal(null)"><i class="ti ti-file-upload"></i> Importar desde PDF</button>
           </div>{% endif %}
         </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:1rem">
+          <select id="filtroZonaSemi" onchange="renderSemiCfg()" style="min-width:160px">
+            <option value="">Todas las zonas</option>
+          </select>
+        </div>
         <div class="search-box-wrap"><i class="ti ti-search"></i><input type="text" id="filtro_semis" class="w-full" placeholder="Buscar semielaborado..." oninput="renderSemiCfg()"></div>
         <div id="semiCfg"></div>
       </div>
@@ -808,6 +813,9 @@ input[type=range]{width:100%;accent-color:var(--text)}
           </select>
           <select id="filtroProveedor" onchange="renderInsumoCfg()" style="min-width:160px">
             <option value="">Todos los proveedores</option>
+          </select>
+          <select id="filtroZonaInsumo" onchange="renderInsumoCfg()" style="min-width:160px">
+            <option value="">Todas las zonas</option>
           </select>
           <select id="filtro8020" onchange="renderInsumoCfg()" style="min-width:140px">
             <option value="">80/20: Todos</option>
@@ -2852,8 +2860,17 @@ function mostrarUsosIngrediente(key, nombre) {
 }
 
 function renderSemiCfg() {
+  const selZona = document.getElementById('filtroZonaSemi');
+  if (selZona) {
+    const zonaActual = selZona.value;
+    selZona.innerHTML = '<option value="">Todas las zonas</option>' +
+      ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}">${z.name}</option>`).join('');
+    selZona.value = zonaActual;
+  }
+  const fZona = selZona?.value || '';
   const filtro = valorFiltro('filtro_semis');
-  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name) && visibleParaLocalActual(s.marcas));
+  const lista = ST.semielaborados.filter(s => coincideBusqueda(filtro, s.name) && visibleParaLocalActual(s.marcas)
+    && (!fZona || s.zona_almacenamiento === fZona));
   let h='<table><thead><tr><th>Semielaborado</th><th>Usos</th><th>Receta</th><th>Rendimiento</th><th style="text-align:center">Elaboración</th><th style="text-align:center">Vida útil</th><th>Zona</th><th>Contenedor</th><th>Marca(s)</th><th style="width:90px"></th></tr></thead><tbody>';
   lista.forEach(s=>{
     const rendDisplay = (s.rendimiento_cantidad > 0)
@@ -3018,19 +3035,27 @@ function renderSmCfg() {
 function poblarFiltrosInsumo() {
   const selCat = document.getElementById('filtroCategoria');
   const selProv = document.getElementById('filtroProveedor');
+  const selZona = document.getElementById('filtroZonaInsumo');
   if (!selCat || !selProv) return;
   const catActual = selCat.value;
   const provActual = selProv.value;
+  const zonaActual = selZona ? selZona.value : '';
   selCat.innerHTML = '<option value="">Todas las categorías</option>' +
     ST.categoriasInsumos.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
   selProv.innerHTML = '<option value="">Todos los proveedores</option>' +
     ST.proveedores.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if (selZona) {
+    selZona.innerHTML = '<option value="">Todas las zonas</option>' +
+      ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}">${z.name}</option>`).join('');
+    selZona.value = zonaActual;
+  }
   selCat.value = catActual;
   selProv.value = provActual;
 }
 function limpiarFiltrosInsumo() {
   document.getElementById('filtroCategoria').value = '';
   document.getElementById('filtroProveedor').value = '';
+  document.getElementById('filtroZonaInsumo').value = '';
   document.getElementById('filtro8020').value = '';
   renderInsumoCfg();
 }
@@ -3038,6 +3063,7 @@ function renderInsumoCfg() {
   poblarFiltrosInsumo();
   const fCategoria = document.getElementById('filtroCategoria')?.value || '';
   const fProveedor = document.getElementById('filtroProveedor')?.value || '';
+  const fZona = document.getElementById('filtroZonaInsumo')?.value || '';
   const f8020 = document.getElementById('filtro8020')?.value || '';
   const fTexto = valorFiltro('filtro_insumos');
 
@@ -3048,6 +3074,7 @@ function renderInsumoCfg() {
       const usaEseProveedor = [i.proveedor_principal_id, i.proveedor_alt1_id, i.proveedor_alt2_id].includes(pid);
       if (!usaEseProveedor) return false;
     }
+    if (fZona && i.zona_almacenamiento !== fZona) return false;
     if (f8020 === 'si' && !i.es_80_20) return false;
     if (f8020 === 'no' && i.es_80_20) return false;
     if (!coincideBusqueda(fTexto, i.label)) return false;
