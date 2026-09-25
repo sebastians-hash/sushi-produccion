@@ -45,11 +45,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header-icon-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
   border-radius:9px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4;min-width:16px;text-align:center}
 .header-divider{width:1px;height:24px;background:rgba(255,255,255,.2);margin:0 2px}
-.inicio-card{cursor:pointer;transition:border-color .15s,transform .1s;text-align:left}
-.inicio-card:hover{border-color:var(--text3);transform:translateY(-2px)}
-.inicio-card>i{font-size:26px;color:var(--blue);margin-bottom:10px;display:block}
-.inicio-card-title{font-weight:700;font-size:15px;margin-bottom:3px}
+.inicio-wrap{max-width:1040px;margin:0 auto;padding-top:.5rem}
+.inicio-header{margin-bottom:1.75rem}
+.inicio-header h2{font-size:27px;margin-bottom:4px;letter-spacing:-.01em}
+.inicio-header p{color:var(--text3);font-size:14px}
+.inicio-tip{display:flex;gap:14px;align-items:flex-start;background:var(--blue-bg);border-radius:var(--r);padding:1.15rem 1.3rem;margin-bottom:1.75rem}
+.inicio-tip-icon{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.inicio-tip-title{font-weight:700;color:var(--blue);margin-bottom:4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.inicio-tip-text{font-size:14px;color:var(--text2);line-height:1.65}
+.inicio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.inicio-card{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+.inicio-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.08);border-color:var(--blue)}
+.inicio-card-icon{width:46px;height:46px;border-radius:12px;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-size:21px;color:var(--blue);flex-shrink:0}
+.inicio-card-body{flex:1;min-width:0}
+.inicio-card-title{font-weight:700;font-size:15px;margin-bottom:2px}
 .inicio-card-sub{font-size:12.5px;color:var(--text3)}
+.inicio-card-arrow{color:var(--text3);font-size:16px;flex-shrink:0;transition:transform .15s,color .15s}
+.inicio-card:hover .inicio-card-arrow{transform:translateX(3px);color:var(--blue)}
+@media(max-width:900px){.inicio-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.inicio-grid{grid-template-columns:1fr}.inicio-tip{flex-direction:column}}
+.orden-prod-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;background:var(--surface);transition:background .1s,border-color .1s}
+.orden-prod-row.dragging{opacity:.4}
+.orden-prod-row.drag-over{border-color:var(--blue);background:var(--blue-bg)}
 .sec-collapsible{cursor:pointer}
 .collapse-chevron{transition:transform .15s;flex-shrink:0}
 .collapse-chevron.collapsed{transform:rotate(-90deg)}
@@ -244,49 +261,67 @@ input[type=range]{width:100%;accent-color:var(--text)}
   </div>
 
   <div id="mainInicio">
-    <div style="padding:.5rem 0 1.5rem">
-      <h2 style="margin-bottom:4px">Hola, {{ user_name.split(' ')[0] if user_name else '' }}</h2>
-      <p id="todayDateInicio" style="color:var(--text2);font-size:14px"></p>
-    </div>
-    <div class="card" style="background:var(--blue-bg);border:none;margin-bottom:1.5rem">
-      <div class="row" style="gap:12px;align-items:flex-start">
-        <i class="ti ti-bulb" style="font-size:22px;color:var(--blue);flex-shrink:0;margin-top:2px"></i>
+    <div class="inicio-wrap">
+      <div class="inicio-header">
+        <h2>Hola, {{ user_name.split(' ')[0] if user_name else '' }}</h2>
+        <p id="todayDateInicio"></p>
+      </div>
+      <div class="inicio-tip">
+        <div class="inicio-tip-icon"><i class="ti ti-bulb"></i></div>
         <div>
-          <div style="font-weight:700;color:var(--blue);margin-bottom:4px">¿Sabías que...?</div>
-          <div style="font-size:14px;color:var(--text2);line-height:1.6">En japonés, <strong>"kata"</strong> (型) es la forma exacta que se perfecciona con años de aprendizaje y experiencia acumulada — no cualquier técnica, sino <em>el</em> camino correcto, ya probado por el tiempo. La app existe con esa misma idea.</div>
+          <div class="inicio-tip-title">¿Sabías que...?</div>
+          <div class="inicio-tip-text">En japonés, <strong>"kata"</strong> (型) es la forma exacta que se perfecciona con años de aprendizaje y experiencia acumulada — no cualquier técnica, sino <em>el</em> camino correcto, ya probado por el tiempo. La app existe con esa misma idea.</div>
         </div>
       </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
-      <div class="card inicio-card" onclick="goMainSection('produccion')">
-        <i class="ti ti-clipboard-list"></i>
-        <div class="inicio-card-title">Planilla de producción</div>
-        <div class="inicio-card-sub">Armar la producción del día</div>
-      </div>
-      <div class="card inicio-card" onclick="openCalculadoraModal()">
-        <i class="ti ti-calculator"></i>
-        <div class="inicio-card-title">Calculadora</div>
-        <div class="inicio-card-sub">Piezas y rollos de un combo</div>
-      </div>
-      <div class="card inicio-card" onclick="goMainSection('productos')">
-        <i class="ti ti-box"></i>
-        <div class="inicio-card-title">Productos</div>
-        <div class="inicio-card-sub">Combos, porciones y más</div>
-      </div>
-      <div class="card inicio-card" onclick="goMainSection('recetas')">
-        <i class="ti ti-tools-kitchen-2"></i>
-        <div class="inicio-card-title">Recetas</div>
-        <div class="inicio-card-sub">Rolls y semielaborados</div>
-      </div>
-      <div class="card inicio-card" onclick="goMainSection('insumos')">
-        <i class="ti ti-package"></i>
-        <div class="inicio-card-title">Insumos</div>
-        <div class="inicio-card-sub">Catálogo, zonas e inventario</div>
-      </div>
-      <div class="card inicio-card" onclick="goMainSection('equivalencias')">
-        <i class="ti ti-arrows-left-right"></i>
-        <div class="inicio-card-title">Equivalencias</div>
-        <div class="inicio-card-sub">Nombres por marca</div>
+      <div class="inicio-grid">
+        <div class="inicio-card" onclick="goMainSection('produccion')">
+          <div class="inicio-card-icon"><i class="ti ti-clipboard-list"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Planilla de producción</div>
+            <div class="inicio-card-sub">Armar la producción del día</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
+        <div class="inicio-card" onclick="openCalculadoraModal()">
+          <div class="inicio-card-icon"><i class="ti ti-calculator"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Calculadora</div>
+            <div class="inicio-card-sub">Piezas y rollos de un combo</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
+        <div class="inicio-card" onclick="goMainSection('productos')">
+          <div class="inicio-card-icon"><i class="ti ti-box"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Productos</div>
+            <div class="inicio-card-sub">Combos, porciones y más</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
+        <div class="inicio-card" onclick="goMainSection('recetas')">
+          <div class="inicio-card-icon"><i class="ti ti-tools-kitchen-2"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Recetas</div>
+            <div class="inicio-card-sub">Rolls y semielaborados</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
+        <div class="inicio-card" onclick="goMainSection('insumos')">
+          <div class="inicio-card-icon"><i class="ti ti-package"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Insumos</div>
+            <div class="inicio-card-sub">Catálogo, zonas e inventario</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
+        <div class="inicio-card" onclick="goMainSection('equivalencias')">
+          <div class="inicio-card-icon"><i class="ti ti-arrows-left-right"></i></div>
+          <div class="inicio-card-body">
+            <div class="inicio-card-title">Equivalencias</div>
+            <div class="inicio-card-sub">Nombres por marca</div>
+          </div>
+          <i class="ti ti-chevron-right inicio-card-arrow"></i>
+        </div>
       </div>
     </div>
   </div>
@@ -4605,19 +4640,57 @@ function renderOrdenProduccionModal() {
   const lista = [...ST.rolls].sort((a,b)=>(a.orden_produccion??0)-(b.orden_produccion??0));
   let h = `<div class="alert alert-info" style="margin-bottom:1rem">
     <i class="ti ti-info-circle"></i>
-    <span>Los de más arriba se producen primero cuando se arma la grilla automáticamente. Subí los que conviene hacer más temprano (por ejemplo, por vida útil corta o porque llevan más tiempo de armado).</span>
+    <span>Los de más arriba se producen primero cuando se arma la grilla automáticamente. Arrastrá desde el ícono <i class="ti ti-grip-vertical"></i> para reordenar, o usá las flechas.</span>
   </div>`;
-  h += '<table><thead><tr><th style="width:40px">#</th><th>Roll</th><th style="width:100px"></th></tr></thead><tbody>';
+  h += '<div id="ordenProduccionList">';
   lista.forEach((r,i)=>{
     const esPrimera = i===0, esUltima = i===lista.length-1;
-    h += `<tr><td style="color:var(--text3)">${i+1}</td><td style="font-weight:600">${r.name}</td>
-      <td><div class="row" style="gap:4px">
+    h += `<div class="orden-prod-row" draggable="true" data-id="${r.id}"
+        ondragstart="ordProdDragStart(event)" ondragover="ordProdDragOver(event)"
+        ondragleave="ordProdDragLeave(event)" ondrop="ordProdDrop(event)" ondragend="ordProdDragEnd(event)">
+      <i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);flex-shrink:0"></i>
+      <span style="color:var(--text3);width:24px;flex-shrink:0">${i+1}</span>
+      <span style="font-weight:600;flex:1">${r.name}</span>
+      <div class="row" style="gap:4px;flex-shrink:0">
         <button class="btn btn-sm" onclick="moveOrdenProduccion(${r.id},-1)" title="Subir" ${esPrimera?'disabled':''}>▲</button>
         <button class="btn btn-sm" onclick="moveOrdenProduccion(${r.id},1)" title="Bajar" ${esUltima?'disabled':''}>▼</button>
-      </div></td></tr>`;
+      </div>
+    </div>`;
   });
-  h += '</tbody></table>';
+  h += '</div>';
   document.getElementById('ordenProduccionListWrap').innerHTML = h;
+}
+let ordProdDragId = null;
+function ordProdDragStart(event) {
+  ordProdDragId = event.currentTarget.dataset.id;
+  event.dataTransfer.effectAllowed = 'move';
+  event.currentTarget.classList.add('dragging');
+}
+function ordProdDragOver(event) {
+  event.preventDefault();
+  const target = event.currentTarget;
+  if (target.dataset.id !== ordProdDragId) target.classList.add('drag-over');
+}
+function ordProdDragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+function ordProdDragEnd(event) {
+  document.querySelectorAll('.orden-prod-row').forEach(el=>el.classList.remove('dragging','drag-over'));
+}
+async function ordProdDrop(event) {
+  event.preventDefault();
+  const targetId = event.currentTarget.dataset.id;
+  event.currentTarget.classList.remove('drag-over');
+  if (!ordProdDragId || targetId === ordProdDragId) return;
+  const lista = [...ST.rolls].sort((a,b)=>(a.orden_produccion??0)-(b.orden_produccion??0));
+  const fromIdx = lista.findIndex(r=>String(r.id)===String(ordProdDragId));
+  const toIdx = lista.findIndex(r=>String(r.id)===String(targetId));
+  if (fromIdx===-1 || toIdx===-1) return;
+  const [movido] = lista.splice(fromIdx, 1);
+  lista.splice(toIdx, 0, movido);
+  lista.forEach((r,i)=>{ r.orden_produccion = i; });
+  renderOrdenProduccionModal();
+  await fetch('/api/rolls/reorder', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: lista.map(r=>r.id)})});
 }
 async function moveOrdenProduccion(id, direction) {
   const lista = [...ST.rolls].sort((a,b)=>(a.orden_produccion??0)-(b.orden_produccion??0));
