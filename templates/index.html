@@ -479,6 +479,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
         <i class="ti ti-chevron-down collapse-chevron collapsed"></i>
       </div>
     </div><div id="semiTbl" class="collapsible-body collapsed"></div></div>
+    <div class="card hidden" id="salmonCard"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-fish"></i> Salmón<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="salmonTbl" class="collapsible-body collapsed"></div></div>
     <div class="card"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-salad"></i> Otros productos a preparar<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="otrosTbl" class="collapsible-body collapsed"></div></div>
     <div class="card"><div class="sec sec-collapsible" onclick="toggleCardCollapse(this)"><i class="ti ti-box"></i> Combos a armar<i class="ti ti-chevron-down collapse-chevron collapsed" style="margin-left:auto"></i></div><div id="combosTbl" class="collapsible-body collapsed"></div></div>
     <div class="card card-planilla2 hidden" id="remainingProdCard">
@@ -1443,7 +1444,7 @@ function nuevaPlanilla() {
   // insumos, sushimanes, locales, etc. — eso sigue viviendo en ST igual que antes).
   ST.step = 1; ST.prevStep = 1;
   ST.sales = []; ST.adj = {}; ST.globalPct = 100;
-  ST.production = []; ST.insumos = {}; ST.semis = []; ST.otrosVenta = []; ST.rollosBlancos = [];
+  ST.production = []; ST.insumos = {}; ST.semis = []; ST.salmon = []; ST.salmonLimpioDisplay = ''; ST.otrosVenta = []; ST.rollosBlancos = [];
   ST.schedule = null; ST.editingGrid = false; ST.scheduleBackup = null;
   ST.currentPlanillaId = null;
   ST.dividirPlanilla = false; ST.remainingProduction = null; ST.combinedProduction = null; ST.viewMode = 'separado';
@@ -1763,7 +1764,7 @@ async function doConfirm() {
       body:JSON.stringify({sales:ST.sales,adjustments:ST.adj,adjMode:document.getElementById('adjMode').value,globalPct:gPct})});
     const data=await res.json();
     if (!res.ok) { alert('Error al calcular: ' + (data.error || 'error desconocido')); return; }
-    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[]; ST.insumosTotales=data.insumosTotales||[];
+    ST.production=data.production; ST.insumos=data.insumos; ST.semis=data.semis; ST.salmon=data.salmon||[]; ST.salmonLimpioDisplay=data.salmonLimpioDisplay||''; ST.otrosVenta=data.otrosProductos||[]; ST.rollosBlancos=data.rollosBlancos||[]; ST.insumosTotales=data.insumosTotales||[];
 
     // Si eligió dividir en 2 planillas, calculamos aparte la produccion del % restante
     // (solo para MOSTRAR como referencia — no pasa por el resto del flujo)
@@ -1852,6 +1853,17 @@ function buildProductionTablesHtml(prod) {
   else sh+='<tr><td colspan="3" class="empty">No hay semielaborados para esta producción</td></tr>';
   sh+='</tbody></table>';
 
+  let sm='<table><thead><tr><th>Corte</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
+  if((prod.salmon||[]).length) {
+    prod.salmon.forEach(s=>{
+      sm+=`<tr><td style="font-weight:600">${s.name}</td><td style="text-align:right;font-weight:700">${s.display}</td></tr>`;
+    });
+    sm+=`<tr style="background:var(--blue-bg)"><td style="font-weight:800">Salmón limpio</td><td style="text-align:right;font-weight:800;color:var(--blue)">${prod.salmonLimpioDisplay||''}</td></tr>`;
+  } else {
+    sm+='<tr><td colspan="2" class="empty">No hay cortes de salmón para esta producción</td></tr>';
+  }
+  sm+='</tbody></table>';
+
   const ordenTiposOtros = ['ensalada', 'entrada', 'plato_caliente'];
   const otrosSinPorciones = prod.otrosVenta.filter(p=>p.tipo!=='porcion');
   let oh='<table><thead><tr><th>Producto</th><th style="text-align:right">Cantidad</th></tr></thead><tbody>';
@@ -1906,7 +1918,7 @@ function buildProductionTablesHtml(prod) {
       </div>`;
     });
   }
-  return {rollsHtml:rh, insumosHtml:ih, semisHtml:sh, otrosHtml:oh, combosHtml:ch, rollosBlancosHtml:bh, hasRollosBlancos: !!(prod.rollosBlancos && prod.rollosBlancos.length)};
+  return {rollsHtml:rh, insumosHtml:ih, semisHtml:sh, salmonHtml:sm, otrosHtml:oh, combosHtml:ch, rollosBlancosHtml:bh, hasRollosBlancos: !!(prod.rollosBlancos && prod.rollosBlancos.length)};
 }
 
 function setVistaProduccion(modo) {
@@ -1929,7 +1941,7 @@ function renderProduction() {
   const usarJunto = ST.dividirPlanilla && ST.viewMode==='junto' && ST.combinedProduction;
   const mainData = usarJunto
     ? ST.combinedProduction
-    : {production:ST.production, insumos:ST.insumos, semis:ST.semis, otrosVenta:ST.otrosVenta, rollosBlancos:ST.rollosBlancos, combos:combosPrincipal};
+    : {production:ST.production, insumos:ST.insumos, semis:ST.semis, salmon:ST.salmon, salmonLimpioDisplay:ST.salmonLimpioDisplay, otrosVenta:ST.otrosVenta, rollosBlancos:ST.rollosBlancos, combos:combosPrincipal};
 
   const built = buildProductionTablesHtml(mainData);
   document.getElementById('rollsTbl').innerHTML=built.rollsHtml;
@@ -1945,6 +1957,9 @@ function renderProduction() {
     notaEl.textContent = partes.length ? `(incluye ${partes.join(' + ')})` : '';
   }
   document.getElementById('semiTbl').innerHTML=built.semisHtml;
+  const salmonCard = document.getElementById('salmonCard');
+  if ((mainData.salmon||[]).length) { salmonCard.classList.remove('hidden'); document.getElementById('salmonTbl').innerHTML = built.salmonHtml; }
+  else salmonCard.classList.add('hidden');
   document.getElementById('otrosTbl').innerHTML=built.otrosHtml;
   document.getElementById('combosTbl').innerHTML=built.combosHtml;
   const rbCard = document.getElementById('rollosBlancosCard');
@@ -2912,6 +2927,8 @@ async function abrirPlanilla(id) {
   ST.production = d.production || [];
   ST.insumos = d.insumos || {};
   ST.semis = d.semis || [];
+  ST.salmon = d.salmon || [];
+  ST.salmonLimpioDisplay = d.salmonLimpioDisplay || '';
   ST.otrosVenta = d.otrosVenta || [];
   ST.rollosBlancos = d.rollosBlancos || [];
   ST.schedule = d.schedule || null;
@@ -2943,7 +2960,7 @@ async function guardarProgresoPlanilla(estado) {
   if (!ST.currentLocalId) return;
   const data = {
     sales: ST.sales, adj: ST.adj, globalPct: ST.globalPct,
-    production: ST.production, insumos: ST.insumos, semis: ST.semis,
+    production: ST.production, insumos: ST.insumos, semis: ST.semis, salmon: ST.salmon, salmonLimpioDisplay: ST.salmonLimpioDisplay,
     otrosVenta: ST.otrosVenta, rollosBlancos: ST.rollosBlancos,
     schedule: ST.schedule, dailySm: ST.dailySm, step: ST.step,
     dividirPlanilla: ST.dividirPlanilla, remainingProduction: ST.remainingProduction,
@@ -5369,6 +5386,15 @@ function openSemiModal(id, dup, readOnly) {
         </div>
       </div>
     </div>
+    <div style="margin-bottom:1.25rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="m_esSalmon" ${semi?.es_salmon?'checked':''} ${dis} style="width:16px;height:16px" onchange="document.getElementById('m_pesoPorUnidadWrap').classList.toggle('hidden', !this.checked)">
+      <span>Es un corte de salmón <span style="font-weight:400;color:var(--text3)">(se junta en la sección "Salmón" del paso de Producción, en vez de la lista general de Semielaborados)</span></span>
+    </label>
+    <div id="m_pesoPorUnidadWrap" class="${semi?.es_salmon ? '' : 'hidden'}" style="margin-top:.6rem;max-width:260px">
+      <label class="form-lbl">Peso por unidad <span style="font-weight:400;color:var(--text3);text-transform:none">(gramos — solo si se mide en unidades, ej: tiras)</span></label>
+      <input type="number" id="m_pesoPorUnidadG" class="w-full" value="${semi?.peso_por_unidad_g??''}" min="0" step="0.5" placeholder="Ej: 39" ${dis}>
+    </div>
+    </div>
     ${ro ? '' : `<div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
@@ -5467,7 +5493,9 @@ async function saveSemi(id) {
               tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
               vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null,
               zona_almacenamiento: document.getElementById('m_zonaSemi').value || null,
-              tipo_contenedor_id: document.getElementById('m_tipoContenedor').value ? parseInt(document.getElementById('m_tipoContenedor').value) : null};
+              tipo_contenedor_id: document.getElementById('m_tipoContenedor').value ? parseInt(document.getElementById('m_tipoContenedor').value) : null,
+              es_salmon: document.getElementById('m_esSalmon').checked,
+              peso_por_unidad_g: document.getElementById('m_pesoPorUnidadG').value ? parseFloat(document.getElementById('m_pesoPorUnidadG').value) : null};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
