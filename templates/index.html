@@ -4307,6 +4307,22 @@ async function confirmarImportacionRecetas() {
   renderOtroProductoCfg();
   renderSemiCfg();
   closeModalW();
+
+  // Llevar al usuario a ver lo que se acaba de importar, en vez de dejarlo
+  // donde estaba antes sin ningún rastro visible de que la importación funcionó.
+  const items = result.items_procesados || [];
+  if (items.length === 1) {
+    const item = items[0];
+    if (item.tipo === 'semi') { goMainSection('recetas'); openSemiModal(item.id, null, true); }
+    else { goMainSection('productos'); openOtroProductoModal(item.id, null, null, true); }
+  } else if (items.length > 1) {
+    const hayOtros = items.some(i=>i.tipo==='otro');
+    const haySemis = items.some(i=>i.tipo==='semi');
+    if (haySemis && !hayOtros) goMainSection('recetas');
+    else if (hayOtros && !haySemis) goMainSection('productos');
+    // si hay de los dos tipos mezclados, se queda donde estaba — no hay una
+    // sola sección que muestre ambos a la vez
+  }
 }
 
 function duplicateOtroProducto(id) {
