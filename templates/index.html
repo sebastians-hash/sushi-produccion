@@ -67,6 +67,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .orden-prod-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;background:var(--surface);transition:background .1s,border-color .1s}
 .orden-prod-row.dragging{opacity:.4}
 .orden-prod-row.drag-over{border-color:var(--blue);background:var(--blue-bg)}
+.ing-nav-wrap{display:inline-flex;align-items:center;gap:6px;flex:1}
+.ing-nav-eye{cursor:pointer;color:var(--text3);font-size:14px;flex-shrink:0;transition:color .12s}
+.ing-nav-eye:hover{color:var(--blue)}
 .sec-collapsible{cursor:pointer}
 .collapse-chevron{transition:transform .15s;flex-shrink:0}
 .collapse-chevron.collapsed{transform:rotate(-90deg)}
@@ -4883,13 +4886,12 @@ function makeIngRow(key, qty, readOnly, showTopping, isTopping, origenContexto) 
   const label = document.createElement('div');
   label.style.flex = '1'; label.style.fontSize = '13px';
   label.textContent = getIngredientLabel(key);
+  let eyeIcon = null;
   if (readOnly) {
-    label.style.cursor = 'pointer';
-    label.style.color = 'var(--blue)';
-    label.style.textDecoration = 'underline';
-    label.style.textUnderlineOffset = '2px';
-    label.title = isInsumo ? 'Ver ficha del insumo' : 'Ver la receta de este semielaborado';
-    label.onclick = () => navegarAIngrediente(key, origenContexto);
+    eyeIcon = document.createElement('i');
+    eyeIcon.className = 'ti ti-eye ing-nav-eye';
+    eyeIcon.title = isInsumo ? 'Ver ficha del insumo' : 'Ver la receta de este semielaborado';
+    eyeIcon.onclick = () => navegarAIngrediente(key, origenContexto);
   }
   const inp = document.createElement('input');
   inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
@@ -4899,7 +4901,7 @@ function makeIngRow(key, qty, readOnly, showTopping, isTopping, origenContexto) 
   unit.textContent = getIngredientUnit(key);
   div.appendChild(readOnly ? document.createElement('span') : dragHandle());
   div.appendChild(tipoBadge(isInsumo ? 'insumo' : 'semi'));
-  div.appendChild(label); div.appendChild(inp); div.appendChild(unit);
+  div.appendChild(label); if (eyeIcon) div.appendChild(eyeIcon); div.appendChild(inp); div.appendChild(unit);
   if (showTopping) {
     const toppingLabel = document.createElement('label');
     toppingLabel.style.display = 'flex'; toppingLabel.style.alignItems = 'center'; toppingLabel.style.gap = '3px';
