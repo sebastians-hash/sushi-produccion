@@ -4494,7 +4494,7 @@ function openModal(title,body,footer){
   document.getElementById('modal').classList.remove('hidden');
   legacyLinkTarget = null;
 }
-function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; }
+function closeModal(){ document.getElementById('modal').classList.add('hidden'); legacyLinkTarget = null; ST.recetaNavStack = []; }
 
 function openModalW(title,body,footer){
   document.getElementById('modalWTitle').textContent=title;
@@ -4858,7 +4858,7 @@ function tipoBadge(type) {
   return b;
 }
 
-function makeIngRow(key, qty, readOnly, showTopping, isTopping) {
+function makeIngRow(key, qty, readOnly, showTopping, isTopping, origenContexto) {
   const div = document.createElement('div');
   div.className = 'row roll-ing-row';
   div.style.marginBottom = '6px';
@@ -4867,6 +4867,14 @@ function makeIngRow(key, qty, readOnly, showTopping, isTopping) {
   const label = document.createElement('div');
   label.style.flex = '1'; label.style.fontSize = '13px';
   label.textContent = getIngredientLabel(key);
+  if (readOnly) {
+    label.style.cursor = 'pointer';
+    label.style.color = 'var(--blue)';
+    label.style.textDecoration = 'underline';
+    label.style.textUnderlineOffset = '2px';
+    label.title = isInsumo ? 'Ver ficha del insumo' : 'Ver la receta de este semielaborado';
+    label.onclick = () => navegarAIngrediente(key, origenContexto);
+  }
   const inp = document.createElement('input');
   inp.type = 'number'; inp.value = qty || 0; inp.min = '0'; inp.step = '0.5'; inp.style.width = '80px';
   if (readOnly) inp.disabled = true;
@@ -5091,7 +5099,7 @@ function openRollModal(id, dup, readOnly) {
   if (ro) document.querySelectorAll('#rollMarcaChecks input').forEach(cb=>cb.disabled=true);
   const container = document.getElementById('rollIngRows');
   const toppingKeys = roll?.toppings || [];
-  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro, true, toppingKeys.includes(key))); });
+  Object.entries(ins).forEach(([key,qty])=>{ if(qty>0) container.appendChild(makeIngRow(key, qty, ro, true, toppingKeys.includes(key), ro && id ? {tipo:'roll', id} : null)); });
 }
 function duplicateRoll(id) {
   const roll = ST.rolls.find(r=>r.id===id);
@@ -5399,7 +5407,7 @@ function openSemiModal(id, dup, readOnly) {
   if (semi?.receta?.length) {
     semi.receta.forEach(ing => {
       if (ing.key) {
-        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad, ro));
+        ingRowsDiv.appendChild(makeIngRow(ing.key, ing.cantidad, ro, false, false, ro && id ? {tipo:'semi', id} : null));
       } else if (!ro) {
         ingRowsDiv.appendChild(legacyIngRow(ing.nombre, ing.cantidad, ing.unidad, 'semiReceta'));
       }
@@ -5446,6 +5454,37 @@ async function saveSemi(id) {
   closeModal(); await loadConfig(); renderSemiCfg();
 }
 
+// ── Navegar de una receta a otra haciendo click en un ingrediente ──
+ST.recetaNavStack = [];
+function navegarAIngrediente(key, origenContexto) {
+  if (origenContexto) ST.recetaNavStack.push(origenContexto);
+  const esInsumo = ST.insumosMaster.some(i=>i.key===key);
+  if (esInsumo) {
+    const insumo = ST.insumosMaster.find(i=>i.key===key);
+    openInsumoModal(insumo.id);
+  } else {
+    const semi = ST.semielaborados.find(s=>s.insumo_key===key);
+    if (!semi) { if (origenContexto) ST.recetaNavStack.pop(); return; }
+    openSemiModal(semi.id, null, true);
+  }
+  agregarBotonVolverSiCorresponde();
+}
+function agregarBotonVolverSiCorresponde() {
+  if (!ST.recetaNavStack.length) return;
+  const foot = document.getElementById('modalFoot');
+  const btnVolver = document.createElement('button');
+  btnVolver.className = 'btn';
+  btnVolver.innerHTML = '<i class="ti ti-arrow-left"></i> Volver';
+  btnVolver.onclick = volverEnReceta;
+  foot.prepend(btnVolver);
+}
+function volverEnReceta() {
+  const anterior = ST.recetaNavStack.pop();
+  if (!anterior) { closeModal(); return; }
+  if (anterior.tipo === 'roll') openRollModal(anterior.id, null, true);
+  else openSemiModal(anterior.id, null, true);
+  agregarBotonVolverSiCorresponde();
+}
 // ── Insumo modal ──
 function openInsumoModal(id) {
   const ins=id?ST.insumosMaster.find(i=>i.id===id):null;
