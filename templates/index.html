@@ -226,6 +226,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
+    <div class="main-nav-item" id="mni-inventario" onclick="goMainSection('inventario')"><i class="ti ti-clipboard-check"></i> Inventario</div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
   </div>
 
@@ -834,6 +835,63 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
   </div>
 
+  <div id="mainInventario" class="hidden">
+    <div class="tabs" style="margin-bottom:1rem">
+      <div class="tab active" onclick="showInventarioSubTab('nueva',this)">Nueva toma</div>
+      <div class="tab" onclick="showInventarioSubTab('hist',this)">Historial</div>
+    </div>
+    <div id="invNuevaTab">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:.5rem">Fecha de la toma</div>
+        <input type="date" id="invFecha" style="max-width:220px">
+      </div>
+      <div id="invFormWrap">
+        <div class="card">
+          <div class="row-between" style="margin-bottom:.75rem">
+            <div class="card-title" style="margin:0">Insumos</div>
+            <div class="search-box-wrap" style="margin-bottom:0"><i class="ti ti-search"></i><input type="text" id="invFiltroInsumos" class="w-full" placeholder="Buscar insumo..." oninput="renderInvListaInsumos()"></div>
+          </div>
+          <div id="invListaInsumos"></div>
+        </div>
+        <div class="card">
+          <div class="row-between" style="margin-bottom:.75rem">
+            <div class="card-title" style="margin:0">Semielaborados</div>
+            <div class="search-box-wrap" style="margin-bottom:0"><i class="ti ti-search"></i><input type="text" id="invFiltroSemis" class="w-full" placeholder="Buscar semielaborado..." oninput="renderInvListaSemis()"></div>
+          </div>
+          <div id="invListaSemis"></div>
+        </div>
+        <div class="flex-end">
+          <button class="btn btn-primary" onclick="calcularToma()"><i class="ti ti-calculator"></i> Calcular y guardar toma</button>
+        </div>
+      </div>
+      <div id="invResultadoWrap" class="hidden">
+        <div class="card">
+          <div class="row-between" style="margin-bottom:1rem">
+            <div class="card-title" style="margin:0">Semielaborados contados</div>
+            <button class="btn btn-sm" onclick="descargarInventarioXlsx('semis')"><i class="ti ti-file-spreadsheet"></i> Descargar Excel</button>
+          </div>
+          <div id="invTablaSemis"></div>
+        </div>
+        <div class="card">
+          <div class="row-between" style="margin-bottom:1rem">
+            <div class="card-title" style="margin:0">Insumos (contados + de semielaborados)</div>
+            <button class="btn btn-sm" onclick="descargarInventarioXlsx('insumos')"><i class="ti ti-file-spreadsheet"></i> Descargar Excel</button>
+          </div>
+          <div id="invTablaInsumos"></div>
+        </div>
+        <div class="flex-end">
+          <button class="btn" onclick="nuevaTomaInventario()"><i class="ti ti-plus"></i> Nueva toma</button>
+        </div>
+      </div>
+    </div>
+    <div id="invHistTab" class="hidden">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:1rem">Historial de tomas de inventario</div>
+        <div id="invHistorialCfg"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showTab('tus',this)"><i class="ti ti-users"></i> Usuarios</div>
@@ -1105,7 +1163,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',manual:'mainManual',admin:'mainAdmin'};
+  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',manual:'mainManual',inventario:'mainInventario',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -1118,6 +1176,7 @@ function goMainSection(name) {
   if(name==='novedades'){ renderNovedadesCfg(); }
   if(name==='sugerencias'){ renderSugerenciasCfg(); }
   if(name==='manual'){ renderManual(); }
+  if(name==='inventario'){ renderInventarioNuevaToma(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -3222,6 +3281,198 @@ async function guardarPorcentajeIneficiencia() {
   ST.porcentajeIneficiencia = valor;
   alert('Porcentaje de ineficiencia actualizado.');
 }
+// ── Inventario / toma de stock ──────────────────────────────────────────
+ST.invCantidades = { insumos:{}, semis:{} };
+ST.invResultado = null;
+ST.invOrden = { insumos:{campo:'insumo',asc:true}, semis:{campo:'name',asc:true} };
+
+function showInventarioSubTab(id, el) {
+  document.getElementById('invNuevaTab').classList.toggle('hidden', id!=='nueva');
+  document.getElementById('invHistTab').classList.toggle('hidden', id!=='hist');
+  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if (id==='hist') renderInvHistorialCfg();
+}
+function renderInventarioNuevaToma() {
+  const fechaInput = document.getElementById('invFecha');
+  if (fechaInput && !fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+  renderInvListaInsumos();
+  renderInvListaSemis();
+}
+function renderInvListaInsumos() {
+  const filtro = normalizeSearchText(document.getElementById('invFiltroInsumos')?.value.trim() || '');
+  const lista = ST.insumosMaster.filter(i => !filtro || normalizeSearchText(i.label).includes(filtro))
+    .sort((a,b)=>a.label.localeCompare(b.label));
+  let h = '<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="width:160px">Cantidad</th><th style="width:70px">Unidad</th></tr></thead><tbody>';
+  lista.forEach(i=>{
+    const valorActual = ST.invCantidades.insumos[i.key] ?? '';
+    h += `<tr><td style="font-weight:600">${i.label}</td>
+      <td>${i.categoria?`<span class="badge b-blue">${i.categoria}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td><input type="number" min="0" step="any" value="${valorActual}" style="width:100%"
+        onchange="ST.invCantidades.insumos['${i.key}']=this.value?parseFloat(this.value):undefined"></td>
+      <td style="color:var(--text3)">${i.unidad_resumen}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  if (!lista.length) h = '<div class="empty">No se encontraron insumos.</div>';
+  document.getElementById('invListaInsumos').innerHTML = h;
+}
+function renderInvListaSemis() {
+  const filtro = normalizeSearchText(document.getElementById('invFiltroSemis')?.value.trim() || '');
+  const lista = ST.semielaborados.filter(s => !filtro || normalizeSearchText(s.name).includes(filtro))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  let h = '<table><thead><tr><th>Semielaborado</th><th style="width:160px">Cantidad</th><th style="width:90px">Unidad</th></tr></thead><tbody>';
+  lista.forEach(s=>{
+    const valorActual = ST.invCantidades.semis[s.insumo_key] ?? '';
+    const unidad = s.rendimiento_unidad || s.unit;
+    h += `<tr><td style="font-weight:600">${s.name}</td>
+      <td><input type="number" min="0" step="any" value="${valorActual}" style="width:100%"
+        onchange="ST.invCantidades.semis['${s.insumo_key}']=this.value?parseFloat(this.value):undefined"></td>
+      <td style="color:var(--text3)">${unidad}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  if (!lista.length) h = '<div class="empty">No se encontraron semielaborados.</div>';
+  document.getElementById('invListaSemis').innerHTML = h;
+}
+function limpiarUndefined(obj) {
+  const out = {};
+  Object.entries(obj).forEach(([k,v])=>{ if (v!==undefined && v!==null && v!==0) out[k]=v; });
+  return out;
+}
+async function calcularToma() {
+  const insumosContados = limpiarUndefined(ST.invCantidades.insumos);
+  const semisContados = limpiarUndefined(ST.invCantidades.semis);
+  if (!Object.keys(insumosContados).length && !Object.keys(semisContados).length) {
+    alert('Cargá al menos una cantidad antes de calcular.');
+    return;
+  }
+  const fecha = new Date(document.getElementById('invFecha').value+'T00:00:00').toLocaleDateString('es-AR');
+  const res = await fetch('/api/inventario/calcular', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+    local_id: ST.currentLocalId, fecha, insumos_contados: insumosContados, semis_contados: semisContados
+  })});
+  const result = await res.json();
+  if (result.error) { alert(result.error); return; }
+  ST.invResultado = { fecha, semis: result.semis, insumos: result.insumos };
+  document.getElementById('invFormWrap').classList.add('hidden');
+  document.getElementById('invResultadoWrap').classList.remove('hidden');
+  renderTablaInvSemis();
+  renderTablaInvInsumos();
+}
+function ordenarInv(tipo, campo) {
+  const o = ST.invOrden[tipo];
+  o.asc = (o.campo===campo) ? !o.asc : true;
+  o.campo = campo;
+  if (tipo==='insumos') renderTablaInvInsumos(); else renderTablaInvSemis();
+}
+function flechaOrden(tipo, campo) {
+  const o = ST.invOrden[tipo];
+  if (o.campo!==campo) return '';
+  return o.asc ? ' ▲' : ' ▼';
+}
+function renderTablaInvSemis() {
+  const o = ST.invOrden.semis;
+  const filas = [...(ST.invResultado?.semis||[])].sort((a,b)=>{
+    const va=a[o.campo]??'', vb=b[o.campo]??'';
+    const cmp = typeof va==='number' ? va-vb : String(va).localeCompare(String(vb));
+    return o.asc ? cmp : -cmp;
+  });
+  let h = `<table><thead><tr>
+    <th style="cursor:pointer" onclick="ordenarInv('semis','name')">Semielaborado${flechaOrden('semis','name')}</th>
+    <th style="cursor:pointer;text-align:right" onclick="ordenarInv('semis','cantidad')">Cantidad${flechaOrden('semis','cantidad')}</th>
+    <th style="cursor:pointer" onclick="ordenarInv('semis','unidad')">Unidad${flechaOrden('semis','unidad')}</th>
+    <th style="cursor:pointer" onclick="ordenarInv('semis','zona_almacenamiento')">Zona${flechaOrden('semis','zona_almacenamiento')}</th>
+  </tr></thead><tbody>`;
+  filas.forEach(f=>{
+    h += `<tr><td style="font-weight:600">${f.name}</td><td style="text-align:right">${f.cantidad}</td><td>${f.unidad}</td>
+      <td>${f.zona_almacenamiento || '<span style="color:var(--text3)">—</span>'}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  if (!filas.length) h = '<div class="empty">No se contó ningún semielaborado en esta toma.</div>';
+  document.getElementById('invTablaSemis').innerHTML = h;
+}
+function renderTablaInvInsumos() {
+  const o = ST.invOrden.insumos;
+  const filas = [...(ST.invResultado?.insumos||[])].sort((a,b)=>{
+    const va=a[o.campo]??'', vb=b[o.campo]??'';
+    const cmp = typeof va==='number' ? va-vb : String(va).localeCompare(String(vb));
+    return o.asc ? cmp : -cmp;
+  });
+  let h = `<table><thead><tr>
+    <th style="cursor:pointer" onclick="ordenarInv('insumos','insumo')">Insumo${flechaOrden('insumos','insumo')}</th>
+    <th style="cursor:pointer" onclick="ordenarInv('insumos','categoria')">Categoría${flechaOrden('insumos','categoria')}</th>
+    <th style="cursor:pointer;text-align:right" onclick="ordenarInv('insumos','cantidad')">Cantidad${flechaOrden('insumos','cantidad')}</th>
+    <th style="cursor:pointer" onclick="ordenarInv('insumos','unidad')">Unidad${flechaOrden('insumos','unidad')}</th>
+    <th style="cursor:pointer" onclick="ordenarInv('insumos','proveedor')">Proveedor${flechaOrden('insumos','proveedor')}</th>
+  </tr></thead><tbody>`;
+  filas.forEach(f=>{
+    h += `<tr><td style="font-weight:600">${f.insumo}</td>
+      <td>${f.categoria || '<span style="color:var(--text3)">—</span>'}</td>
+      <td style="text-align:right">${f.cantidad}</td><td>${f.unidad}</td>
+      <td>${f.proveedor || '<span style="color:var(--text3)">—</span>'}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  if (!filas.length) h = '<div class="empty">No hay insumos en esta toma.</div>';
+  document.getElementById('invTablaInsumos').innerHTML = h;
+}
+async function descargarInventarioXlsx(tipo) {
+  if (!ST.invResultado) return;
+  const url = tipo==='insumos' ? '/api/inventario/xlsx-insumos' : '/api/inventario/xlsx-semis';
+  const body = tipo==='insumos'
+    ? {fecha: ST.invResultado.fecha, insumos: ST.invResultado.insumos}
+    : {fecha: ST.invResultado.fecha, semis: ST.invResultado.semis};
+  const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!res.ok) { alert('Error al generar el Excel'); return; }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `inventario_${tipo}_${ST.invResultado.fecha.replace(/\//g,'-')}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function nuevaTomaInventario() {
+  ST.invCantidades = { insumos:{}, semis:{} };
+  ST.invResultado = null;
+  document.getElementById('invFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('invFormWrap').classList.remove('hidden');
+  document.getElementById('invResultadoWrap').classList.add('hidden');
+  renderInvListaInsumos();
+  renderInvListaSemis();
+}
+async function renderInvHistorialCfg() {
+  const hist = await fetch(`/api/inventario?local_id=${ST.currentLocalId}`).then(r=>r.json());
+  ST.invHistorial = hist;
+  if (!hist.length) {
+    document.getElementById('invHistorialCfg').innerHTML = '<div class="empty">Todavía no hay tomas de inventario guardadas para este local.</div>';
+    return;
+  }
+  let h = '<table><thead><tr><th>Fecha</th><th>Hecha por</th><th>Cuándo</th><th style="width:170px"></th></tr></thead><tbody>';
+  hist.forEach(t=>{
+    h += `<tr><td style="font-weight:600">${t.fecha}</td><td>${t.created_by_nombre||'—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${fmtFechaHoraAR(t.created_at)}</td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-sm btn-primary" onclick="verTomaInventario(${t.id})"><i class="ti ti-eye"></i> Ver</button>
+        <button class="btn btn-sm btn-danger" onclick="borrarTomaInventario(${t.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+      </div></td></tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('invHistorialCfg').innerHTML = h;
+}
+async function verTomaInventario(id) {
+  const toma = await fetch(`/api/inventario/${id}`).then(r=>r.json());
+  if (toma.error) { alert(toma.error); return; }
+  ST.invResultado = { fecha: toma.fecha, semis: toma.data.semis_calc, insumos: toma.data.insumos_calc };
+  const navTab = [...document.querySelectorAll('#mainInventario > .tabs .tab')].find(t=>t.textContent.includes('Nueva toma'));
+  showInventarioSubTab('nueva', navTab);
+  document.getElementById('invFormWrap').classList.add('hidden');
+  document.getElementById('invResultadoWrap').classList.remove('hidden');
+  renderTablaInvSemis();
+  renderTablaInvInsumos();
+}
+async function borrarTomaInventario(id) {
+  if (!confirm('¿Eliminar esta toma de inventario? No se puede deshacer.')) return;
+  await fetch(`/api/inventario/${id}`, {method:'DELETE'});
+  renderInvHistorialCfg();
+}
+
 function unidadOptions(selected) {
   return ST.unidades.map(u=>`<option value="${u.simbolo}" ${selected===u.simbolo?'selected':''}>${u.nombre} (${u.simbolo})</option>`).join('');
 }
