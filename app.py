@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime
 from gen_pdf import build_pdf
-from gen_xlsx import build_insumos_xlsx
+from gen_xlsx import build_insumos_xlsx, build_inventario_xlsx
 from parse_receta import parse_receta_pdf, match_insumo, formato_to_unidad
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -319,6 +319,15 @@ def init_db():
             created_by TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS tomas_inventario (
+            id SERIAL PRIMARY KEY,
+            local_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            data TEXT NOT NULL DEFAULT '{}',
+            created_by TEXT,
+            created_by_nombre TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     conn.commit()
@@ -2907,6 +2916,170 @@ def generar_insumos_totales_xlsx():
     build_insumos_xlsx(rows, date_str, global_pct, tmp.name)
     return send_file(tmp.name, as_attachment=True,
                      download_name=f'insumos_totales_{date_str}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# ── Inventario / toma de stock ──────────────────────────────────────────
+def _calcular_toma_inventario(conn, insumos_contados, semis_contados):
+    """A partir de lo contado (insumos en su unidad de resumen/compra, semielaborados
+    en su unidad de rendimiento) arma dos listas: los semielaborados tal cual se
+    contaron, y el total de insumos (lo contado directo + lo que aportan los
+    semielaborados, bajando la receta hasta insumos crudos, incluso si un
+    semielaborado usa a su vez otro semielaborado)."""
+    insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+    semis_rows = conn.execute('SELECT * FROM semielaborados').fetchall()
+    semis_by_key = {r['insumo_key']: dict(r) for r in semis_rows}
+    proveedores_db = {r['id']: r['name'] for r in conn.execute('SELECT id, name FROM proveedores').fetchall()}
+
+    # insumo_key -> cantidad en UNIDAD DE RECETA (para poder sumar todo junto sin
+    # importar si vino de un conteo directo o de adentro de un semielaborado)
+    insumo_totals_receta = {}
+
+    for key, cantidad_resumen in (insumos_contados or {}).items():
+        master = insumos_master.get(key)
+        if not master or not cantidad_resumen:
+            continue
+        factor = master['factor_conversion'] or 1
+        cantidad_receta = cantidad_resumen / factor if factor else cantidad_resumen
+        insumo_totals_receta[key] = insumo_totals_receta.get(key, 0) + cantidad_receta
+
+    def expandir_semi(semi_key, cantidad_en_su_unidad, visitados=frozenset()):
+        if semi_key in visitados:
+            return
+        semi = semis_by_key.get(semi_key)
+        if not semi:
+            return
+        receta = json.loads(semi['receta'] or '[]')
+        rend_cant = semi['rendimiento_cantidad'] or 0
+        if not receta or rend_cant <= 0:
+            return
+        scale = cantidad_en_su_unidad / rend_cant
+        for ing in receta:
+            cant = ing['cantidad'] * scale
+            k = ing.get('key')
+            if k and insumos_master.get(k):
+                insumo_totals_receta[k] = insumo_totals_receta.get(k, 0) + cant
+            elif k and semis_by_key.get(k):
+                expandir_semi(k, cant, visitados | {semi_key})
+            # ingredientes de receta vieja sin 'key' (texto libre) no se pueden sumar
+            # a un insumo real — se ignoran acá (no afectan el total de insumos)
+
+    semis_out = []
+    for insumo_key, cantidad_contada in (semis_contados or {}).items():
+        semi = semis_by_key.get(insumo_key)
+        if not semi or not cantidad_contada:
+            continue
+        semis_out.append({
+            'name': semi['name'],
+            'cantidad': round(cantidad_contada, 2),
+            'unidad': semi['rendimiento_unidad'] or semi['unit'],
+            'zona_almacenamiento': semi['zona_almacenamiento'],
+        })
+        expandir_semi(insumo_key, cantidad_contada)
+
+    insumos_out = []
+    for key, cantidad_receta in insumo_totals_receta.items():
+        master = insumos_master.get(key)
+        if not master:
+            continue
+        factor = master['factor_conversion'] or 1
+        cantidad_resumen = cantidad_receta * factor
+        insumos_out.append({
+            'insumo': master['label'],
+            'categoria': master.get('categoria') or '',
+            'cantidad': round(cantidad_resumen, 3),
+            'unidad': master['unidad_resumen'],
+            'proveedor': proveedores_db.get(master.get('proveedor_principal_id')) or '',
+        })
+    insumos_out.sort(key=lambda r: r['insumo'].lower())
+    semis_out.sort(key=lambda r: r['name'].lower())
+    return semis_out, insumos_out
+
+@app.route('/api/inventario', methods=['GET'])
+@login_required
+def get_inventario_historial():
+    local_id = request.args.get('local_id', type=int)
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM tomas_inventario WHERE local_id=? ORDER BY created_at DESC', (local_id,)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'fecha': r['fecha'], 'created_by_nombre': r['created_by_nombre'],
+                     'created_at': _fmt_ts(r['created_at'])} for r in rows])
+
+@app.route('/api/inventario/<int:tid>', methods=['GET'])
+@login_required
+def get_toma_inventario(tid):
+    conn = get_db()
+    row = conn.execute('SELECT * FROM tomas_inventario WHERE id=?', (tid,)).fetchone()
+    if not row or not user_has_local_access(row['local_id']):
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    data = json.loads(row['data'] or '{}')
+    conn.close()
+    return jsonify({'id': row['id'], 'fecha': row['fecha'], 'local_id': row['local_id'],
+                     'created_by_nombre': row['created_by_nombre'], 'data': data})
+
+@app.route('/api/inventario/<int:tid>', methods=['DELETE'])
+@login_required
+def delete_toma_inventario(tid):
+    conn = get_db()
+    row = conn.execute('SELECT local_id FROM tomas_inventario WHERE id=?', (tid,)).fetchone()
+    if not row or not user_has_local_access(row['local_id']):
+        conn.close()
+        return jsonify({'error': 'No encontrada'}), 404
+    conn.execute('DELETE FROM tomas_inventario WHERE id=?', (tid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/inventario/calcular', methods=['POST'])
+@login_required
+def calcular_toma_inventario():
+    """Calcula Y guarda de una sola vez — cada calculo es una toma de inventario nueva."""
+    body = request.json
+    local_id = body.get('local_id')
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    semis_out, insumos_out = _calcular_toma_inventario(conn, body.get('insumos_contados', {}), body.get('semis_contados', {}))
+    fecha = body.get('fecha', datetime.now().strftime('%d/%m/%Y'))
+    data = {'insumos_contados': body.get('insumos_contados', {}), 'semis_contados': body.get('semis_contados', {}),
+            'semis_calc': semis_out, 'insumos_calc': insumos_out}
+    conn.execute('INSERT INTO tomas_inventario (local_id, fecha, data, created_by, created_by_nombre) VALUES (?,?,?,?,?)',
+                 (local_id, fecha, json.dumps(data), session['user_email'], session.get('user_name')))
+    conn.commit()
+    nuevo_id = conn.execute('SELECT lastval() AS id').fetchone()['id']
+    conn.close()
+    return jsonify({'id': nuevo_id, 'semis': semis_out, 'insumos': insumos_out})
+
+@app.route('/api/inventario/xlsx-insumos', methods=['POST'])
+@login_required
+def xlsx_inventario_insumos():
+    body = request.json
+    rows = body.get('insumos', [])
+    fecha = body.get('fecha', datetime.now().strftime('%d-%m-%Y'))
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_inventario_xlsx(rows,
+        [('insumo','Insumo',32), ('categoria','Categoría',20), ('cantidad','Cantidad',14),
+         ('unidad','Unidad',12), ('proveedor','Proveedor',24)],
+        f'Inventario de insumos — {fecha}', tmp.name)
+    return send_file(tmp.name, as_attachment=True, download_name=f'inventario_insumos_{fecha.replace("/","-")}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/inventario/xlsx-semis', methods=['POST'])
+@login_required
+def xlsx_inventario_semis():
+    body = request.json
+    rows = body.get('semis', [])
+    fecha = body.get('fecha', datetime.now().strftime('%d-%m-%Y'))
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_inventario_xlsx(rows,
+        [('name','Semielaborado',32), ('cantidad','Cantidad',14), ('unidad','Unidad',12),
+         ('zona_almacenamiento','Zona',20)],
+        f'Inventario de semielaborados — {fecha}', tmp.name)
+    return send_file(tmp.name, as_attachment=True, download_name=f'inventario_semielaborados_{fecha.replace("/","-")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── Importar recetas desde Excel ──────────────────────────────────────────
