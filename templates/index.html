@@ -5386,15 +5386,7 @@ function openSemiModal(id, dup, readOnly) {
         </div>
       </div>
     </div>
-    <div style="margin-bottom:1.25rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-      <input type="checkbox" id="m_esSalmon" ${semi?.es_salmon?'checked':''} ${dis} style="width:16px;height:16px" onchange="document.getElementById('m_pesoPorUnidadWrap').classList.toggle('hidden', !this.checked)">
-      <span>Es un corte de salmón <span style="font-weight:400;color:var(--text3)">(se junta en la sección "Salmón" del paso de Producción, en vez de la lista general de Semielaborados)</span></span>
-    </label>
-    <div id="m_pesoPorUnidadWrap" class="${semi?.es_salmon ? '' : 'hidden'}" style="margin-top:.6rem;max-width:260px">
-      <label class="form-lbl">Peso por unidad <span style="font-weight:400;color:var(--text3);text-transform:none">(gramos — solo si se mide en unidades, ej: tiras)</span></label>
-      <input type="number" id="m_pesoPorUnidadG" class="w-full" value="${semi?.peso_por_unidad_g??''}" min="0" step="0.5" placeholder="Ej: 39" ${dis}>
-    </div>
-    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:1.25rem"><i class="ti ti-info-circle"></i> Si esta receta usa un insumo marcado como "salmón" (se marca en la ficha del insumo), este semielaborado va a aparecer solo, de forma automática, en la sección "Salmón" del paso de Producción.</div>
     ${ro ? '' : `<div class="alert alert-info" style="margin-bottom:1.25rem">
       <i class="ti ti-info-circle"></i>
       <span>Los rolls que usan este semielaborado se detectan automáticamente según las recetas cargadas en cada roll — no hace falta indicarlo acá.</span>
@@ -5493,9 +5485,7 @@ async function saveSemi(id) {
               tiempo_elaboracion_min: tiempoElabVal ? parseInt(tiempoElabVal) : null,
               vida_util_dias: vidaUtilVal ? parseInt(vidaUtilVal) : null,
               zona_almacenamiento: document.getElementById('m_zonaSemi').value || null,
-              tipo_contenedor_id: document.getElementById('m_tipoContenedor').value ? parseInt(document.getElementById('m_tipoContenedor').value) : null,
-              es_salmon: document.getElementById('m_esSalmon').checked,
-              peso_por_unidad_g: document.getElementById('m_pesoPorUnidadG').value ? parseFloat(document.getElementById('m_pesoPorUnidadG').value) : null};
+              tipo_contenedor_id: document.getElementById('m_tipoContenedor').value ? parseInt(document.getElementById('m_tipoContenedor').value) : null};
   await fetch(id?`/api/semielaborados/${id}`:'/api/semielaborados',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   closeModal(); await loadConfig(); renderSemiCfg();
 }
@@ -5553,6 +5543,10 @@ function openInsumoModal(id) {
     <div style="margin-bottom:1.25rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
       <input type="checkbox" id="m_aplicaIneficiencia" ${(ins?.aplica_ineficiencia??true)?'checked':''} style="width:16px;height:16px">
       <span>Aplicarle el % de ineficiencia general <span style="font-weight:400;color:var(--text3)">(el colchón por trabajo artesanal que se configura arriba de la tabla — desmarcalo si este insumo se usa siempre en cantidad exacta)</span></span>
+    </label></div>
+    <div style="margin-bottom:1.25rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="m_esSalmonInsumo" ${ins?.es_salmon?'checked':''} style="width:16px;height:16px">
+      <span>Es salmón <span style="font-weight:400;color:var(--text3)">(marcá el insumo base — cualquier receta de rollo o semielaborado que lo use se va a agrupar solo, automáticamente, en la sección "Salmón" del paso de Producción)</span></span>
     </label></div>
     <div style="margin-bottom:1.25rem"><label class="form-lbl">Precio por unidad de resumen <span style="font-weight:400;color:var(--text3)">(opcional, para más adelante)</span></label>
       <input type="number" id="m_precio" class="w-full" value="${ins?.precio_unidad??''}" step="0.01" placeholder="Ej: 8500"></div>
@@ -5617,6 +5611,7 @@ async function saveInsumo(id) {
     factor_conversion:parseFloat(document.getElementById('m_factor').value)||0.001,
     eficiencia: Math.min(100, Math.max(1, parseFloat(document.getElementById('m_eficiencia').value) || 100)),
     aplica_ineficiencia: document.getElementById('m_aplicaIneficiencia').checked,
+    es_salmon: document.getElementById('m_esSalmonInsumo').checked,
     precio_unidad:precioVal?parseFloat(precioVal):null,
     categoria: document.getElementById('m_categoria').value || null,
     es_80_20: document.getElementById('m_8020').checked,
