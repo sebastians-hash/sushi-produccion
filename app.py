@@ -2728,30 +2728,36 @@ def calcular():
 
     def calcular_salmon_en_semi(semi_key, cantidad_necesaria, visitados=frozenset()):
         """Baja por la receta de un semielaborado (siguiendo semielaborados
-        anidados) y devuelve cuantos gramos de insumos marcados 'es_salmon'
-        contiene, proporcional a la cantidad pedida. Así se detecta solo qué
-        semielaborados llevan salmón — sin tener que marcarlos uno por uno,
-        basta con marcar el insumo base "Salmón" una sola vez."""
+        anidados) y devuelve un dict {insumo_key: gramos} de cuánto contiene de
+        cada insumo marcado 'es_salmon', proporcional a la cantidad pedida. Así
+        se detecta solo qué semielaborados llevan salmón — sin tener que
+        marcarlos uno por uno, basta con marcar el insumo base "Salmón" una
+        sola vez. Se devuelve desglosado por insumo (no un solo total) porque
+        cada insumo de salmón puede tener su propio % de aprovechamiento para
+        pasar de "limpio" a "entero".
+        """
+        resultado = {}
         if semi_key in visitados:
-            return 0
+            return resultado
         semi_row = semis_by_key_full.get(semi_key)
         if not semi_row:
-            return 0
+            return resultado
         receta = json.loads(semi_row['receta'] or '[]')
         rend_cant = semi_row['rendimiento_cantidad'] or 0
         if not receta or rend_cant <= 0:
-            return 0
+            return resultado
         scale = cantidad_necesaria / rend_cant
-        total_salmon = 0
         for ing in receta:
             cant = ing['cantidad'] * scale
             k = ing.get('key')
             if k and insumos_master.get(k):
                 if insumos_master[k].get('es_salmon'):
-                    total_salmon += cant
+                    resultado[k] = resultado.get(k, 0) + cant
             elif k and semis_by_key_full.get(k):
-                total_salmon += calcular_salmon_en_semi(k, cant, visitados | {semi_key})
-        return total_salmon
+                sub = calcular_salmon_en_semi(k, cant, visitados | {semi_key})
+                for kk, vv in sub.items():
+                    resultado[kk] = resultado.get(kk, 0) + vv
+        return resultado
 
     def resolve_ing(ing):
         """Resuelve una fila de receta a {nombre, unidad, cantidad} sea cual sea
@@ -2770,6 +2776,7 @@ def calcular():
     semis_out = []
     salmon_out = []
     salmon_limpio_total_g = 0
+    salmon_entero_total_g = 0
     for semi in semis_db:
         total = 0
         used_in = []
@@ -2819,14 +2826,18 @@ def calcular():
                         } for ing in receta
                     ]
                 }
-            peso_salmon_g = calcular_salmon_en_semi(semi['insumo_key'], total)
-            if peso_salmon_g > 0:
-                salmon_limpio_total_g += peso_salmon_g
+            salmon_por_insumo = calcular_salmon_en_semi(semi['insumo_key'], total)
+            if salmon_por_insumo:
+                for k, gramos in salmon_por_insumo.items():
+                    salmon_limpio_total_g += gramos
+                    efic_salmon = insumos_master[k].get('eficiencia') or 100
+                    salmon_entero_total_g += gramos / (efic_salmon / 100) if efic_salmon > 0 else gramos
                 salmon_out.append(semi_out)
             else:
                 semis_out.append(semi_out)
 
     salmon_limpio_display = f"{round(salmon_limpio_total_g)} g / {salmon_limpio_total_g/1000:.2f} kg"
+    salmon_entero_display = f"{round(salmon_entero_total_g)} g / {salmon_entero_total_g/1000:.2f} kg"
 
     # Reporte de "insumos totales": todo lo que hace falta comprar, sumando lo que
     # se usa directo mas lo que se gasta PREPARANDO cada semielaborado (ya bajado
@@ -2868,6 +2879,8 @@ def calcular():
         'salmon': salmon_out,
         'salmonLimpioDisplay': salmon_limpio_display,
         'salmonLimpioTotalG': round(salmon_limpio_total_g, 1),
+        'salmonEnteroDisplay': salmon_entero_display,
+        'salmonEnteroTotalG': round(salmon_entero_total_g, 1),
         'otrosProductos': otros_productos_out,
         'rollosBlancos': rollos_blancos_out,
         'insumosTotales': insumos_totales_out
