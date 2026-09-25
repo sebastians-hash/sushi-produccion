@@ -45,6 +45,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header-icon-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
   border-radius:9px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4;min-width:16px;text-align:center}
 .header-divider{width:1px;height:24px;background:rgba(255,255,255,.2);margin:0 2px}
+.inicio-card{cursor:pointer;transition:border-color .15s,transform .1s;text-align:left}
+.inicio-card:hover{border-color:var(--text3);transform:translateY(-2px)}
+.inicio-card>i{font-size:26px;color:var(--blue);margin-bottom:10px;display:block}
+.inicio-card-title{font-weight:700;font-size:15px;margin-bottom:3px}
+.inicio-card-sub{font-size:12.5px;color:var(--text3)}
 .sec-collapsible{cursor:pointer}
 .collapse-chevron{transition:transform .15s;flex-shrink:0}
 .collapse-chevron.collapsed{transform:rotate(-90deg)}
@@ -218,7 +223,8 @@ input[type=range]{width:100%;accent-color:var(--text)}
   </header>
 
   <div class="main-nav">
-    <div class="main-nav-item active" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
+    <div class="main-nav-item active" id="mni-inicio" onclick="goMainSection('inicio')"><i class="ti ti-home"></i> Inicio</div>
+    <div class="main-nav-item" id="mni-produccion" onclick="goMainSection('produccion')"><i class="ti ti-clipboard-list"></i> Planilla de producción</div>
     <div class="main-nav-item main-nav-calc" id="mni-calculadora" onclick="openCalculadoraModal()" title="Calculadora rápida de producción"><i class="ti ti-calculator"></i> Calculadora</div>
     <div class="main-nav-item" id="mni-productos" onclick="goMainSection('productos')"><i class="ti ti-box"></i> Productos</div>
     <div class="main-nav-item" id="mni-recetas" onclick="goMainSection('recetas')"><i class="ti ti-tools-kitchen-2"></i> Recetas</div>
@@ -226,7 +232,6 @@ input[type=range]{width:100%;accent-color:var(--text)}
     <div class="main-nav-item" id="mni-insumos" onclick="goMainSection('insumos')"><i class="ti ti-package"></i> Insumos</div>
     {% endif %}
     <div class="main-nav-item" id="mni-equivalencias" onclick="goMainSection('equivalencias')"><i class="ti ti-arrows-left-right"></i> Equivalencias</div>
-    <div class="main-nav-item" id="mni-inventario" onclick="goMainSection('inventario')"><i class="ti ti-clipboard-check"></i> Inventario</div>
     <div class="main-nav-item" id="mni-sugerencias" onclick="goMainSection('sugerencias')"><i class="ti ti-bulb"></i> Sugerencias<span id="sugerenciasBadge" class="hidden" style="background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;margin-left:5px"></span></div>
   </div>
 
@@ -238,7 +243,55 @@ input[type=range]{width:100%;accent-color:var(--text)}
     </div>
   </div>
 
-  <div id="mainProduccion">
+  <div id="mainInicio">
+    <div style="padding:.5rem 0 1.5rem">
+      <h2 style="margin-bottom:4px">Hola, {{ user_name.split(' ')[0] if user_name else '' }}</h2>
+      <p id="todayDateInicio" style="color:var(--text2);font-size:14px"></p>
+    </div>
+    <div class="card" style="background:var(--blue-bg);border:none;margin-bottom:1.5rem">
+      <div class="row" style="gap:12px;align-items:flex-start">
+        <i class="ti ti-bulb" style="font-size:22px;color:var(--blue);flex-shrink:0;margin-top:2px"></i>
+        <div>
+          <div style="font-weight:700;color:var(--blue);margin-bottom:4px">¿Sabías que...?</div>
+          <div style="font-size:14px;color:var(--text2);line-height:1.6">En japonés, <strong>"kata"</strong> (型) es la forma exacta que se perfecciona con años de aprendizaje y experiencia acumulada — no cualquier técnica, sino <em>el</em> camino correcto, ya probado por el tiempo. La app existe con esa misma idea.</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+      <div class="card inicio-card" onclick="goMainSection('produccion')">
+        <i class="ti ti-clipboard-list"></i>
+        <div class="inicio-card-title">Planilla de producción</div>
+        <div class="inicio-card-sub">Armar la producción del día</div>
+      </div>
+      <div class="card inicio-card" onclick="openCalculadoraModal()">
+        <i class="ti ti-calculator"></i>
+        <div class="inicio-card-title">Calculadora</div>
+        <div class="inicio-card-sub">Piezas y rollos de un combo</div>
+      </div>
+      <div class="card inicio-card" onclick="goMainSection('productos')">
+        <i class="ti ti-box"></i>
+        <div class="inicio-card-title">Productos</div>
+        <div class="inicio-card-sub">Combos, porciones y más</div>
+      </div>
+      <div class="card inicio-card" onclick="goMainSection('recetas')">
+        <i class="ti ti-tools-kitchen-2"></i>
+        <div class="inicio-card-title">Recetas</div>
+        <div class="inicio-card-sub">Rolls y semielaborados</div>
+      </div>
+      <div class="card inicio-card" onclick="goMainSection('insumos')">
+        <i class="ti ti-package"></i>
+        <div class="inicio-card-title">Insumos</div>
+        <div class="inicio-card-sub">Catálogo, zonas e inventario</div>
+      </div>
+      <div class="card inicio-card" onclick="goMainSection('equivalencias')">
+        <i class="ti ti-arrows-left-right"></i>
+        <div class="inicio-card-title">Equivalencias</div>
+        <div class="inicio-card-sub">Nombres por marca</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainProduccion" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showProdSubTab('flow',this)">Planificar producción</div>
       <div class="tab" onclick="showProdSubTab('sm',this)"><i class="ti ti-users"></i> Sushimanes</div>
@@ -679,6 +732,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       <div class="tab" onclick="showTab('tzon',this)">Zonas</div>
       <div class="tab" onclick="showTab('tprov',this)">Proveedores</div>
       <div class="tab" onclick="showTab('tuni',this)">Unidades</div>
+      <div class="tab" onclick="showTab('tinv',this)">Inventario</div>
     </div>
     <div id="tin">
       <div class="card" id="ineficienciaCard">
@@ -782,60 +836,7 @@ input[type=range]{width:100%;accent-color:var(--text)}
       </div>
     </div>
 
-  </div>
-
-  <div id="mainEquivalencias" class="hidden">
-    <div id="teq">
-      <div class="card">
-        <div class="card-title">Equivalencias entre marcas</div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          <i class="ti ti-info-circle"></i>
-          <span>Elegí una marca. Cada fila es un producto — completá el nombre con el que esa marca lo vende. Dejalo vacío si esa marca no lo vende. La app suma todo bajo el producto real al calcular producción.</span>
-        </div>
-        <div id="equivalenciaCfg"></div>
-      </div>
-    </div>
-
-  </div>
-
-  <div id="mainNovedades" class="hidden">
-    <div class="card">
-      <div class="row-between" style="margin-bottom:1rem">
-        <div class="card-title" style="margin:0">Novedades</div>
-        {% if is_admin %}<button class="btn btn-sm btn-primary" onclick="openNovedadModal()"><i class="ti ti-plus"></i> Nueva novedad</button>{% endif %}
-      </div>
-      <div class="alert alert-info" style="margin-bottom:1rem">
-        <i class="ti ti-info-circle"></i>
-        <span>{% if is_admin %}Acá podés publicar las mejoras y cambios que se le van haciendo a la app. Todos los usuarios las ven, con un aviso hasta que las abren.{% else %}Las últimas mejoras y cambios de la app. Hacé click en cada una para ver el detalle.{% endif %}</span>
-      </div>
-      <div id="novedadesCfg"></div>
-    </div>
-  </div>
-
-  <div id="mainSugerencias" class="hidden">
-    <div class="card">
-      <div class="row-between" style="margin-bottom:1rem">
-        <div class="card-title" style="margin:0">Sugerencias</div>
-        <button class="btn btn-sm btn-primary" onclick="openSugerenciaModal()"><i class="ti ti-plus"></i> Nueva sugerencia</button>
-      </div>
-      <div class="alert alert-info" style="margin-bottom:1rem" id="sugerenciasInfoAlert">
-        <i class="ti ti-info-circle"></i>
-        <span></span>
-      </div>
-      <div id="sugerenciasCfg"></div>
-    </div>
-  </div>
-
-  <div id="mainManual" class="hidden">
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="display:flex;min-height:520px">
-        <div id="manualIndice" style="width:260px;flex-shrink:0;border-right:1px solid var(--border);padding:1rem 0;background:var(--bg)"></div>
-        <div id="manualContenido" style="flex:1;padding:1.5rem 2rem;max-width:720px"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="mainInventario" class="hidden">
+    <div id="tinv" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
       <div class="tab active" onclick="showInventarioSubTab('nueva',this)">Nueva toma</div>
       <div class="tab" onclick="showInventarioSubTab('hist',this)">Historial</div>
@@ -891,6 +892,61 @@ input[type=range]{width:100%;accent-color:var(--text)}
       </div>
     </div>
   </div>
+
+  </div>
+
+  <div id="mainEquivalencias" class="hidden">
+    <div id="teq">
+      <div class="card">
+        <div class="card-title">Equivalencias entre marcas</div>
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          <span>Elegí una marca. Cada fila es un producto — completá el nombre con el que esa marca lo vende. Dejalo vacío si esa marca no lo vende. La app suma todo bajo el producto real al calcular producción.</span>
+        </div>
+        <div id="equivalenciaCfg"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="mainNovedades" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Novedades</div>
+        {% if is_admin %}<button class="btn btn-sm btn-primary" onclick="openNovedadModal()"><i class="ti ti-plus"></i> Nueva novedad</button>{% endif %}
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1rem">
+        <i class="ti ti-info-circle"></i>
+        <span>{% if is_admin %}Acá podés publicar las mejoras y cambios que se le van haciendo a la app. Todos los usuarios las ven, con un aviso hasta que las abren.{% else %}Las últimas mejoras y cambios de la app. Hacé click en cada una para ver el detalle.{% endif %}</span>
+      </div>
+      <div id="novedadesCfg"></div>
+    </div>
+  </div>
+
+  <div id="mainSugerencias" class="hidden">
+    <div class="card">
+      <div class="row-between" style="margin-bottom:1rem">
+        <div class="card-title" style="margin:0">Sugerencias</div>
+        <button class="btn btn-sm btn-primary" onclick="openSugerenciaModal()"><i class="ti ti-plus"></i> Nueva sugerencia</button>
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1rem" id="sugerenciasInfoAlert">
+        <i class="ti ti-info-circle"></i>
+        <span></span>
+      </div>
+      <div id="sugerenciasCfg"></div>
+    </div>
+  </div>
+
+  <div id="mainManual" class="hidden">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;min-height:520px">
+        <div id="manualIndice" style="width:260px;flex-shrink:0;border-right:1px solid var(--border);padding:1rem 0;background:var(--bg)"></div>
+        <div id="manualContenido" style="flex:1;padding:1.5rem 2rem;max-width:720px"></div>
+      </div>
+    </div>
+  </div>
+
+
 
   <div id="mainAdmin" class="hidden">
     <div class="tabs" style="margin-bottom:1rem">
@@ -1088,8 +1144,9 @@ function valorFiltro(id) {
 // INIT
 // ═══════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  document.getElementById('todayDate').textContent =
-    new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const fechaHoy = new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('todayDate').textContent = fechaHoy;
+  document.getElementById('todayDateInicio').textContent = fechaHoy.charAt(0).toUpperCase()+fechaHoy.slice(1);
   await loadConfig();
 });
 
@@ -1163,7 +1220,7 @@ async function loadConfig() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 function goMainSection(name) {
-  const sections={produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',manual:'mainManual',inventario:'mainInventario',admin:'mainAdmin'};
+  const sections={inicio:'mainInicio',produccion:'mainProduccion',productos:'mainProductos',recetas:'mainRecetas',insumos:'mainInsumos',equivalencias:'mainEquivalencias',novedades:'mainNovedades',sugerencias:'mainSugerencias',manual:'mainManual',admin:'mainAdmin'};
   Object.entries(sections).forEach(([key,id])=>document.getElementById(id).classList.toggle('hidden', key!==name));
   document.querySelectorAll('.main-nav-item').forEach(el=>el.classList.remove('active'));
   const navEl=document.getElementById('mni-'+name);
@@ -1176,7 +1233,6 @@ function goMainSection(name) {
   if(name==='novedades'){ renderNovedadesCfg(); }
   if(name==='sugerencias'){ renderSugerenciasCfg(); }
   if(name==='manual'){ renderManual(); }
-  if(name==='inventario'){ renderInventarioNuevaToma(); }
   if(name==='admin') renderUsuarioCfg();
 }
 
@@ -1287,6 +1343,7 @@ function showTab(id, el) {
   if(id==='tzon') renderZonaCfg();
   if(id==='tprov') renderProveedorCfg();
   if(id==='tuni') renderUnidadCfg();
+  if(id==='tinv') renderInventarioNuevaToma();
   if(id==='tma') renderMarcaCfg();
   if(id==='tfa') renderFamiliaCfg();
   if(id==='teq') renderEquivalenciaCfg();
