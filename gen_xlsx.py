@@ -68,3 +68,48 @@ def build_insumos_xlsx(rows: list, date_str: str, global_pct, out_path: str):
     ws.freeze_panes = f"A{header_row + 1}"
     wb.save(out_path)
     print(f"Excel generado: {out_path}")
+
+
+def build_inventario_xlsx(rows: list, columnas: list, titulo: str, out_path: str):
+    """Genera un Excel genérico de una sola tabla — se usa tanto para la lista de
+    insumos como la de semielaborados de una toma de inventario. `columnas` es una
+    lista de (clave_en_la_fila, titulo_de_columna, ancho)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inventario"
+    n_cols = len(columnas)
+    last_col = get_column_letter(n_cols)
+
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = titulo.upper()
+    ws["A1"].font = TITLE_FONT
+
+    header_row = 3
+    for i, (clave, title, width) in enumerate(columnas, start=1):
+        col = get_column_letter(i)
+        cell = ws[f"{col}{header_row}"]
+        cell.value = title
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = BORDER
+        ws.column_dimensions[col].width = width
+    ws.row_dimensions[header_row].height = 26
+
+    r = header_row + 1
+    for row in rows:
+        for i, (clave, title, width) in enumerate(columnas, start=1):
+            valor = row.get(clave, '') or ''
+            cell = ws.cell(row=r, column=i, value=valor)
+            cell.font = BODY_FONT
+            cell.border = BORDER
+            if clave == 'cantidad':
+                cell.number_format = "#,##0.000"
+        if r % 2 == 0:
+            for i in range(1, n_cols + 1):
+                ws.cell(row=r, column=i).fill = PatternFill(start_color="F5F5F3", end_color="F5F5F3", fill_type="solid")
+        r += 1
+
+    ws.freeze_panes = f"A{header_row + 1}"
+    wb.save(out_path)
+    print(f"Excel generado: {out_path}")
