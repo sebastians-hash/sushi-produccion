@@ -1318,6 +1318,8 @@ def confirmar_importacion_recetas():
     creados_productos = 0
     actualizados = 0
     errores = []
+    items_procesados = []  # [{tipo:'semi'|'otro', id, nombre}] — para que el frontend
+                            # pueda llevar al usuario directo a ver el resultado
 
     def resolver_ingredientes(ingredientes):
         """Devuelve una lista de (key, cantidad) resolviendo/creando insumos o
@@ -1384,6 +1386,7 @@ def confirmar_importacion_recetas():
                              (unit, json.dumps(receta_lista), receta.get('rendimiento_cantidad') or 0,
                               rend_unidad, receta.get('vida_util_dias'), existente['id']))
                 actualizados += 1
+                items_procesados.append({'tipo': 'semi', 'id': existente['id'], 'nombre': nombre})
             else:
                 insumo_key = _slugify_insumo(nombre)
                 ya_existe_key = conn.execute('SELECT 1 FROM insumos WHERE key=?', (insumo_key,)).fetchone() or \
@@ -1397,6 +1400,8 @@ def confirmar_importacion_recetas():
                               receta.get('rendimiento_cantidad') or 0, rend_unidad, json.dumps([]),
                               receta.get('vida_util_dias')))
                 creados_productos += 1
+                nuevo_id = conn.execute('SELECT lastval() AS id').fetchone()['id']
+                items_procesados.append({'tipo': 'semi', 'id': nuevo_id, 'nombre': nombre})
             continue
 
         tipo = receta.get('tipo')
@@ -1419,19 +1424,22 @@ def confirmar_importacion_recetas():
                          (tipo, receta.get('familia', ''), json.dumps(insumos_dict),
                           json.dumps(receta.get('procedimiento_pasos', [])), existente['id']))
             actualizados += 1
+            items_procesados.append({'tipo': 'otro', 'id': existente['id'], 'nombre': nombre})
         else:
             conn.execute('''INSERT INTO otros_productos (name, tipo, familia, insumos, marcas, rolls, procedimiento)
                             VALUES (?,?,?,?,?,?,?)''',
                          (nombre, tipo, receta.get('familia', ''), json.dumps(insumos_dict),
                           json.dumps([]), json.dumps({}), json.dumps(receta.get('procedimiento_pasos', []))))
             creados_productos += 1
+            nuevo_id = conn.execute('SELECT lastval() AS id').fetchone()['id']
+            items_procesados.append({'tipo': 'otro', 'id': nuevo_id, 'nombre': nombre})
 
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'creados_insumos': creados_insumos,
                      'creados_semis_placeholder': creados_semis_placeholder,
                      'creados_productos': creados_productos, 'actualizados': actualizados,
-                     'errores': errores})
+                     'errores': errores, 'items_procesados': items_procesados})
 
 # ── Equivalencias (mismo producto, distinto nombre por marca) ──
 @app.route('/api/equivalencias', methods=['GET'])
