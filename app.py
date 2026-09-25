@@ -3079,6 +3079,7 @@ def _calcular_toma_inventario(conn, insumos_contados, semis_contados):
             'cantidad': round(cantidad_resumen, 3),
             'unidad': master['unidad_resumen'],
             'proveedor': proveedores_db.get(master.get('proveedor_principal_id')) or '',
+            'zona_almacenamiento': master.get('zona_almacenamiento') or '',
         })
     insumos_out.sort(key=lambda r: r['insumo'].lower())
     semis_out.sort(key=lambda r: r['name'].lower())
@@ -3152,7 +3153,7 @@ def xlsx_inventario_insumos():
     tmp.close()
     build_inventario_xlsx(rows,
         [('insumo','Insumo',32), ('categoria','Categoría',20), ('cantidad','Cantidad',14),
-         ('unidad','Unidad',12), ('proveedor','Proveedor',24)],
+         ('unidad','Unidad',12), ('proveedor','Proveedor',24), ('zona_almacenamiento','Zona',18)],
         f'Inventario de insumos — {fecha}', tmp.name)
     return send_file(tmp.name, as_attachment=True, download_name=f'inventario_insumos_{fecha.replace("/","-")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -3170,6 +3171,52 @@ def xlsx_inventario_semis():
          ('zona_almacenamiento','Zona',20)],
         f'Inventario de semielaborados — {fecha}', tmp.name)
     return send_file(tmp.name, as_attachment=True, download_name=f'inventario_semielaborados_{fecha.replace("/","-")}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/inventario/plantilla-xlsx-insumos', methods=['GET'])
+@login_required
+def plantilla_xlsx_inventario_insumos():
+    """Planilla en blanco de TODOS los insumos, para imprimir y anotar las
+    cantidades contadas a mano, y cargarlas en la app más tarde."""
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM insumos ORDER BY categoria, label').fetchall()
+    proveedores_db = {r['id']: r['name'] for r in conn.execute('SELECT id, name FROM proveedores').fetchall()}
+    conn.close()
+    filas = [{
+        'insumo': r['label'], 'categoria': r['categoria'] or '', 'unidad': r['unidad_resumen'],
+        'proveedor': proveedores_db.get(r['proveedor_principal_id']) or '',
+        'zona_almacenamiento': r['zona_almacenamiento'] or '', 'cantidad': '',
+    } for r in rows]
+    fecha = datetime.now().strftime('%d-%m-%Y')
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_inventario_xlsx(filas,
+        [('insumo','Insumo',32), ('categoria','Categoría',20), ('zona_almacenamiento','Zona',18),
+         ('proveedor','Proveedor',24), ('unidad','Unidad',12), ('cantidad','Cantidad contada',18)],
+        f'Planilla de conteo — Insumos — {fecha}', tmp.name)
+    return send_file(tmp.name, as_attachment=True, download_name=f'planilla_conteo_insumos_{fecha}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/inventario/plantilla-xlsx-semis', methods=['GET'])
+@login_required
+def plantilla_xlsx_inventario_semis():
+    """Planilla en blanco de TODOS los semielaborados, para imprimir y anotar
+    las cantidades contadas a mano, y cargarlas en la app más tarde."""
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM semielaborados ORDER BY name').fetchall()
+    conn.close()
+    filas = [{
+        'name': r['name'], 'unidad': r['rendimiento_unidad'] or r['unit'],
+        'zona_almacenamiento': r['zona_almacenamiento'] or '', 'cantidad': '',
+    } for r in rows]
+    fecha = datetime.now().strftime('%d-%m-%Y')
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    build_inventario_xlsx(filas,
+        [('name','Semielaborado',32), ('zona_almacenamiento','Zona',20), ('unidad','Unidad',12),
+         ('cantidad','Cantidad contada',18)],
+        f'Planilla de conteo — Semielaborados — {fecha}', tmp.name)
+    return send_file(tmp.name, as_attachment=True, download_name=f'planilla_conteo_semielaborados_{fecha}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── Importar recetas desde Excel ──────────────────────────────────────────
