@@ -149,7 +149,8 @@ def init_db():
             piezas_por_rollo INTEGER NOT NULL DEFAULT 14,
             rollo_blanco_grupo TEXT,
             cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE,
-            toppings TEXT NOT NULL DEFAULT '[]'
+            toppings TEXT NOT NULL DEFAULT '[]',
+            orden_produccion INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS rollo_blanco_grupos (
             id SERIAL PRIMARY KEY,
@@ -414,6 +415,13 @@ def init_db():
         c.execute("ALTER TABLE rolls ADD COLUMN cuenta_productividad BOOLEAN NOT NULL DEFAULT TRUE")
     if 'toppings' not in roll_cols:
         c.execute("ALTER TABLE rolls ADD COLUMN toppings TEXT NOT NULL DEFAULT '[]'")
+    if 'orden_produccion' not in roll_cols:
+        c.execute("ALTER TABLE rolls ADD COLUMN orden_produccion INTEGER NOT NULL DEFAULT 0")
+        # A los rolls ya existentes les damos un orden inicial alfabetico, para que
+        # arranquen en algun orden razonable en vez de quedar todos en 0 (empatados).
+        existentes = c.execute('SELECT id FROM rolls ORDER BY name').fetchall()
+        for idx, row in enumerate(existentes):
+            c.execute('UPDATE rolls SET orden_produccion=? WHERE id=?', (idx, row['id']))
 
     local_cols = get_columns('locales')
     if 'marcas' not in local_cols:
@@ -1842,7 +1850,20 @@ def get_rolls():
                      'piezas_por_rollo': r['piezas_por_rollo'],
                      'rollo_blanco_grupo': r['rollo_blanco_grupo'],
                      'cuenta_productividad': bool(r['cuenta_productividad']),
-                     'toppings': json.loads(r['toppings'] or '[]')} for r in rows])
+                     'toppings': json.loads(r['toppings'] or '[]'),
+                     'orden_produccion': r['orden_produccion']} for r in rows])
+
+@app.route('/api/rolls/reorder', methods=['PUT'])
+@admin_required
+def reorder_rolls():
+    data = request.json
+    ids = data.get('ids', [])
+    conn = get_db()
+    for idx, roll_id in enumerate(ids):
+        conn.execute('UPDATE rolls SET orden_produccion=? WHERE id=?', (idx, roll_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 @app.route('/api/rolls', methods=['POST'])
 @admin_required
