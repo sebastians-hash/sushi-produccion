@@ -2065,6 +2065,25 @@ def update_semi(semi_id):
     conn.close()
     return jsonify({'ok': True})
 
+@app.route('/api/semielaborados/<int:semi_id>/margen', methods=['PUT'])
+@login_required
+def update_margen_semi(semi_id):
+    """Endpoint liviano para editar SOLO el margen de seguridad — se usa desde
+    la tabla de Proyección semanal, para no tener que abrir la ficha completa
+    de cada semielaborado uno por uno."""
+    data = request.json
+    try:
+        margen = float(data.get('margen_seguridad_pct'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'El margen tiene que ser un número'}), 400
+    if margen < 0 or margen > 200:
+        return jsonify({'error': 'El margen tiene que estar entre 0% y 200%'}), 400
+    conn = get_db()
+    conn.execute('UPDATE semielaborados SET margen_seguridad_pct=? WHERE id=?', (margen, semi_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 @app.route('/api/semielaborados/<int:semi_id>', methods=['DELETE'])
 @admin_required
 def delete_semi(semi_id):
