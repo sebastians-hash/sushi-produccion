@@ -393,6 +393,8 @@ def init_db():
         c.execute("ALTER TABLE semielaborados ADD COLUMN es_salmon BOOLEAN NOT NULL DEFAULT FALSE")
     if 'peso_por_unidad_g' not in existing_cols:
         c.execute("ALTER TABLE semielaborados ADD COLUMN peso_por_unidad_g REAL")
+    if 'margen_seguridad_pct' not in existing_cols:
+        c.execute("ALTER TABLE semielaborados ADD COLUMN margen_seguridad_pct REAL NOT NULL DEFAULT 0")
 
     otro_cols = get_columns('otros_productos')
     if 'rolls' not in otro_cols:
@@ -1992,7 +1994,8 @@ def get_semielaborados():
                      'tiempo_elaboracion_min': r['tiempo_elaboracion_min'],
                      'vida_util_dias': r['vida_util_dias'],
                      'zona_almacenamiento': r['zona_almacenamiento'],
-                     'tipo_contenedor_id': r['tipo_contenedor_id']} for r in rows])
+                     'tipo_contenedor_id': r['tipo_contenedor_id'],
+                     'margen_seguridad_pct': r['margen_seguridad_pct']} for r in rows])
 
 @app.route('/api/semielaborados', methods=['POST'])
 @admin_required
@@ -2002,8 +2005,8 @@ def create_semi():
     try:
         conn.execute('''INSERT INTO semielaborados
                         (name, insumo_key, unit, rolls, receta, rendimiento_cantidad, rendimiento_unidad, marcas,
-                         tiempo_elaboracion_min, vida_util_dias, zona_almacenamiento, tipo_contenedor_id)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                         tiempo_elaboracion_min, vida_util_dias, zona_almacenamiento, tipo_contenedor_id, margen_seguridad_pct)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
@@ -2012,7 +2015,8 @@ def create_semi():
                       data.get('tiempo_elaboracion_min') or None,
                       data.get('vida_util_dias') or None,
                       data.get('zona_almacenamiento') or None,
-                      data.get('tipo_contenedor_id') or None))
+                      data.get('tipo_contenedor_id') or None,
+                      data.get('margen_seguridad_pct') or 0))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -2029,7 +2033,8 @@ def update_semi(semi_id):
     try:
         conn.execute('''UPDATE semielaborados SET name=?, insumo_key=?, unit=?, rolls=?,
                         receta=?, rendimiento_cantidad=?, rendimiento_unidad=?, marcas=?,
-                        tiempo_elaboracion_min=?, vida_util_dias=?, zona_almacenamiento=?, tipo_contenedor_id=? WHERE id=?''',
+                        tiempo_elaboracion_min=?, vida_util_dias=?, zona_almacenamiento=?, tipo_contenedor_id=?,
+                        margen_seguridad_pct=? WHERE id=?''',
                      (data['name'], data['insumo_key'], data['unit'], json.dumps(data['rolls']),
                       json.dumps(data.get('receta', [])),
                       data.get('rendimiento_cantidad', 0),
@@ -2038,7 +2043,8 @@ def update_semi(semi_id):
                       data.get('tiempo_elaboracion_min') or None,
                       data.get('vida_util_dias') or None,
                       data.get('zona_almacenamiento') or None,
-                      data.get('tipo_contenedor_id') or None, semi_id))
+                      data.get('tipo_contenedor_id') or None,
+                      data.get('margen_seguridad_pct') or 0, semi_id))
         conn.commit()
     except IntegrityError:
         conn.rollback()
@@ -3219,7 +3225,123 @@ def plantilla_xlsx_inventario_semis():
     return send_file(tmp.name, as_attachment=True, download_name=f'planilla_conteo_semielaborados_{fecha}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-# ── Importar recetas desde Excel ──────────────────────────────────────────
+# ── Proyección semanal de producción de semielaborados ──────────────────
+DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+def _receta_escalada_para(semi_row, insumos_master, semis_by_key, cantidad):
+    """Dada una fila de semielaborado y una cantidad a producir, arma el
+    detalle de lotes e ingredientes escalados — se reutiliza tanto en la
+    proyección semanal como en el endpoint de 'ver receta adaptada'."""
+    receta = json.loads(semi_row['receta'] or '[]')
+    rend_cant = semi_row['rendimiento_cantidad'] or 0
+    if not receta or rend_cant <= 0 or not cantidad:
+        return None
+    scale = cantidad / rend_cant
+    ingredientes = []
+    for ing in receta:
+        k = ing.get('key')
+        if k and insumos_master.get(k):
+            nombre = insumos_master[k]['label']
+            unidad = insumos_master[k]['unidad_receta']
+        elif k and semis_by_key.get(k):
+            nombre = semis_by_key[k]['name']
+            unidad = semis_by_key[k]['unit']
+        else:
+            nombre = ing.get('nombre') or k or '?'
+            unidad = ing.get('unidad', 'g')
+        ingredientes.append({
+            'nombre': nombre, 'cantidad_receta': ing['cantidad'], 'unidad': unidad,
+            'cantidad_total': round(ing['cantidad'] * scale, 1)
+        })
+    return {
+        'rendimiento_cantidad': rend_cant, 'rendimiento_unidad': semi_row['rendimiento_unidad'] or semi_row['unit'],
+        'lotes_necesarios': int(-(-scale // 1)), 'escala_exacta': round(scale, 2),
+        'ingredientes': ingredientes,
+    }
+
+@app.route('/api/semielaborados/<int:semi_id>/receta-escalada', methods=['GET'])
+@login_required
+def receta_escalada_semi(semi_id):
+    cantidad = request.args.get('cantidad', type=float)
+    if not cantidad or cantidad <= 0:
+        return jsonify({'error': 'Cantidad inválida'}), 400
+    conn = get_db()
+    semi_row = conn.execute('SELECT * FROM semielaborados WHERE id=?', (semi_id,)).fetchone()
+    if not semi_row:
+        conn.close()
+        return jsonify({'error': 'No encontrado'}), 404
+    insumos_master = {r['key']: dict(r) for r in conn.execute('SELECT * FROM insumos').fetchall()}
+    semis_by_key = {r['insumo_key']: dict(r) for r in conn.execute('SELECT * FROM semielaborados').fetchall()}
+    conn.close()
+    resultado = _receta_escalada_para(dict(semi_row), insumos_master, semis_by_key, cantidad)
+    if resultado is None:
+        return jsonify({'error': 'Este semielaborado no tiene una receta cargada'}), 400
+    return jsonify({'name': semi_row['name'], 'cantidad_pedida': cantidad, 'unidad': semi_row['unit'], **resultado})
+
+@app.route('/api/proyeccion-semanal', methods=['GET'])
+@login_required
+def proyeccion_semanal():
+    local_id = request.args.get('local_id', type=int)
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    planillas = conn.execute('SELECT fecha, data FROM planillas WHERE local_id=? ORDER BY fecha DESC', (local_id,)).fetchall()
+
+    # Para cada dia de la semana (0=Lunes..6=Domingo), la planilla MAS RECIENTE
+    # que haya caido en ese dia — asi armamos "la ultima semana cargada".
+    planilla_por_dia = {}
+    for p in planillas:
+        try:
+            fecha_dt = datetime.strptime(p['fecha'], '%Y-%m-%d')
+        except (ValueError, TypeError):
+            continue
+        dia_idx = fecha_dt.weekday()
+        if dia_idx not in planilla_por_dia:
+            planilla_por_dia[dia_idx] = p
+
+    dias_sin_datos = [DIAS_SEMANA[i] for i in range(7) if i not in planilla_por_dia]
+
+    # demanda[insumo_key_del_semi][dia_idx] = total necesitado ese dia
+    demanda = {}
+    nombres_semi = {}
+    for dia_idx, p in planilla_por_dia.items():
+        data = json.loads(p['data'] or '{}')
+        for s in data.get('semis', []):
+            # Los datos guardados no tienen insumo_key, se guardo solo el nombre —
+            # lo resolvemos contra el catalogo actual para poder cruzarlo con la
+            # vida_util de cada semielaborado.
+            nombres_semi[s['name']] = s['name']
+            demanda.setdefault(s['name'], {})[dia_idx] = s.get('total', 0) or 0
+
+    semis_catalogo = {r['name']: dict(r) for r in conn.execute('SELECT * FROM semielaborados').fetchall()}
+    conn.close()
+
+    resultado_semis = []
+    for nombre, por_dia in demanda.items():
+        semi_cat = semis_catalogo.get(nombre)
+        if not semi_cat or not any(por_dia.get(i, 0) > 0 for i in range(7)):
+            continue
+        vida_util = semi_cat['vida_util_dias'] or 1
+        margen = semi_cat['margen_seguridad_pct'] or 0
+        demanda_semana = [por_dia.get(i, 0) for i in range(7)]
+        produccion_semana = [0] * 7
+        i = 0
+        while i < 7:
+            fin_ciclo = min(i + vida_util, 7)
+            base = sum(demanda_semana[i:fin_ciclo])
+            produccion_semana[i] = round(base * (1 + margen / 100), 2)
+            i = fin_ciclo
+        resultado_semis.append({
+            'id': semi_cat['id'], 'name': nombre, 'unit': semi_cat['unit'],
+            'vida_util_dias': vida_util, 'vida_util_configurada': bool(semi_cat['vida_util_dias']),
+            'margen_seguridad_pct': margen,
+            'demanda': demanda_semana, 'produccion': produccion_semana,
+        })
+    resultado_semis.sort(key=lambda s: s['name'].lower())
+
+    return jsonify({'dias': DIAS_SEMANA, 'diasSinDatos': dias_sin_datos, 'semis': resultado_semis})
+
+
 @app.route('/api/importar/rolls', methods=['POST'])
 @admin_required
 def importar_rolls():
