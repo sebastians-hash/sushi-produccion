@@ -3092,8 +3092,11 @@ async function renderProyeccionSemanal() {
   } else {
     avisoEl.classList.add('hidden');
   }
-
-  if (!data.semis.length) {
+  renderTablaProyeccionSemanal();
+}
+function renderTablaProyeccionSemanal() {
+  const data = ST.proyeccionActual;
+  if (!data || !data.semis.length) {
     document.getElementById('proyTablaWrap').innerHTML = '<div class="empty">Todavía no hay suficientes planillas guardadas en el historial para calcular una proyección.</div>';
     return;
   }
@@ -3104,7 +3107,8 @@ async function renderProyeccionSemanal() {
   data.semis.forEach(s => {
     h += `<tr><td style="font-weight:600">${s.name}</td>
       <td style="text-align:center">${s.vida_util_configurada ? `${s.vida_util_dias} día${s.vida_util_dias===1?'':'s'}` : '<span class="badge b-warn" title="No tiene vida útil cargada, se calcula día a día">Sin cargar</span>'}</td>
-      <td style="text-align:center">${s.margen_seguridad_pct ? `+${s.margen_seguridad_pct}%` : '<span style="color:var(--text3)">—</span>'}</td>`;
+      <td style="text-align:center"><input type="number" min="0" max="200" step="1" value="${s.margen_seguridad_pct||0}" style="width:70px;text-align:center"
+        onchange="actualizarMargenProyeccion(${s.id},this.value)" title="% arriba del historial para este semielaborado"></td>`;
     s.produccion.forEach((qty, i) => {
       if (qty > 0) {
         h += `<td style="text-align:center"><button class="btn btn-sm btn-primary" onclick="verRecetaEscalada(${s.id},${qty},${JSON.stringify(s.name)})" title="Ver receta adaptada a esta cantidad">${qty} ${s.unit}</button></td>`;
@@ -3116,6 +3120,34 @@ async function renderProyeccionSemanal() {
   });
   h += '</tbody></table>';
   document.getElementById('proyTablaWrap').innerHTML = h;
+}
+function recalcularProduccionConMargen(s) {
+  const vidaUtil = s.vida_util_dias || 1;
+  const produccion = new Array(7).fill(0);
+  let i = 0;
+  while (i < 7) {
+    const finCiclo = Math.min(i + vidaUtil, 7);
+    const base = s.demanda.slice(i, finCiclo).reduce((a,b)=>a+b, 0);
+    produccion[i] = Math.round(base * (1 + s.margen_seguridad_pct / 100) * 100) / 100;
+    i = finCiclo;
+  }
+  return produccion;
+}
+async function actualizarMargenProyeccion(semiId, valorNuevo) {
+  const margen = parseFloat(valorNuevo);
+  if (isNaN(margen) || margen < 0 || margen > 200) { alert('El margen tiene que ser un número entre 0 y 200'); renderProyeccionSemanal(); return; }
+  // Recalculo y redibujo al toque, en el navegador — sin esperar a la red,
+  // para que se sienta instantáneo mientras vas probando distintos márgenes.
+  const s = ST.proyeccionActual.semis.find(s=>s.id===semiId);
+  if (s) {
+    s.margen_seguridad_pct = margen;
+    s.produccion = recalcularProduccionConMargen(s);
+    renderTablaProyeccionSemanal();
+  }
+  // Guardado real en el servidor, para que quede aplicado la próxima vez también.
+  const res = await fetch(`/api/semielaborados/${semiId}/margen`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({margen_seguridad_pct: margen})});
+  const result = await res.json();
+  if (result.error) alert(result.error);
 }
 async function verRecetaEscalada(semiId, cantidad, nombre) {
   const data = await fetch(`/api/semielaborados/${semiId}/receta-escalada?cantidad=${cantidad}`).then(r=>r.json());
