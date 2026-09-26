@@ -2468,15 +2468,13 @@ def delete_insumo(ins_id):
     return jsonify({'ok': True})
 
 # ── Calcular producción ──
-@app.route('/api/calcular', methods=['POST'])
-@login_required
-def calcular():
-    body       = request.json
-    sales      = body.get('sales', [])
-    adj        = body.get('adjustments', {})
-    adj_mode   = body.get('adjMode', 'pct')
-    global_pct = body.get('globalPct', 100)
-
+def _calcular_produccion(sales, adj, adj_mode, global_pct):
+    """El motor de cálculo de producción en sí — recibe las ventas ya
+    matcheadas y devuelve el dict completo (production, insumos, semis,
+    salmón, etc.), sin pasar por HTTP. Lo usa tanto el endpoint /api/calcular
+    (la planilla de producción de un día) como la Proyección semanal (que
+    necesita este mismo cálculo para cada día de la Biblioteca de ventas,
+    sin que exista una planilla de producción guardada para ese día)."""
     conn = get_db()
     combos_db = {r['name']: json.loads(r['rolls'])
                  for r in conn.execute('SELECT name, rolls FROM combos').fetchall()}
@@ -2890,7 +2888,7 @@ def calcular():
             'proveedor': '',
         })
 
-    return jsonify({
+    return {
         'production': production,
         'insumos': insumos_out,
         'semis': semis_out,
@@ -2902,7 +2900,17 @@ def calcular():
         'otrosProductos': otros_productos_out,
         'rollosBlancos': rollos_blancos_out,
         'insumosTotales': insumos_totales_out
-    })
+    }
+
+@app.route('/api/calcular', methods=['POST'])
+@login_required
+def calcular():
+    body       = request.json
+    sales      = body.get('sales', [])
+    adj        = body.get('adjustments', {})
+    adj_mode   = body.get('adjMode', 'pct')
+    global_pct = body.get('globalPct', 100)
+    return jsonify(_calcular_produccion(sales, adj, adj_mode, global_pct))
 
 # ── Generar PDF ──
 # ── Planillas (historial de producción por local) ──
@@ -3068,7 +3076,9 @@ def borrar_biblioteca_ventas(reg_id):
     conn.close()
     return jsonify({'ok': True})
 
-
+@app.route('/api/pdf', methods=['POST'])
+@login_required
+def generar_pdf():
     body = request.json
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp.close()
@@ -3363,33 +3373,51 @@ def proyeccion_semanal():
     if not local_id or not user_has_local_access(local_id):
         return jsonify({'error': 'No tenés acceso a ese local'}), 403
     conn = get_db()
-    planillas = conn.execute('SELECT fecha, data FROM planillas WHERE local_id=? ORDER BY fecha DESC', (local_id,)).fetchall()
 
-    # Para cada dia de la semana (0=Lunes..6=Domingo), la planilla MAS RECIENTE
-    # que haya caido en ese dia — asi armamos "la ultima semana cargada".
+    # Para cada dia de la semana (0=Lunes..6=Domingo), preferimos la fecha MAS
+    # RECIENTE de la Biblioteca de ventas que haya caido en ese dia — ahi
+    # calculamos el consumo de semielaborados al vuelo (sin que haga falta que
+    # exista una planilla de produccion armada para ese dia). Si no hay nada
+    # en la Biblioteca para algun dia, usamos como respaldo la planilla de
+    # producción MAS RECIENTE que haya caido en ese dia (como antes).
+    bib_rows = conn.execute('SELECT DISTINCT fecha FROM biblioteca_ventas WHERE local_id=? ORDER BY fecha DESC', (local_id,)).fetchall()
+    fecha_bib_por_dia = {}
+    for row in bib_rows:
+        try:
+            dia_idx = datetime.strptime(row['fecha'], '%Y-%m-%d').weekday()
+        except (ValueError, TypeError):
+            continue
+        if dia_idx not in fecha_bib_por_dia:
+            fecha_bib_por_dia[dia_idx] = row['fecha']
+
+    planillas = conn.execute('SELECT fecha, data FROM planillas WHERE local_id=? ORDER BY fecha DESC', (local_id,)).fetchall()
     planilla_por_dia = {}
     for p in planillas:
         try:
-            fecha_dt = datetime.strptime(p['fecha'], '%Y-%m-%d')
+            dia_idx = datetime.strptime(p['fecha'], '%Y-%m-%d').weekday()
         except (ValueError, TypeError):
             continue
-        dia_idx = fecha_dt.weekday()
         if dia_idx not in planilla_por_dia:
             planilla_por_dia[dia_idx] = p
 
-    dias_sin_datos = [DIAS_SEMANA[i] for i in range(7) if i not in planilla_por_dia]
+    dias_sin_datos = [DIAS_SEMANA[i] for i in range(7) if i not in fecha_bib_por_dia and i not in planilla_por_dia]
 
-    # demanda[insumo_key_del_semi][dia_idx] = total necesitado ese dia
+    # demanda[nombre_del_semi][dia_idx] = total necesitado ese dia
     demanda = {}
-    nombres_semi = {}
-    for dia_idx, p in planilla_por_dia.items():
-        data = json.loads(p['data'] or '{}')
-        for s in data.get('semis', []):
-            # Los datos guardados no tienen insumo_key, se guardo solo el nombre —
-            # lo resolvemos contra el catalogo actual para poder cruzarlo con la
-            # vida_util de cada semielaborado.
-            nombres_semi[s['name']] = s['name']
-            demanda.setdefault(s['name'], {})[dia_idx] = s.get('total', 0) or 0
+    for dia_idx in range(7):
+        if dia_idx in fecha_bib_por_dia:
+            fecha = fecha_bib_por_dia[dia_idx]
+            canales = conn.execute('SELECT sales_data FROM biblioteca_ventas WHERE local_id=? AND fecha=?', (local_id, fecha)).fetchall()
+            sales_del_dia = []
+            for c in canales:
+                sales_del_dia.extend(json.loads(c['sales_data'] or '[]'))
+            resultado = _calcular_produccion(sales_del_dia, {}, 'pct', 100)
+            for s in resultado.get('semis', []):
+                demanda.setdefault(s['name'], {})[dia_idx] = s.get('total', 0) or 0
+        elif dia_idx in planilla_por_dia:
+            data = json.loads(planilla_por_dia[dia_idx]['data'] or '{}')
+            for s in data.get('semis', []):
+                demanda.setdefault(s['name'], {})[dia_idx] = s.get('total', 0) or 0
 
     semis_catalogo = {r['name']: dict(r) for r in conn.execute('SELECT * FROM semielaborados').fetchall()}
     conn.close()
