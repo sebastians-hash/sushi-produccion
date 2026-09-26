@@ -915,12 +915,28 @@ input[type=range]{width:100%;accent-color:var(--text)}
             <div class="card-title" style="margin:0">Insumos</div>
             <div class="search-box-wrap" style="margin-bottom:0"><i class="ti ti-search"></i><input type="text" id="invFiltroInsumos" class="w-full" placeholder="Buscar insumo..." oninput="renderInvListaInsumos()"></div>
           </div>
+          <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
+            <select id="invFiltroCategoriaCarga" onchange="renderInvListaInsumos()" style="min-width:160px">
+              <option value="">Todas las categorías</option>
+            </select>
+            <select id="invFiltroProveedorCarga" onchange="renderInvListaInsumos()" style="min-width:160px">
+              <option value="">Todos los proveedores</option>
+            </select>
+            <select id="invFiltroZonaInsumoCarga" onchange="renderInvListaInsumos()" style="min-width:160px">
+              <option value="">Todas las zonas</option>
+            </select>
+          </div>
           <div id="invListaInsumos"></div>
         </div>
         <div class="card">
           <div class="row-between" style="margin-bottom:.75rem">
             <div class="card-title" style="margin:0">Semielaborados</div>
             <div class="search-box-wrap" style="margin-bottom:0"><i class="ti ti-search"></i><input type="text" id="invFiltroSemis" class="w-full" placeholder="Buscar semielaborado..." oninput="renderInvListaSemis()"></div>
+          </div>
+          <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
+            <select id="invFiltroZonaSemiCarga" onchange="renderInvListaSemis()" style="min-width:160px">
+              <option value="">Todas las zonas</option>
+            </select>
           </div>
           <div id="invListaSemis"></div>
         </div>
@@ -3508,9 +3524,29 @@ function renderInventarioNuevaToma() {
   renderInvListaSemis();
 }
 function renderInvListaInsumos() {
+  const selCat = document.getElementById('invFiltroCategoriaCarga');
+  const selProv = document.getElementById('invFiltroProveedorCarga');
+  const selZona = document.getElementById('invFiltroZonaInsumoCarga');
+  if (selCat && !selCat.dataset.poblado) {
+    selCat.innerHTML = '<option value="">Todas las categorías</option>' + ST.categoriasInsumos.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+    selProv.innerHTML = '<option value="">Todos los proveedores</option>' + ST.proveedores.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    selZona.innerHTML = '<option value="">Todas las zonas</option>' + ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}">${z.name}</option>`).join('');
+    selCat.dataset.poblado = '1';
+  }
+  const fCategoria = selCat?.value || '';
+  const fProveedor = selProv?.value || '';
+  const fZona = selZona?.value || '';
   const filtro = normalizeSearchText(document.getElementById('invFiltroInsumos')?.value.trim() || '');
-  const lista = ST.insumosMaster.filter(i => !filtro || normalizeSearchText(i.label).includes(filtro))
-    .sort((a,b)=>a.label.localeCompare(b.label));
+  const lista = ST.insumosMaster.filter(i => {
+    if (fCategoria && i.categoria !== fCategoria) return false;
+    if (fProveedor) {
+      const pid = parseInt(fProveedor);
+      if (![i.proveedor_principal_id, i.proveedor_alt1_id, i.proveedor_alt2_id].includes(pid)) return false;
+    }
+    if (fZona && i.zona_almacenamiento !== fZona) return false;
+    if (filtro && !normalizeSearchText(i.label).includes(filtro)) return false;
+    return true;
+  }).sort((a,b)=>a.label.localeCompare(b.label));
   let h = '<table><thead><tr><th>Insumo</th><th>Categoría</th><th style="width:160px">Cantidad</th><th style="width:70px">Unidad</th></tr></thead><tbody>';
   lista.forEach(i=>{
     const valorActual = ST.invCantidades.insumos[i.key] ?? '';
@@ -3521,13 +3557,22 @@ function renderInvListaInsumos() {
       <td style="color:var(--text3)">${i.unidad_resumen}</td></tr>`;
   });
   h += '</tbody></table>';
-  if (!lista.length) h = '<div class="empty">No se encontraron insumos.</div>';
+  if (!lista.length) h = '<div class="empty">No se encontraron insumos con estos filtros.</div>';
   document.getElementById('invListaInsumos').innerHTML = h;
 }
 function renderInvListaSemis() {
+  const selZona = document.getElementById('invFiltroZonaSemiCarga');
+  if (selZona && !selZona.dataset.poblado) {
+    selZona.innerHTML = '<option value="">Todas las zonas</option>' + ST.zonasAlmacenamiento.map(z=>`<option value="${z.name}">${z.name}</option>`).join('');
+    selZona.dataset.poblado = '1';
+  }
+  const fZona = selZona?.value || '';
   const filtro = normalizeSearchText(document.getElementById('invFiltroSemis')?.value.trim() || '');
-  const lista = ST.semielaborados.filter(s => !filtro || normalizeSearchText(s.name).includes(filtro))
-    .sort((a,b)=>a.name.localeCompare(b.name));
+  const lista = ST.semielaborados.filter(s => {
+    if (fZona && s.zona_almacenamiento !== fZona) return false;
+    if (filtro && !normalizeSearchText(s.name).includes(filtro)) return false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
   let h = '<table><thead><tr><th>Semielaborado</th><th style="width:160px">Cantidad</th><th style="width:90px">Unidad</th></tr></thead><tbody>';
   lista.forEach(s=>{
     const valorActual = ST.invCantidades.semis[s.insumo_key] ?? '';
@@ -3653,6 +3698,12 @@ function nuevaTomaInventario() {
   ST.invResultado = null;
   ST.invFiltros = { insumos:{categoria:'',proveedor:'',zona_almacenamiento:''}, semis:{zona_almacenamiento:''} };
   document.getElementById('invFecha').value = new Date().toISOString().split('T')[0];
+  ['invFiltroCategoriaCarga','invFiltroProveedorCarga','invFiltroZonaInsumoCarga','invFiltroZonaSemiCarga'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('invFiltroInsumos').value = '';
+  document.getElementById('invFiltroSemis').value = '';
   document.getElementById('invFormWrap').classList.remove('hidden');
   document.getElementById('invResultadoWrap').classList.add('hidden');
   renderInvListaInsumos();
