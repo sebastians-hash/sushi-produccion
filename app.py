@@ -322,6 +322,18 @@ def init_db():
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS biblioteca_ventas (
+            id SERIAL PRIMARY KEY,
+            local_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            canal TEXT NOT NULL DEFAULT 'delivery',
+            nombre_archivo TEXT,
+            sales_data TEXT NOT NULL DEFAULT '[]',
+            created_by TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(local_id, fecha, canal)
+        );
         CREATE TABLE IF NOT EXISTS tomas_inventario (
             id SERIAL PRIMARY KEY,
             local_id INTEGER NOT NULL,
@@ -2988,9 +3000,75 @@ def delete_planilla(planilla_id):
     conn.close()
     return jsonify({'ok': True})
 
-@app.route('/api/pdf', methods=['POST'])
+# ── Biblioteca de ventas: archivos de venta por día, cargados por separado
+# de armar la planilla de producción del día — para poder tener el historial
+# completo (necesario para la Proyección semanal) sin tener que armar una
+# planilla de producción entera por cada día.
+@app.route('/api/biblioteca-ventas', methods=['GET'])
 @login_required
-def generar_pdf():
+def get_biblioteca_ventas():
+    local_id = request.args.get('local_id', type=int)
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    rows = conn.execute('''SELECT id, fecha, canal, nombre_archivo, sales_data, created_by, updated_at
+                           FROM biblioteca_ventas WHERE local_id=? ORDER BY fecha DESC, canal''', (local_id,)).fetchall()
+    conn.close()
+    return jsonify([{'id': r['id'], 'fecha': r['fecha'], 'canal': r['canal'],
+                     'nombre_archivo': r['nombre_archivo'], 'created_by': r['created_by'],
+                     'updated_at': _fmt_ts(r['updated_at']),
+                     'cantidad_productos': len(json.loads(r['sales_data'] or '[]'))} for r in rows])
+
+@app.route('/api/biblioteca-ventas/<fecha>', methods=['GET'])
+@login_required
+def get_biblioteca_ventas_por_fecha(fecha):
+    local_id = request.args.get('local_id', type=int)
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    conn = get_db()
+    rows = conn.execute('SELECT canal, sales_data FROM biblioteca_ventas WHERE local_id=? AND fecha=?', (local_id, fecha)).fetchall()
+    conn.close()
+    return jsonify({'fecha': fecha, 'canales': [{'canal': r['canal'], 'sales': json.loads(r['sales_data'] or '[]')} for r in rows]})
+
+@app.route('/api/biblioteca-ventas', methods=['POST'])
+@login_required
+def guardar_biblioteca_ventas():
+    data = request.json
+    local_id = data.get('local_id')
+    fecha = data.get('fecha')
+    canal = data.get('canal') or 'delivery'
+    if not local_id or not user_has_local_access(local_id):
+        return jsonify({'error': 'No tenés acceso a ese local'}), 403
+    if not fecha:
+        return jsonify({'error': 'Falta la fecha'}), 400
+    conn = get_db()
+    conn.execute('''INSERT INTO biblioteca_ventas (local_id, fecha, canal, nombre_archivo, sales_data, created_by, updated_at)
+                     VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+                     ON CONFLICT (local_id, fecha, canal) DO UPDATE SET
+                       nombre_archivo=EXCLUDED.nombre_archivo, sales_data=EXCLUDED.sales_data,
+                       created_by=EXCLUDED.created_by, updated_at=CURRENT_TIMESTAMP''',
+                 (local_id, fecha, canal, data.get('nombre_archivo'), json.dumps(data.get('sales', [])), session['user_email']))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/biblioteca-ventas/<int:reg_id>', methods=['DELETE'])
+@login_required
+def borrar_biblioteca_ventas(reg_id):
+    conn = get_db()
+    existing = conn.execute('SELECT local_id FROM biblioteca_ventas WHERE id=?', (reg_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'No encontrado'}), 404
+    if not user_has_local_access(existing['local_id']):
+        conn.close()
+        return jsonify({'error': 'No tenés acceso'}), 403
+    conn.execute('DELETE FROM biblioteca_ventas WHERE id=?', (reg_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
     body = request.json
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp.close()
