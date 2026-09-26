@@ -2939,27 +2939,52 @@ async function renderHistorialCfg() {
   if (!ST.currentLocalId) { document.getElementById('historialCfg').innerHTML = '<div class="empty">Elegí un local primero.</div>'; return; }
   const planillas = await fetch(`/api/planillas?local_id=${ST.currentLocalId}`).then(r=>r.json());
   ST.historial = planillas;
-  let h = '<table><thead><tr><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:170px"></th></tr></thead><tbody>';
+  ST.historialSeleccion = ST.historialSeleccion || new Set();
+  const idsActuales = new Set(planillas.map(p=>p.id));
+  ST.historialSeleccion.forEach(id=>{ if(!idsActuales.has(id)) ST.historialSeleccion.delete(id); });
+  renderHistorialTabla();
+}
+function renderHistorialTabla() {
+  const planillas = ST.historial || [];
+  ST.historialSeleccion = ST.historialSeleccion || new Set();
+  let h = `<div class="row-between" style="margin-bottom:.75rem">
+    <button class="btn btn-sm btn-danger" onclick="borrarPlanillasSeleccionadas()" ${ST.historialSeleccion.size?'':'disabled'}>
+      <i class="ti ti-trash"></i> Borrar seleccionadas${ST.historialSeleccion.size?` (${ST.historialSeleccion.size})`:''}
+    </button>
+  </div>`;
+  h += `<table><thead><tr><th style="width:40px"><input type="checkbox" id="histCheckTodas" onchange="toggleTodasHistorial(this.checked)"></th><th>Fecha</th><th>Estado</th><th>Creada por</th><th>Última edición</th><th style="width:90px"></th></tr></thead><tbody>`;
   planillas.forEach(p=>{
     const estadoBadge = p.estado==='confirmada' ? '<span class="badge b-green">Confirmada</span>' : '<span class="badge b-warn">Borrador</span>';
-    h += `<tr><td style="font-weight:600">${p.fecha}</td><td>${estadoBadge}</td>
+    const marcada = ST.historialSeleccion.has(p.id);
+    h += `<tr><td><input type="checkbox" ${marcada?'checked':''} onchange="toggleSeleccionHistorial(${p.id},this.checked)"></td>
+      <td style="font-weight:600">${p.fecha}</td><td>${estadoBadge}</td>
       <td style="font-size:12px;color:var(--text2)">${p.created_by||'—'}</td>
       <td style="font-size:12px;color:var(--text3)">${fmtFechaHoraAR(p.updated_at)}</td>
-      <td><div class="row" style="gap:4px">
-        <button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button>
-        <button class="btn btn-sm btn-danger" onclick="borrarPlanilla(${p.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
-      </div></td></tr>`;
+      <td><button class="btn btn-sm btn-primary" onclick="abrirPlanilla(${p.id})"><i class="ti ti-folder-open"></i> Abrir</button></td></tr>`;
   });
   h += '</tbody></table>';
   if (!planillas.length) h = '<div class="empty">Todavía no hay planillas guardadas para este local.</div>';
   document.getElementById('historialCfg').innerHTML = h;
 }
-async function borrarPlanilla(id) {
-  if (!confirm('¿Eliminar esta planilla del historial? Esta acción no se puede deshacer.')) return;
-  const res = await fetch(`/api/planillas/${id}`, {method:'DELETE'});
-  const result = await res.json();
-  if (result.error) { alert(result.error); return; }
-  if (ST.currentPlanillaId === id) ST.currentPlanillaId = null;
+function toggleSeleccionHistorial(id, marcada) {
+  ST.historialSeleccion = ST.historialSeleccion || new Set();
+  if (marcada) ST.historialSeleccion.add(id); else ST.historialSeleccion.delete(id);
+  renderHistorialTabla();
+}
+function toggleTodasHistorial(marcarTodas) {
+  ST.historialSeleccion = new Set(marcarTodas ? (ST.historial||[]).map(p=>p.id) : []);
+  renderHistorialTabla();
+}
+async function borrarPlanillasSeleccionadas() {
+  const ids = [...(ST.historialSeleccion||[])];
+  if (!ids.length) return;
+  const plural = ids.length === 1 ? 'esta planilla' : `estas ${ids.length} planillas`;
+  if (!confirm(`¿Eliminar ${plural} del historial? Esta acción no se puede deshacer.`)) return;
+  for (const id of ids) {
+    await fetch(`/api/planillas/${id}`, {method:'DELETE'});
+    if (ST.currentPlanillaId === id) ST.currentPlanillaId = null;
+  }
+  ST.historialSeleccion = new Set();
   renderHistorialCfg();
 }
 
